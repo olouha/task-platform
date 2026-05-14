@@ -1,0 +1,28 @@
+{
+    "version": "1.0.0",
+    "database": {
+        "type": "mysql",
+        "host": "localhost",
+        "port": 3306,
+        "user": "root",
+        "password": "",
+        "database": "task_platform",
+        "charset": "utf8mb4"
+    },
+    "scheduler": {
+        "max_concurrent_tasks": 5,
+        "default_timeout": 300,
+        "retry_on_failure": true,
+        "max_retries": 3
+    },
+    "log": {
+        "level": "INFO",
+        "log_dir": "logs",
+        "max_log_files": 30
+    },
+    "ui": {
+        "theme": "light",
+        "window_size": [1200, 800],
+        "auto_refresh_interval": 30
+    }
+}

@@ -1,0 +1,87 @@
+2026-05-13 15:01:20,211 - INFO - 🔐 正在登录我的钢铁网...
+2026-05-13 15:01:20,216 - ERROR - ❌ 登录失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:20,217 - INFO - 尝试抓取: https://www.mysteel.com.cn/price/rebar.html
+2026-05-13 15:01:20,270 - INFO - 📡 请求: https://www.mysteel.com.cn/price/rebar.html
+2026-05-13 15:01:20,271 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:20,271 - INFO - 尝试抓取: https://www.mysteel.com.cn/price/index.html
+2026-05-13 15:01:20,318 - INFO - 📡 请求: https://www.mysteel.com.cn/price/index.html
+2026-05-13 15:01:20,319 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:20,320 - INFO - 尝试抓取: https://www.mysteel.com.cn/price/rebar/shandong.html
+2026-05-13 15:01:20,360 - INFO - 📡 请求: https://www.mysteel.com.cn/price/rebar/shandong.html
+2026-05-13 15:01:20,362 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:20,362 - INFO - 尝试抓取: https://www.mysteel.com.cn/market/rebar/yantai.html
+2026-05-13 15:01:20,403 - INFO - 📡 请求: https://www.mysteel.com.cn/market/rebar/yantai.html
+2026-05-13 15:01:20,405 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:20,406 - WARNING - ⚠️ 无法抓取真实页面，使用模拟数据进行演示
+2026-05-13 15:01:20,407 - INFO - 📊 生成模拟数据: 4 种材料
+2026-05-13 15:01:20,407 - INFO -    - HRB400螺纹钢筋 (Φ12-25mm): ¥4147/元/吨
+2026-05-13 15:01:20,407 - INFO -    - HPB300光圆钢筋 (Φ8-10mm): ¥3942/元/吨
+2026-05-13 15:01:20,407 - INFO -    - HRB400E螺纹钢筋 (Φ12-25mm): ¥4242/元/吨
+2026-05-13 15:01:20,407 - INFO -    - HRB500螺纹钢筋 (Φ12-25mm): ¥4142/元/吨
+2026-05-13 15:01:31,423 - INFO - 🔐 正在登录我的钢铁网...
+2026-05-13 15:01:31,424 - ERROR - ❌ 登录失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:31,424 - INFO - 尝试抓取: https://www.mysteel.com.cn/price/rebar.html
+2026-05-13 15:01:31,462 - INFO - 📡 请求: https://www.mysteel.com.cn/price/rebar.html
+2026-05-13 15:01:31,464 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:31,464 - INFO - 尝试抓取: https://www.mysteel.com.cn/price/index.html
+2026-05-13 15:01:31,507 - INFO - 📡 请求: https://www.mysteel.com.cn/price/index.html
+2026-05-13 15:01:31,508 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:31,508 - INFO - 尝试抓取: https://www.mysteel.com.cn/price/rebar/shandong.html
+2026-05-13 15:01:31,549 - INFO - 📡 请求: https://www.mysteel.com.cn/price/rebar/shandong.html
+2026-05-13 15:01:31,550 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:31,551 - INFO - 尝试抓取: https://www.mysteel.com.cn/market/rebar/yantai.html
+2026-05-13 15:01:31,590 - INFO - 📡 请求: https://www.mysteel.com.cn/market/rebar/yantai.html
+2026-05-13 15:01:31,591 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:01:31,591 - WARNING - ⚠️ 无法抓取真实页面，使用模拟数据进行演示
+2026-05-13 15:01:31,592 - INFO - 📊 生成模拟数据: 4 种材料
+2026-05-13 15:01:31,592 - INFO -    - HRB400螺纹钢筋 (Φ12-25mm): ¥3894/元/吨
+2026-05-13 15:01:31,592 - INFO -    - HPB300光圆钢筋 (Φ8-10mm): ¥4222/元/吨
+2026-05-13 15:01:31,592 - INFO -    - HRB400E螺纹钢筋 (Φ12-25mm): ¥3912/元/吨
+2026-05-13 15:01:31,592 - INFO -    - HRB500螺纹钢筋 (Φ12-25mm): ¥4268/元/吨
+2026-05-13 15:01:31,593 - ERROR - ❌ 保存失败: No module named 'supabase'
+2026-05-13 15:01:31,595 - INFO - ✅ 成功保存 4 条价格记录到本地文件
+2026-05-13 15:08:12,080 - INFO - 正在登录我的钢铁网...
+2026-05-13 15:08:12,082 - ERROR - 登录失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:08:12,126 - INFO - 📡 请求: https://jiancai.mysteel.com/market/pa228aa010101a0a01010205aaaa1.html
+2026-05-13 15:08:12,127 - ERROR - ❌ 请求失败: 'latin-1' codec can't encode characters in position 93-96: ordinal not in range(256)
+2026-05-13 15:08:12,128 - WARNING - 无法抓取真实页面，使用模拟数据
+2026-05-13 15:08:12,128 - INFO - 📊 生成模拟数据: 4 种材料
+2026-05-13 15:08:12,129 - INFO -    - HRB400螺纹钢筋 (Φ12-25mm): ¥3882/元/吨
+2026-05-13 15:08:12,131 - INFO -    - HPB300光圆钢筋 (Φ8-10mm): ¥4101/元/吨
+2026-05-13 15:08:12,131 - INFO -    - HRB400E螺纹钢筋 (Φ12-25mm): ¥4076/元/吨
+2026-05-13 15:08:12,131 - INFO -    - HRB500螺纹钢筋 (Φ12-25mm): ¥4244/元/吨
+2026-05-13 15:08:12,132 - ERROR - ❌ 保存失败: No module named 'supabase'
+2026-05-13 15:08:12,133 - INFO - 今日(2026-05-13)数据已存在，跳过保存
+2026-05-13 15:14:02,570 - INFO - 正在登录我的钢铁网...
+2026-05-13 15:14:03,276 - INFO - 请求页面: https://jiancai.mysteel.com/market/pa228aa010101a0a01010205aaaa1.html
+2026-05-13 15:14:04,514 - INFO - 页面获取成功，内容长度: 16283
+2026-05-13 15:14:05,671 - INFO - 找到 0 个表格
+2026-05-13 15:14:05,672 - INFO - 找到 0 个潜在价格
+2026-05-13 15:27:35,883 - INFO - 打开页面: https://jiancai.mysteel.com/market/pa228aa010101a0a01010205aaaa1.html
+2026-05-13 15:27:47,814 - INFO - 页面加载成功，长度: 282971
+2026-05-13 15:27:49,072 - INFO - 找到 0 个潜在价格
+2026-05-13 15:27:49,072 - INFO - 去重后: []
+2026-05-13 15:45:53,314 - INFO - 打开列表页: https://jiancai.mysteel.com/market/pa228aa010101a0a01010205aaaa1.html
+2026-05-13 15:46:02,713 - WARNING - 未找到详情页，使用默认格式: https://jiancai.mysteel.com/m/26051310/xxx.html
+2026-05-13 15:50:47,940 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 15:51:01,814 - INFO - 找到价格范围: 3320-3380 元/吨
+2026-05-13 15:51:01,815 - INFO - 抓取成功: 1 种材料
+2026-05-13 15:51:01,815 - INFO -    - HRB400E螺纹钢筋: 3320-3380/元/吨
+2026-05-13 15:51:02,720 - INFO - 今日(2026-05-13)数据已存在，跳过保存
+2026-05-13 15:51:43,849 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 15:51:56,806 - INFO - 找到价格范围: 3320-3380 元/吨
+2026-05-13 15:51:56,807 - INFO - 抓取成功: 1 种材料
+2026-05-13 15:51:56,807 - INFO -    - HRB400E螺纹钢筋: 3320-3380/元/吨
+2026-05-13 15:51:57,746 - INFO - 保存 1 条价格记录
+2026-05-13 16:38:27,322 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 16:38:43,598 - INFO - 找到价格范围: 3320-3380 元/吨
+2026-05-13 16:38:43,603 - INFO - 抓取成功: 1 种材料
+2026-05-13 16:38:43,603 - INFO -    - HRB400E螺纹钢筋: 3320-3380/元/吨
+2026-05-13 16:38:44,570 - INFO - 保存 1 条价格记录到Excel: data/山东烟台钢筋价格.xlsx
+2026-05-13 16:56:31,156 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 16:56:44,060 - INFO - 截图已保存
+2026-05-13 16:56:44,736 - INFO - 找到价格范围: 3320-3380 元/吨
+2026-05-13 16:56:44,737 - INFO - 抓取成功: 1 种材料
+2026-05-13 16:56:44,738 - INFO -    - HRB400E螺纹钢筋: 3320-3380/元/吨
+2026-05-13 16:56:45,603 - INFO - 截图已保存到sheet: 2026-05-13
+2026-05-13 16:56:45,647 - INFO - 保存成功: data/山东烟台钢筋价格.xlsx, Sheet: 2026-05-13

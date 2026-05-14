@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志
+logs/*.log
+
+# 截图
+screenshots/*.png
+
+# 数据库（本地SQLite）
+*.db
+*.sqlite
+task_platform.db
+
+# Cookie和敏感文件
+*cookies*.json
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+frontend/node_modules/
+
+# 构建产物
+build/
+dist/
+web/frontend/dist/
+web/cloudflare-wrangler/.wrangler/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.temp
+.env
+
+# 调试截图
+*.png
+
+# 压缩包
+*.zip
+*.rar
+*.7z
+
+# 临时脚本（调试用）
+*debug*.py
+*test*.py
+*analyze*.py
+*find_*.py
+*scrape*.py

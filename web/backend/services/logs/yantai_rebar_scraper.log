@@ -1,0 +1,207 @@
+2026-05-13 17:44:21,452 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 17:44:46,370 - INFO - 截图已保存
+2026-05-13 17:44:46,395 - INFO - 抓取成功: 19 种材料
+2026-05-13 17:44:46,395 - INFO -    - 螺纹钢: 12条
+2026-05-13 17:44:46,396 - INFO -    - 盘螺: 3条
+2026-05-13 17:44:46,396 - INFO -    - 圆钢: 4条
+2026-05-13 17:44:47,349 - INFO - 截图已保存到sheet: 2026-05-13
+2026-05-13 17:44:47,413 - INFO - 保存成功: data/山东烟台钢筋价格.xlsx, Sheet: 2026-05-13
+2026-05-13 17:51:54,480 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 17:52:11,021 - INFO - 价格数据不完整，尝试登录...
+2026-05-13 17:52:11,027 - ERROR - 抓取失败: Page.evaluate: SyntaxError: Failed to execute 'querySelectorAll' on 'Document': 'a[href*="login"], button:has-text("登录"), .login-btn, [class*="login"]' is not a valid selector.
+    at eval (eval at evaluate (:290:30), <anonymous>:2:52)
+    at UtilityScript.evaluate (<anonymous>:297:18)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+2026-05-13 17:52:39,504 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 17:52:55,558 - INFO - 价格数据不完整，尝试登录...
+2026-05-13 17:53:07,609 - WARNING - 保存Cookie失败: Object of type coroutine is not JSON serializable
+2026-05-13 17:53:08,881 - INFO - 截图已保存
+2026-05-13 17:53:09,048 - INFO - 抓取成功: 19 种材料
+2026-05-13 17:53:09,050 - INFO -    - 螺纹钢: 12条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-13 17:53:09,050 - INFO -    - 盘螺: 3条, 品牌: 日照, 江苏镔鑫
+2026-05-13 17:53:09,050 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-13 17:53:09,868 - INFO - 删除旧sheet: 2026-05-13
+2026-05-13 17:53:09,907 - INFO - 截图已保存到sheet: 2026-05-13
+2026-05-13 17:53:10,021 - INFO - 保存成功: data/山东烟台钢筋价格.xlsx, Sheet: 2026-05-13
+2026-05-13 17:57:34,256 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 17:57:50,480 - INFO - 价格数据不完整，尝试登录...
+2026-05-13 17:57:57,355 - INFO - 登录弹窗截图已保存
+2026-05-13 17:58:27,395 - ERROR - 抓取失败: Page.fill: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("input[type=\"password\"]")
+    - locator resolved to 2 elements. Proceeding with the first one: <input type="password" placeholder="请输入密码" autocomplete="new-password"/>
+    - fill("mysteel573005")
+  - attempting fill action
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+    - waiting 20ms
+    2 × waiting for element to be visible, enabled and editable
+      - element is not visible
+    - retrying fill action
+      - waiting 100ms
+    58 × waiting for element to be visible, enabled and editable
+       - element is not visible
+     - retrying fill action
+       - waiting 500ms
+
+2026-05-13 18:00:02,015 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 18:00:20,646 - INFO - 价格数据不完整，尝试登录...
+2026-05-13 18:00:27,412 - INFO - 登录弹窗截图已保存
+2026-05-13 18:01:00,073 - ERROR - 抓取失败: Page.click: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator("button[type=\"submit\"]")
+
+2026-05-13 18:07:20,622 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 18:07:37,204 - INFO - 价格数据不完整，尝试登录...
+2026-05-13 18:07:43,937 - INFO - 已切换到账号登录
+2026-05-13 18:07:53,067 - INFO - 登录完成
+2026-05-13 18:07:53,079 - INFO - Cookie已保存
+2026-05-13 18:08:06,255 - INFO - 截图已保存
+2026-05-13 18:08:06,298 - INFO - 抓取成功: 111 种材料
+2026-05-13 18:08:06,298 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-13 18:08:06,299 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-13 18:08:06,299 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-13 18:08:06,299 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-13 18:08:07,044 - INFO - 删除旧sheet: 2026-05-13
+2026-05-13 18:08:07,142 - INFO - 截图已保存到sheet: 2026-05-13
+2026-05-13 18:08:07,220 - INFO - 保存成功: data/山东烟台钢筋价格.xlsx, Sheet: 2026-05-13
+2026-05-13 18:13:03,189 - INFO - 已加载保存的Cookie
+2026-05-13 18:13:03,529 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 18:13:20,220 - INFO - 截图已保存
+2026-05-13 18:13:20,263 - INFO - 抓取成功: 111 种材料
+2026-05-13 18:13:20,264 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-13 18:13:20,264 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-13 18:13:20,264 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-13 18:13:20,265 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-13 18:13:21,017 - INFO - 删除旧sheet: 2026-05-13
+2026-05-13 18:13:21,122 - INFO - 截图已保存到sheet: 2026-05-13
+2026-05-13 18:13:21,192 - INFO - 保存成功: data/山东烟台钢筋价格.xlsx, Sheet: 2026-05-13
+2026-05-13 18:14:55,985 - INFO - 已加载保存的Cookie
+2026-05-13 18:14:56,300 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051310/C7E274318523C3AE.html
+2026-05-13 18:15:13,783 - INFO - 截图已保存
+2026-05-13 18:15:13,809 - INFO - 抓取成功: 111 种材料
+2026-05-13 18:15:13,809 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-13 18:15:13,809 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-13 18:15:13,809 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-13 18:15:13,809 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-13 18:15:14,483 - INFO - 删除旧sheet: 2026-05-13
+2026-05-13 18:15:14,579 - INFO - 截图已保存到sheet: 2026-05-13
+2026-05-13 18:15:14,646 - INFO - 保存成功: data/山东烟台钢筋价格.xlsx, Sheet: 2026-05-13
+2026-05-13 18:37:39,218 - ERROR - 抓取失败: asyncio.run() cannot be called from a running event loop
+2026-05-13 18:38:31,219 - ERROR - 抓取失败: asyncio.run() cannot be called from a running event loop
+2026-05-13 19:00:30,414 - ERROR - Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
+Traceback (most recent call last):
+  File "C:\Program Files\Python311\Lib\asyncio\events.py", line 84, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Program Files\Python311\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+2026-05-14 09:12:51,294 - INFO - 已加载 59 个Cookie
+2026-05-14 09:12:51,323 - INFO - 已加载Cookie
+2026-05-14 09:12:51,323 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/C7E274318523C3AE.html
+2026-05-14 09:13:04,977 - INFO - 价格数据不完整，需要登录...
+2026-05-14 09:13:04,979 - INFO - 开始登录...
+2026-05-14 09:13:13,683 - INFO - 已切换到账号登录
+2026-05-14 09:13:13,743 - INFO - 已填写用户名密码
+2026-05-14 09:13:14,342 - INFO - 等待登录完成...
+2026-05-14 09:13:22,363 - INFO - Cookie已保存到 E:\E\任务\task-platform\web\backend\services\data\mysteel_cookies.json
+2026-05-14 09:13:22,364 - INFO - 登录成功，Cookie已保存
+2026-05-14 09:13:33,263 - INFO - 截图已保存
+2026-05-14 09:25:34,069 - INFO - 已加载 55 个Cookie
+2026-05-14 09:25:34,087 - INFO - 已加载Cookie
+2026-05-14 09:25:34,087 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/C7E274318523C3AE.html
+2026-05-14 09:25:47,631 - INFO - 价格数据不完整，需要登录...
+2026-05-14 09:25:47,631 - INFO - 开始登录...
+2026-05-14 09:25:56,324 - INFO - 已切换到账号登录
+2026-05-14 09:25:56,362 - INFO - 已填写用户名密码
+2026-05-14 09:25:56,922 - INFO - 等待登录完成...
+2026-05-14 09:26:04,949 - INFO - Cookie已保存到 E:\E\任务\task-platform\web\backend\services\data\mysteel_cookies.json
+2026-05-14 09:26:04,949 - INFO - 登录成功，Cookie已保存
+2026-05-14 09:26:16,826 - INFO - 截图已保存
+2026-05-14 09:34:14,181 - INFO - 已加载 59 个Cookie
+2026-05-14 09:34:14,205 - INFO - 已加载Cookie
+2026-05-14 09:34:14,205 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/C7E274318523C3AE.html
+2026-05-14 09:34:28,679 - WARNING - JS提取失败: No table found
+2026-05-14 09:34:28,679 - INFO - 价格数据不完整，需要登录...
+2026-05-14 09:34:28,680 - INFO - 开始登录...
+2026-05-14 09:34:35,726 - INFO - 已切换到账号登录
+2026-05-14 09:34:38,021 - INFO - 已填写用户名
+2026-05-14 09:34:38,035 - INFO - 已填写密码
+2026-05-14 09:34:39,154 - INFO - 已点击登录按钮
+2026-05-14 09:34:39,154 - INFO - 等待登录完成...
+2026-05-14 09:34:47,179 - INFO - Cookie已保存到 E:\E\任务\task-platform\web\backend\services\data\mysteel_cookies.json
+2026-05-14 09:34:47,179 - INFO - 登录成功，Cookie已保存
+2026-05-14 09:34:59,035 - INFO - 截图已保存
+2026-05-14 09:34:59,043 - WARNING - JS提取失败: No table found
+2026-05-14 11:30:25,675 - INFO - 已加载 14 个Cookie
+2026-05-14 11:30:25,719 - INFO - 已加载Cookie
+2026-05-14 11:30:25,719 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/C7E274318523C3AE.html
+2026-05-14 11:30:42,694 - WARNING - JS提取失败: No table found
+2026-05-14 11:30:42,695 - INFO - 价格数据不完整，需要登录...
+2026-05-14 11:30:42,695 - INFO - 开始登录...
+2026-05-14 11:30:49,900 - INFO - 已切换到账号登录
+2026-05-14 11:30:52,177 - INFO - 已填写用户名
+2026-05-14 11:30:52,192 - INFO - 已填写密码
+2026-05-14 11:30:53,295 - INFO - 已点击登录按钮
+2026-05-14 11:30:53,295 - INFO - 等待登录完成...
+2026-05-14 11:31:01,360 - INFO - Cookie已保存到 E:\E\任务\task-platform\web\backend\services\data\mysteel_cookies.json
+2026-05-14 11:31:01,361 - INFO - 登录成功，Cookie已保存
+2026-05-14 11:31:19,460 - INFO - 截图已保存
+2026-05-14 11:31:19,469 - WARNING - JS提取失败: No table found
+2026-05-14 11:31:19,469 - INFO - 首次解析无数据，等待后重试...
+2026-05-14 11:31:29,492 - WARNING - JS提取失败: No table found
+2026-05-14 13:15:00,801 - ERROR - Exception in callback _ProactorBasePipeTransport._call_connection_lost(None)
+handle: <Handle _ProactorBasePipeTransport._call_connection_lost(None)>
+Traceback (most recent call last):
+  File "C:\Program Files\Python311\Lib\asyncio\events.py", line 84, in _run
+    self._context.run(self._callback, *self._args)
+  File "C:\Program Files\Python311\Lib\asyncio\proactor_events.py", line 165, in _call_connection_lost
+    self._sock.shutdown(socket.SHUT_RDWR)
+ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有的连接。
+2026-05-14 14:11:14,539 - INFO - 已加载 47 个Cookie
+2026-05-14 14:11:14,592 - INFO - 已加载Cookie
+2026-05-14 14:11:14,593 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/C7E274318523C3AE.html
+2026-05-14 14:11:32,627 - WARNING - JS提取失败: No table found
+2026-05-14 14:11:32,627 - INFO - 价格数据不完整，需要登录...
+2026-05-14 14:11:32,628 - INFO - 开始登录...
+2026-05-14 14:11:40,078 - INFO - 已切换到账号登录
+2026-05-14 14:11:42,568 - INFO - 已填写用户名
+2026-05-14 14:11:42,594 - INFO - 已填写密码
+2026-05-14 14:11:43,714 - INFO - 已点击登录按钮
+2026-05-14 14:11:43,714 - INFO - 等待登录完成...
+2026-05-14 14:11:51,758 - INFO - Cookie已保存到 E:\E\任务\task-platform\web\backend\services\data\mysteel_cookies.json
+2026-05-14 14:11:51,759 - INFO - 登录成功，Cookie已保存
+2026-05-14 14:12:09,079 - INFO - 截图已保存
+2026-05-14 14:12:09,095 - WARNING - JS提取失败: No table found
+2026-05-14 14:12:09,095 - INFO - 首次解析无数据，等待后重试...
+2026-05-14 14:12:19,120 - WARNING - JS提取失败: No table found
+2026-05-14 15:56:11,604 - INFO - 已加载 50 个Cookie
+2026-05-14 15:56:11,642 - INFO - 已加载Cookie
+2026-05-14 15:56:11,642 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/C7E274318523C3AE.html
+2026-05-14 15:56:22,910 - WARNING - JS提取失败: No table found
+2026-05-14 15:56:22,910 - INFO - 价格数据不完整，需要登录...
+2026-05-14 15:56:22,911 - INFO - 开始登录...
+2026-05-14 15:56:33,090 - INFO - 已切换到账号登录
+2026-05-14 15:56:35,525 - INFO - 已填写用户名
+2026-05-14 15:56:35,549 - INFO - 已填写密码
+2026-05-14 15:56:36,692 - INFO - 已点击登录按钮
+2026-05-14 15:56:36,695 - INFO - 等待登录完成...
+2026-05-14 15:56:44,733 - INFO - Cookie已保存到 E:\E\任务\task-platform\web\backend\services\data\mysteel_cookies.json
+2026-05-14 15:56:44,734 - INFO - 登录成功，Cookie已保存
+2026-05-14 15:57:00,919 - INFO - 截图已保存
+2026-05-14 15:57:00,932 - WARNING - JS提取失败: No table found
+2026-05-14 15:57:00,932 - INFO - 首次解析无数据，等待后重试...
+2026-05-14 15:57:10,965 - WARNING - JS提取失败: No table found
+2026-05-14 15:57:50,869 - INFO - 已加载 52 个Cookie
+2026-05-14 16:38:38,658 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-14
+2026-05-14 16:47:00,246 - INFO - 配置已保存: username=M6616592358
+2026-05-14 16:47:00,247 - INFO - 旧Cookie已删除，将重新登录
+2026-05-14 16:48:13,792 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/25B3355C6617BD3C.html
+2026-05-14 16:48:30,544 - INFO - 截图已保存
+2026-05-14 16:51:24,268 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/25B3355C6617BD3C.html
+2026-05-14 16:51:37,975 - INFO - 截图已保存
+2026-05-14 16:57:07,128 - INFO - 配置已保存: username=M6616592358
+2026-05-14 16:57:12,172 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/25B3355C6617BD3C.html
+2026-05-14 16:57:25,582 - INFO - 截图已保存

@@ -1,0 +1,156 @@
+name: 钢筋价格定时抓取
+
+on:
+  # 每天早上 8:00 (北京时间) 执行
+  # GitHub Actions 使用 UTC 时间，8:00 北京时间 = 0:00 UTC
+  schedule:
+    - cron: '0 0 * * *'
+
+  # 也可以手动触发
+  workflow_dispatch:
+    inputs:
+      force:
+        description: '强制重新抓取'
+        required: false
+        default: 'false'
+
+jobs:
+  fetch-prices:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          pip install playwright
+          playwright install chromium
+
+      - name: 配置环境变量
+        run: |
+          cat >> $GITHUB_ENV << EOF
+          SCRAPER_USERNAME=${{ secrets.MYSTEEL_USERNAME }}
+          SCRAPER_PASSWORD=${{ secrets.MYSTEEL_PASSWORD }}
+          EOF
+
+      - name: 执行抓取
+        id: fetch
+        run: |
+          cd web/backend/services
+
+          # 创建抓取脚本
+          cat > fetch_task.py << 'PYTHON_SCRIPT'
+import asyncio
+import os
+import sys
+from pathlib import Path
+
+sys.path.insert(0, '.')
+
+from yantai_rebar_scraper import YantaiRebarScraper, save_to_excel
+
+async def main():
+    username = os.environ.get('SCRAPER_USERNAME', '')
+    password = os.environ.get('SCRAPER_PASSWORD', '')
+
+    scraper = YantaiRebarScraper(
+        username=username or "M6616592358",
+        password=password or "mysteel573005"
+    )
+
+    # 强制抓取
+    result = await scraper.fetch_async(force=True)
+
+    if result.success and result.prices:
+        save_to_excel(result)
+        print(f"抓取成功: {len(result.prices)} 条数据")
+
+        # 保存抓取记录
+        import json
+        record = {
+            'last_fetch': result.fetched_at,
+            'success': True,
+            'prices_count': len(result.prices),
+            'region': '山东烟台'
+        }
+
+        log_dir = Path('logs')
+        log_dir.mkdir(exist_ok=True)
+
+        with open(log_dir / 'yantai_last_fetch.json', 'w', encoding='utf-8') as f:
+            json.dump(record, f, ensure_ascii=False, indent=2)
+
+        print(f"数据已保存")
+    else:
+        print(f"抓取失败: {result.error_message}")
+
+    return result.success
+
+if __name__ == '__main__':
+    asyncio.run(main())
+    PYTHON_SCRIPT
+
+          # 执行抓取
+          python fetch_task.py
+
+      - name: 验证结果
+        run: |
+          echo "检查抓取结果..."
+          ls -la web/backend/services/data/
+          ls -la web/backend/services/logs/
+
+      - name: 上传数据到 GitHub Actions Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-data-${{ github.run_number }}
+          path: |
+            web/backend/services/data/
+            web/backend/services/logs/
+          retention-days: 30
+
+      - name: 通知结果（可选）
+        if: always()
+        run: |
+          echo "GitHub Actions 执行完成"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "Run Number: ${{ github.run_number }}"
+
+  # 提交数据更新到仓库
+  commit-data:
+    needs: fetch-prices
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: 下载数据
+        uses: actions/download-artifact@v4
+        with:
+          name: price-data-${{ github.run_number }}
+          path: web/backend/services/
+
+      - name: 提交更新
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add web/backend/services/data/
+          git add web/backend/services/logs/
+
+          if git diff --staged --quiet; then
+            echo "没有数据更新，跳过提交"
+          else
+            git commit -m "更新钢筋价格数据 $(date +'%Y-%m-%d')"
+            git push
+          fi

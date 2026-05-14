@@ -1,0 +1,28 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "nixpacksJson": {
+      "name": "task-platform",
+      "version": "1.0.0",
+      "pythonVersion": "3.11",
+      "installCommand": "pip install -r requirements.txt",
+      "buildCommand": "",
+      "startCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT"
+    }
+  },
+  "deploy": {
+    "numInstances": 1,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyLimit": 5,
+    "sleep": true
+  },
+  "triggers": [
+    {
+      "id": "daily-fetch",
+      "name": "每日抓取价格",
+      "cron": "0 8 * * *",
+      "command": "cd services && python fetch_yantai.py"
+    }
+  ]
+}

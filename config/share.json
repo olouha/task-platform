@@ -1,0 +1,5 @@
+{
+  "mode": "file-share",
+  "data_file": "data/shared_data.json",
+  "version": "1.0.0"
+}

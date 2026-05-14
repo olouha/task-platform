@@ -1,0 +1,280 @@
+"""
+完整抓取流程：登录 + 抓取 + 保存Excel含截图
+"""
+import asyncio
+import sys
+import json
+import base64
+from pathlib import Path
+from datetime import datetime
+from dataclasses import dataclass
+
+sys.path.insert(0, '.')
+
+from playwright.async_api import async_playwright
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.drawing.image import Image
+from openpyxl.utils import get_column_letter
+
+DATA_DIR = Path('services/data')
+DATA_DIR.mkdir(exist_ok=True)
+
+
+@dataclass
+class MaterialPrice:
+    material_name: str = ''
+    spec: str = ''
+    material_type: str = ''
+    brand: str = ''
+    price: float = 0.0
+    unit: str = '元/吨'
+    region: str = '山东烟台'
+
+
+def save_to_excel_with_screenshot(prices, screenshot_b64, excel_file=None):
+    """保存到Excel（包含截图）"""
+    if excel_file is None:
+        excel_file = DATA_DIR / '山东烟台钢筋价格.xlsx'
+
+    header_font = Font(bold=True, size=12, color='FFFFFF')
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    thin_border = Border(
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'), bottom=Side(style='thin')
+    )
+
+    if Path(excel_file).exists():
+        wb = openpyxl.load_workbook(excel_file)
+    else:
+        wb = openpyxl.Workbook()
+        if 'Sheet' in wb.sheetnames:
+            del wb['Sheet']
+
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    if today_str in wb.sheetnames:
+        del wb[today_str]
+
+    ws = wb.create_sheet(title=today_str)
+
+    # 标题
+    ws.merge_cells('A1:K1')
+    ws.cell(row=1, column=1, value=f'山东烟台钢筋价格 - {today_str} (品牌维度)').font = Font(bold=True, size=14)
+    ws.cell(row=1, column=1).alignment = Alignment(horizontal='center')
+
+    # 表头
+    headers = ['日期', '时间', '品名', '规格', '材质', '品牌/钢厂', '单价(元/吨)', '涨跌', '备注', '钢号', '地区']
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=3, column=col, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.border = thin_border
+
+    # 数据
+    fetch_time = datetime.now().strftime('%H:%M:%S')
+    for i, price in enumerate(prices):
+        row = 4 + i
+        # 支持字典和MaterialPrice两种格式
+        if isinstance(price, dict):
+            material_name = price.get('material_name', '')
+            spec = price.get('spec', '')
+            material_type = price.get('material_type', '')
+            brand = price.get('brand', '')
+            price_val = price.get('price', 0)
+            region = price.get('region', '山东烟台')
+        else:
+            material_name = price.material_name
+            spec = price.spec
+            material_type = price.material_type
+            brand = price.brand
+            price_val = price.price
+            region = price.region
+
+        for col, val in enumerate([today_str, fetch_time, material_name, spec,
+                                   material_type, brand, price_val, '', '', '', region], 1):
+            cell = ws.cell(row=row, column=col, value=val)
+            cell.border = thin_border
+
+    # 嵌入截图
+    screenshot_path = DATA_DIR / f'screenshot_{today_str.replace("-", "")}.png'
+    with open(screenshot_path, 'wb') as f:
+        f.write(base64.b64decode(screenshot_b64))
+
+    row = 4 + len(prices) + 2
+    ws.cell(row=row, column=1, value='当日截图').font = Font(bold=True, size=12)
+
+    img = Image(str(screenshot_path))
+    img.width = 900
+    img.height = 500
+    img.anchor = f'A{row + 1}'
+    ws.add_image(img)
+
+    wb.save(excel_file)
+    wb.close()
+    print(f'Excel已保存: {excel_file}')
+    print(f'数据: {len(prices)}条, 图片: 1张')
+
+
+def load_credentials():
+    """从配置文件加载凭据"""
+    config_file = DATA_DIR / 'mysteel_config.json'
+    if config_file.exists():
+        try:
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config.get('username', 'M6616592358'), config.get('password', 'mysteel573005')
+        except: pass
+    return 'M6616592358', 'mysteel573005'
+
+
+async def run_fetch():
+    """运行抓取，返回结果字典"""
+    from services.websocket_manager import ws_manager
+    from datetime import datetime
+
+    cookie_file = DATA_DIR / 'mysteel_cookies.json'
+    username, password = load_credentials()
+    print(f'使用凭据: {username[:3]}***')
+
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        context = await browser.new_context(viewport={'width': 1920, 'height': 3000}, locale='zh-CN')
+        page = await context.new_page()
+
+        try:
+            # 1. 登录
+            print('1. 登录...')
+            await page.goto('https://passport.mysteel.com/', wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(5000)
+
+            # 切换到账号登录
+            try:
+                account_tab = await page.query_selector('.form-tab-account, a[data-tab="account"]')
+                if account_tab:
+                    await account_tab.click()
+                    await page.wait_for_timeout(2000)
+            except: pass
+
+            # 填写表单
+            await page.evaluate(f'''() => {{
+                const inputs = document.querySelectorAll('input');
+                for (const inp of inputs) {{
+                    const ph = inp.placeholder || '';
+                    if (ph.includes('用户名')) inp.value = '{username}';
+                    if (ph.includes('密码') && inp.type === 'password') inp.value = '{password}';
+                }}
+            }}''')
+
+            await page.wait_for_timeout(500)
+
+            # 登录
+            try:
+                login_btn = await page.query_selector('.form-button-login, button:has-text("登录")')
+                if login_btn:
+                    await login_btn.click()
+            except: pass
+
+            await page.wait_for_timeout(8000)
+            print('  登录完成')
+
+            # 保存Cookie
+            cookies = await context.cookies()
+            with open(cookie_file, 'w', encoding='utf-8') as f:
+                json.dump(cookies, f, ensure_ascii=False)
+            print(f'  Cookie已保存: {len(cookies)}条')
+
+            # 2. 访问价格页
+            print('2. 访问价格页...')
+            url = 'https://jiancai.mysteel.com/m/26051410/25B3355C6617BD3C.html'
+            await page.goto(url, wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(10000)
+
+            print(f'  URL: {page.url}')
+
+            # 截图
+            screenshot = await page.screenshot(full_page=True)
+            screenshot_b64 = base64.b64encode(screenshot).decode('utf-8')
+            print('  截图已保存')
+
+            # 3. 提取价格
+            print('3. 提取价格...')
+            data = await page.evaluate('''() => {
+                const tables = document.querySelectorAll('table');
+                const results = [];
+                tables.forEach((table, idx) => {
+                    const rows = table.querySelectorAll('tr');
+                    const tableData = [];
+                    rows.forEach((row) => {
+                        const cells = row.querySelectorAll('td, th');
+                        const rowData = [];
+                        cells.forEach(c => rowData.push(c.textContent.trim()));
+                        if (rowData.length > 0) tableData.push(rowData);
+                    });
+                    if (tableData.length > 0) results.push({idx, rows: tableData});
+                });
+                return results;
+            }''')
+
+            prices = []
+            for t in data:
+                for row in t['rows']:
+                    if row and len(row) >= 5:
+                        material_name = row[0].strip()
+                        spec = row[1].strip()
+                        material_type = row[2].strip()
+                        brand = row[3].strip()
+                        price_str = row[4].strip()
+
+                        valid_names = ['高线', '螺纹钢', '盘螺', '圆钢']
+                        if material_name in valid_names and spec.startswith('Φ') and price_str.isdigit():
+                            try:
+                                prices.append({
+                                    'material_name': material_name,
+                                    'spec': spec,
+                                    'material_type': material_type,
+                                    'brand': brand,
+                                    'price': float(price_str)
+                                })
+                            except: pass
+
+            print(f'  提取到 {len(prices)} 条价格')
+
+            # 4. 保存到Excel
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            if prices:
+                print('4. 保存到Excel...')
+                save_to_excel_with_screenshot(prices, screenshot_b64)
+                # 推送通知到前端
+                await ws_manager.notify_fetch_success(len(prices), today_str)
+            else:
+                print('未提取到价格数据')
+                await ws_manager.notify_fetch_failed('未提取到价格数据')
+
+            await browser.close()
+
+            return {
+                'success': len(prices) > 0,
+                'prices': prices,
+                'source_name': '我的钢铁网-山东烟台',
+                'fetched_at': datetime.now().isoformat(),
+                'screenshot': screenshot_b64
+            }
+
+        except Exception as e:
+            print(f'错误: {e}')
+            await ws_manager.notify_fetch_failed(str(e))
+            return {
+                'success': False,
+                'error': str(e),
+                'prices': []
+            }
+
+
+async def main():
+    result = await run_fetch()
+    print(f'抓取完成: 成功={result["success"]}, 数据={len(result.get("prices", []))}')
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

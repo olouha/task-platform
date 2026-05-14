@@ -1,0 +1,12 @@
+name = "taskplatform-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "production"
+
+# D1 数据库绑定
+[[d1_databases]]
+binding = "taskplatform_db"
+database_name = "taskplatform-db"
+database_id = "7c7b2524-1737-4a2e-9f29-86b7bd7757c1"

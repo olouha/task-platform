@@ -1,0 +1,15 @@
+"""
+Railway.toml - Railway 部署配置
+Railway 会自动执行这个定时任务
+"""
+
+# Railway 定时任务配置
+# https://railway.app/docs/deploy/triggers
+
+[[trigger]]
+id = "daily-price-fetch"
+name = "每日价格抓取"
+cron = "0 8 * * *"  # 每天早上8点执行
+
+# 触发时执行的命令
+command = "python -m services.cloud_scraper"

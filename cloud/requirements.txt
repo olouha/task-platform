@@ -1,0 +1,4 @@
+# PythonAnywhere 部署配置
+# 这个文件告诉平台怎么运行我们的服务
+
+# web: gunicorn app:server --bind 0.0.0.0:5000

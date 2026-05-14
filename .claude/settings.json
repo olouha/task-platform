@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from main import app; print\\('导入成功'\\)\")",
+      "Bash(curl -L -o \"error_screenshot.png\" \"https://minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com/ccv2%2F2026-05-13%2FMiniMax-M2.7%2F2044785210641355277%2Fc4487994eae5887cec54bfd25c430c1164ad39b80af49186e87f14b6cc74bdc1..png?Expires=1778755081&OSSAccessKeyId=LTAI5tGLnRTkBjLuYPjNcKQ8&Signature=en04%2BLC6%2FauHcX8%2B3Fwu7TyBLP8%3D\")"
+    ]
+  }
+}

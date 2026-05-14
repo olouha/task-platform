@@ -1,0 +1,7 @@
+name = "taskplatform"
+main = "script.js"
+compatibility_date = "2026-05-12"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "0ac67753d50a4e249e0210068c8386e9"
