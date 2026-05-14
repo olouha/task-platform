@@ -3,22 +3,18 @@ set -e
 
 echo "=== Starting deployment ==="
 
+# 检查 Python 版本
+echo "Python version:"
+python --version || python3 --version
+
 echo "Step 1: Upgrading pip..."
-pip install --upgrade pip --quiet
+python -m pip install --upgrade pip --quiet || python3 -m pip install --upgrade pip --quiet
 
 echo "Step 2: Installing fastapi and uvicorn..."
-pip install fastapi "uvicorn[standard]" --quiet
+python -m pip install fastapi "uvicorn[standard]" --quiet || python3 -m pip install fastapi "uvicorn[standard]" --quiet
 
-echo "Step 3: Installing other dependencies..."
-pip install playwright openpyxl pydantic --quiet
+echo "Step 3: Verifying installation..."
+python -c "import uvicorn; print('uvicorn installed successfully!')" 2>/dev/null || python3 -c "import uvicorn; print('uvicorn installed successfully!')"
 
-echo "Step 4: Installing playwright browsers..."
-python -m playwright install chromium --with-deps 2>/dev/null || true
-
-echo "Step 5: Checking uvicorn..."
-which python
-python -c "import uvicorn; print('uvicorn version:', uvicorn.__version__)"
-
-echo "Step 6: Starting server..."
-cd /app
-python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+echo "Step 4: Starting server..."
+python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} || python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
