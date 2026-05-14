@@ -1,15 +1,19 @@
-"""
-Railway.toml - Railway 部署配置
-Railway 会自动执行这个定时任务
-"""
+[railway]
+name = "task-platform-backend"
+version = 2
 
-# Railway 定时任务配置
-# https://railway.app/docs/deploy/triggers
+[build]
+builder = "NIXPACKS"
+buildCommand = "pip install -r requirements.txt && playwright install chromium --with-deps"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port ${PORT:8000}"
+
+[deploy]
+region = "singapore"
+numInstances = 1
+sleep = true
 
 [[trigger]]
-id = "daily-price-fetch"
-name = "每日价格抓取"
-cron = "0 8 * * *"  # 每天早上8点执行
-
-# 触发时执行的命令
-command = "python -m services.cloud_scraper"
+id = "daily-fetch"
+name = "每日抓取价格"
+cron = "0 8 * * *"
+command = "cd services && python fetch_yantai.py"
