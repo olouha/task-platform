@@ -6,6 +6,6 @@ version = 2
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python -m pip install fastapi uvicorn playwright && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "cd web/backend && python -m pip install fastapi uvicorn && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthCheckPath = "/health"
 region = "singapore"
