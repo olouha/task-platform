@@ -1,20 +1,34 @@
 #!/bin/bash
 set -e
 
-echo "=== Starting deployment ==="
+echo "=== TaskPlatform Backend ==="
 
-# 检查 Python 版本
-echo "Python version:"
-python --version || python3 --version
+# 检查配置
+if [ -f "services/data/mysteel_config.json" ]; then
+    echo "✓ 配置文件存在"
+    python -c "import json; config = json.load(open('services/data/mysteel_config.json', 'r')); print(f'用户名: {config.get(\\\"username\\\", \\\"\\\")}')"
+else
+    echo "✗ 配置文件不存在"
 
-echo "Step 1: Upgrading pip..."
-python -m pip install --upgrade pip --quiet || python3 -m pip install --upgrade pip --quiet
+# 安装依赖
+echo "安装 Python 依赖..."
+pip install fastapi uvicorn[standard] openpyxl pydantic --quiet
 
-echo "Step 2: Installing fastapi and uvicorn..."
-python -m pip install fastapi "uvicorn[standard]" --quiet || python3 -m pip install fastapi "uvicorn[standard]" --quiet
+# 安装 Playwright 浏览器
+echo "安装 Playwright..."
+python -m playwright install chromium --with-deps --quiet
 
-echo "Step 3: Verifying installation..."
-python -c "import uvicorn; print('uvicorn installed successfully!')" 2>/dev/null || python3 -c "import uvicorn; print('uvicorn installed successfully!')"
+# 检查安装
+if command -v uvicorn >/dev/null 2>&1; then
+    echo "✓ uvicorn 安装成功"
+else
+    echo "✗ uvicorn 未安装"
 
-echo "Step 4: Starting server..."
-python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} || python3 -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+if python -c "import playwright" >/dev/null 2>&1; then
+    echo "✓ Playwright 安装成功"
+else
+    echo "✗ Playwright 未安装"
+
+# 启动服务
+echo "启动服务..."
+exec python -m uvicorn main:app --host 0.0.0.0 --port 8000
