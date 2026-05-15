@@ -1,0 +1,11 @@
+[railway]
+name = "task-platform-simple"
+version = 1
+
+[build]
+builder = "python"
+
+[deploy]
+startCommand = "python -m pip install fastapi uvicorn[standard] && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
+region = "singapore"
+healthCheckPath = "/health"
