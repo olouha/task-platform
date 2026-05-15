@@ -1,0 +1,10 @@
+# Render 部署配置
+
+[runtime]
+version = "3.11"
+
+[build]
+command = "pip install -r requirements.txt"
+
+[deploy]
+region = "singapore"
