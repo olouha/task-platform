@@ -4,18 +4,8 @@ version = 2
 
 [build]
 builder = "nixpacks"
-nixpacksVersion = "1"
 
 [deploy]
-startCommand = "bash start.sh"
+startCommand = "pip install fastapi uvicorn[standard] playwright && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthCheckPath = "/health"
 region = "singapore"
-
-[watch]
-enabled = false
-
-[[trigger]]
-id = "daily-fetch"
-name = "每日抓取价格"
-cron = "0 8 * * *"
-command = "python services/fetch_yantai.py"
