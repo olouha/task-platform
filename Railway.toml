@@ -3,8 +3,9 @@ name = "task-platform-backend"
 region = "ap-southeast-1"
 
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "cd web/backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"
