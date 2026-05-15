@@ -4,8 +4,10 @@ version = 2
 
 [build]
 builder = "nixpacks"
+buildCommand = "cd web/backend && pip install -r requirements.txt"
 
 [deploy]
-startCommand = "cd web/backend && python -m pip install fastapi uvicorn && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "cd web/backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthCheckPath = "/health"
 region = "singapore"
+rootDirectory = "web/backend"
