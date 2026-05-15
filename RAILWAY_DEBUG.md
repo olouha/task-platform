@@ -6,7 +6,7 @@
 ## 环境信息
 - 平台: Railway (https://task-platform-production-a96f.up.railway.app)
 - 区域: ap-southeast-1 (新加坡)
-- 构建器: NIXPACKS
+- 构建器: NIXPACKS -> DOCKERFILE
 - 项目路径: web/backend
 
 ## 已尝试的修复
@@ -31,15 +31,22 @@
 ### 尝试 4: 移除 buildCommand
 **时间**: 2025-05-15
 **变更**: 让 Nixpacks 自动检测 requirements.txt
+**结果**: ❌ 502 错误仍然存在
+
+### 尝试 5: 切换到 Dockerfile 构建器
+**时间**: 2025-05-15 16:02
+**变更**: 添加 Dockerfile，切换到 DOCKERFILE 构建器
 **结果**: ⏳ 待验证
 
 ## 项目结构
 ```
 task-platform/
 ├── Railway.toml          # 根目录配置
+├── Dockerfile            # Docker 配置
+├── RAILWAY_DEBUG.md      # 本文件
 ├── web/
 │   └── backend/
-│       ├── Railway.toml  # 子目录配置
+│       ├── Railway.toml  # 子目录配置（已废弃）
 │       ├── main.py       # FastAPI 入口
 │       ├── requirements.txt
 │       ├── api/          # API 路由
@@ -56,11 +63,28 @@ name = "task-platform-backend"
 region = "ap-southeast-1"
 
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "cd web/backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health"
+```
+
+### Dockerfile
+```dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app/web/backend
+
+COPY web/backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY web/backend .
+
+EXPOSE $PORT
+
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "$PORT"]
 ```
 
 ### requirements.txt
@@ -92,9 +116,14 @@ async def health_check():
 - [ ] PORT 环境变量是否正确传递？
 - [ ] 是否有网络/防火墙问题？
 - [ ] Railway 日志中是否有更多错误信息？
+- [x] Dockerfile 配置正确性
+- [ ] 需要查看 Build Logs 和 Runtime Logs
 
 ## 下一步
-1. 查看 Railway 详细部署日志
-2. 检查健康检查端点是否可访问
-3. 尝试更简化的配置（只部署后端，不涉及前端）
-4. 考虑使用 Dockerfile 替代 Nixpacks
+1. ⏳ 等待 Railway 使用 Dockerfile 重新部署
+2. 查看 Railway 详细部署日志（Build Logs / Runtime Logs）
+3. 如果成功，测试健康检查端点
+4. 如果失败，根据详细日志调整配置
+
+## 最近提交
+- `192f8d7` - Fix Railway deployment - switch to Dockerfile builder
