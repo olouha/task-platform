@@ -4,8 +4,11 @@ region = "ap-southeast-1"
 
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "web/backend/Dockerfile"
 
 [deploy]
 restartPolicy = "Always"
 healthcheckPath = "/health"
+
+[railway.variables]
+PORT = "8000"
