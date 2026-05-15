@@ -8,3 +8,6 @@ dockerfilePath = "Dockerfile"
 [deploy]
 restartPolicy = "Always"
 healthcheckPath = "/health"
+
+[railway.variables]
+PORT = 8000
