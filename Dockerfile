@@ -22,4 +22,4 @@ COPY --from=frontend /frontend/dist ./frontend/dist
 ENV PORT=8000
 EXPOSE ${PORT}
 
-CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
