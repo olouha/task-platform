@@ -3,12 +3,16 @@ name = "task-platform-backend"
 version = 2
 
 [build]
-builder = "python"
+builder = "nixpacks"
+nixpacksVersion = "1"
 
 [deploy]
+startCommand = "bash start.sh"
+healthCheckPath = "/health"
 region = "singapore"
-numInstances = 1
-sleep = true
+
+[watch]
+enabled = false
 
 [[trigger]]
 id = "daily-fetch"
