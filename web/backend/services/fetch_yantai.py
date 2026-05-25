@@ -33,17 +33,33 @@ class MaterialPrice:
 
 
 def save_to_excel_with_screenshot(prices, screenshot_b64, excel_file=None):
-    """保存到Excel（包含截图）"""
+    """
+    保存到Excel（包含截图）
+    - 累积sheet页，不删除旧数据
+    - Sheet命名: YYYY-MM-DD_{AM/PM}_HHMMSS
+    - AM: 0-12点, PM: 12-24点
+    """
     if excel_file is None:
         excel_file = DATA_DIR / '山东烟台钢筋价格.xlsx'
 
     header_font = Font(bold=True, size=12, color='FFFFFF')
-    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    # PM使用不同颜色
+    now_hour = datetime.now().hour
+    if now_hour >= 12:
+        header_fill = PatternFill(start_color='FF6B6B', end_color='FF6B6B', fill_type='solid')
+        period = 'PM'
+        period_text = '下午(晚)'
+    else:
+        header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+        period = 'AM'
+        period_text = '上午'
+
     thin_border = Border(
         left=Side(style='thin'), right=Side(style='thin'),
         top=Side(style='thin'), bottom=Side(style='thin')
     )
 
+    # 累积sheet页，不删除旧数据
     if Path(excel_file).exists():
         wb = openpyxl.load_workbook(excel_file)
     else:
@@ -52,14 +68,15 @@ def save_to_excel_with_screenshot(prices, screenshot_b64, excel_file=None):
             del wb['Sheet']
 
     today_str = datetime.now().strftime('%Y-%m-%d')
-    if today_str in wb.sheetnames:
-        del wb[today_str]
+    fetch_time_str = datetime.now().strftime('%H:%M:%S')
+    sheet_name = f'{today_str}_{period}_{fetch_time_str.replace(":", "")}'
 
-    ws = wb.create_sheet(title=today_str)
+    # 不删除旧sheet，创建新的
+    ws = wb.create_sheet(title=sheet_name)
 
     # 标题
     ws.merge_cells('A1:K1')
-    ws.cell(row=1, column=1, value=f'山东烟台钢筋价格 - {today_str} (品牌维度)').font = Font(bold=True, size=14)
+    ws.cell(row=1, column=1, value=f'山东烟台钢筋价格 - {today_str} {period_text}').font = Font(bold=True, size=14)
     ws.cell(row=1, column=1).alignment = Alignment(horizontal='center')
 
     # 表头
@@ -72,7 +89,6 @@ def save_to_excel_with_screenshot(prices, screenshot_b64, excel_file=None):
         cell.border = thin_border
 
     # 数据
-    fetch_time = datetime.now().strftime('%H:%M:%S')
     for i, price in enumerate(prices):
         row = 4 + i
         # 支持字典和MaterialPrice两种格式
@@ -91,28 +107,30 @@ def save_to_excel_with_screenshot(prices, screenshot_b64, excel_file=None):
             price_val = price.price
             region = price.region
 
-        for col, val in enumerate([today_str, fetch_time, material_name, spec,
+        for col, val in enumerate([today_str, fetch_time_str, material_name, spec,
                                    material_type, brand, price_val, '', '', '', region], 1):
             cell = ws.cell(row=row, column=col, value=val)
             cell.border = thin_border
 
     # 嵌入截图
-    screenshot_path = DATA_DIR / f'screenshot_{today_str.replace("-", "")}.png'
-    with open(screenshot_path, 'wb') as f:
-        f.write(base64.b64decode(screenshot_b64))
+    if screenshot_b64:
+        screenshot_path = DATA_DIR / f'screenshot_{today_str.replace("-", "")}_{period}.png'
+        with open(screenshot_path, 'wb') as f:
+            f.write(base64.b64decode(screenshot_b64))
 
-    row = 4 + len(prices) + 2
-    ws.cell(row=row, column=1, value='当日截图').font = Font(bold=True, size=12)
+        row = 4 + len(prices) + 2
+        ws.cell(row=row, column=1, value='当日截图').font = Font(bold=True, size=12)
 
-    img = Image(str(screenshot_path))
-    img.width = 900
-    img.height = 500
-    img.anchor = f'A{row + 1}'
-    ws.add_image(img)
+        img = Image(str(screenshot_path))
+        img.width = 900
+        img.height = 500
+        img.anchor = f'A{row + 1}'
+        ws.add_image(img)
 
     wb.save(excel_file)
     wb.close()
     print(f'Excel已保存: {excel_file}')
+    print(f'Sheet: {sheet_name}')
     print(f'数据: {len(prices)}条, 图片: 1张')
 
 
@@ -197,48 +215,93 @@ async def run_fetch():
             screenshot_b64 = base64.b64encode(screenshot).decode('utf-8')
             print('  截图已保存')
 
-            # 3. 提取价格
+            # 3. 提取价格（支持分页）
             print('3. 提取价格...')
-            data = await page.evaluate('''() => {
-                const tables = document.querySelectorAll('table');
-                const results = [];
-                tables.forEach((table, idx) => {
-                    const rows = table.querySelectorAll('tr');
-                    const tableData = [];
-                    rows.forEach((row) => {
-                        const cells = row.querySelectorAll('td, th');
-                        const rowData = [];
-                        cells.forEach(c => rowData.push(c.textContent.trim()));
-                        if (rowData.length > 0) tableData.push(rowData);
-                    });
-                    if (tableData.length > 0) results.push({idx, rows: tableData});
-                });
-                return results;
-            }''')
-
             prices = []
-            for t in data:
-                for row in t['rows']:
-                    if row and len(row) >= 5:
-                        material_name = row[0].strip()
-                        spec = row[1].strip()
-                        material_type = row[2].strip()
-                        brand = row[3].strip()
-                        price_str = row[4].strip()
+            page_num = 1
+            max_pages = 10  # 最多抓取10页
 
-                        valid_names = ['高线', '螺纹钢', '盘螺', '圆钢']
-                        if material_name in valid_names and spec.startswith('Φ') and price_str.isdigit():
-                            try:
-                                prices.append({
-                                    'material_name': material_name,
-                                    'spec': spec,
-                                    'material_type': material_type,
-                                    'brand': brand,
-                                    'price': float(price_str)
-                                })
-                            except: pass
+            while page_num <= max_pages:
+                # 提取当前页数据
+                data = await page.evaluate('''() => {
+                    const tables = document.querySelectorAll('table');
+                    const results = [];
+                    tables.forEach((table, idx) => {
+                        const rows = table.querySelectorAll('tr');
+                        const tableData = [];
+                        rows.forEach((row) => {
+                            const cells = row.querySelectorAll('td, th');
+                            const rowData = [];
+                            cells.forEach(c => rowData.push(c.textContent.trim()));
+                            if (rowData.length > 0) tableData.push(rowData);
+                        });
+                        if (tableData.length > 0) results.push({idx, rows: tableData});
+                    });
+                    return results;
+                }''')
 
-            print(f'  提取到 {len(prices)} 条价格')
+                page_prices = []
+                for t in data:
+                    for row in t['rows']:
+                        if row and len(row) >= 5:
+                            material_name = row[0].strip()
+                            spec = row[1].strip()
+                            material_type = row[2].strip()
+                            brand = row[3].strip()
+                            price_str = row[4].strip()
+
+                            valid_names = ['高线', '螺纹钢', '盘螺', '圆钢']
+                            if material_name in valid_names and spec.startswith('Φ') and price_str.isdigit():
+                                try:
+                                    page_prices.append({
+                                        'material_name': material_name,
+                                        'spec': spec,
+                                        'material_type': material_type,
+                                        'brand': brand,
+                                        'price': float(price_str)
+                                    })
+                                except: pass
+
+                print(f'  第{page_num}页: 提取到 {len(page_prices)} 条价格')
+                prices.extend(page_prices)
+
+                # 检查是否有"下一页"按钮
+                has_next = await page.evaluate('''() => {
+                    const buttons = Array.from(document.querySelectorAll('a'))
+                        .filter(a => /下一页|>/i.test(a.textContent) && a.href && a.href !== window.location.href);
+                    return buttons.length > 0;
+                }''')
+
+                if not has_next:
+                    print(f'  没有更多页面，停止抓取')
+                    break
+
+                # 点击下一页
+                try:
+                    next_btn = await page.query_selector('a:has-text("下一页"), a:has-text(">")')
+                    if next_btn:
+                        await next_btn.click()
+                        await page.wait_for_timeout(5000)
+                        page_num += 1
+                    else:
+                        print(f'  未找到下一页按钮，停止抓取')
+                        break
+                except:
+                    print(f'  点击下一页失败，停止抓取')
+                    break
+
+            print(f'  总共提取到 {len(prices)} 条价格')
+
+            # 去重
+            seen = set()
+            unique_prices = []
+            for p in prices:
+                key = (p['material_name'], p['spec'], p['brand'], p['price'])
+                if key not in seen:
+                    seen.add(key)
+                    unique_prices.append(p)
+            print(f'  去重后: {len(unique_prices)} 条价格')
+            prices = unique_prices
 
             # 4. 保存到Excel
             today_str = datetime.now().strftime('%Y-%m-%d')

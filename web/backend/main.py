@@ -6,7 +6,8 @@ FastAPI 应用入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices
+from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, building_schedule, building_adjustment
+from api import ai_chat, ai_self_review
 from services.websocket_manager import ws_manager
 
 
@@ -30,10 +31,23 @@ app.include_router(projects.router, prefix="/api/projects", tags=["项目管理"
 app.include_router(materials.router, prefix="/api/materials", tags=["材料管理"])
 app.include_router(price_sources.router, prefix="/api/price-sources", tags=["价格来源"])
 app.include_router(price_history.router, prefix="/api/price-history", tags=["价格历史"])
-app.include_router(adjustments.router, prefix="/api/adjustments", tags=["调差计算"])
+app.include_router(adjustments.router, prefix="/api", tags=["调差计算"])
 app.include_router(indicators.router, prefix="/api/indicators", tags=["指标管理"])
 app.include_router(sync.router, prefix="/api/sync", tags=["数据同步"])
 app.include_router(yantai_prices.router, prefix="/api/yantai-prices", tags=["烟台钢筋价格"])
+app.include_router(adjustment_rules.router, prefix="/api/adjustment-rules", tags=["调差规则管理"])
+app.include_router(scheduler_api.router, prefix="/api/scheduler", tags=["定时任务调度"])
+app.include_router(fetch_api.router, prefix="/api/fetch", tags=["人工抓取"])
+app.include_router(cron_fetch.router, prefix="/api/cron", tags=["定时抓取"])
+app.include_router(cost_reference.router, prefix="/api/cost-reference", tags=["造价参考价"])
+app.include_router(adjustment_project.router, tags=["调差项目管理"])
+app.include_router(ai_chat.router, prefix="/api", tags=["AI对话"])
+app.include_router(price_history_db.router, prefix="/api/price-db", tags=["价格数据库"])
+app.include_router(ai_self_review.router, tags=["AI自检复盘"])
+app.include_router(file_parser.router, prefix="/api", tags=["文件解析"])
+app.include_router(adjustment_prices.router, prefix="/api/adjustment-prices", tags=["调差价格获取"])
+app.include_router(building_schedule.router, prefix="/api/building-schedule", tags=["楼栋施工时间"])
+app.include_router(building_adjustment.router, prefix="/api/building-adjustment", tags=["楼栋调差计算"])
 
 
 @app.get("/")

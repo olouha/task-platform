@@ -1,0 +1,16 @@
+# Excel数据保护配置
+# 本文件用于防止价格数据被意外覆盖
+
+PROTECTED_FILES:
+  - web/backend/services/data/烟台钢筋价格汇总.xlsx
+  - web/backend/services/data/烟台钢筋价格汇总_已加密.xlsx
+
+# 数据库文件（不应被覆盖）
+DATABASE_FILES:
+  - web/backend/data/yantai_prices.db
+
+# 保护规则说明：
+# 1. 烟台钢筋价格汇总.xlsx 是最终输出文件，不应被代码覆盖
+# 2. 原始截图数据应先解析，追加到数据库
+# 3. 数据库中的数据是增量更新，不会覆盖历史数据
+# 4. 如需更新汇总，请运行 merge_price_history.py 重新生成

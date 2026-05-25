@@ -4,62 +4,43 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
 venv/
+env/
 ENV/
+
+# Node
+node_modules/
+dist/
+*.log
+
+# 数据文件
+*.xlsx
+*.xls
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
 
 # IDE
 .vscode/
 .idea/
 *.swp
-*.swo
-
-# 日志
-logs/*.log
-
-# 截图
-screenshots/*.png
-
-# 数据库（本地SQLite）
-*.db
-*.sqlite
-task_platform.db
-
-# Cookie和敏感文件
-*cookies*.json
-
-# Node
-node_modules/
-npm-debug.log
-yarn-error.log
-frontend/node_modules/
-
-# 构建产物
-build/
-dist/
-web/frontend/dist/
-web/cloudflare-wrangler/.wrangler/
-
-# OS
-.DS_Store
-Thumbs.db
 
 # 临时文件
 *.tmp
-*.temp
-.env
+*.bak
 
-# 调试截图
+# 图片（保留logo等）
+*.jpg
 *.png
+*.bmp
+*.tiff
+!web/public/*.png
+!web/public/*.jpg
 
-# 压缩包
-*.zip
-*.rar
-*.7z
+# Logs
+logs/
+*.log
 
-# 临时脚本（调试用）
-*debug*.py
-*test*.py
-*analyze*.py
-*find_*.py
-*scrape*.py
+# Claude配置
+.claude/

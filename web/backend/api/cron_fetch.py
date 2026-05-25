@@ -7,9 +7,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
+from pathlib import Path
 import logging
 
-router = APIRouter()
+router = APIRouter(tags=["定时抓取"])
 logger = logging.getLogger(__name__)
 
 

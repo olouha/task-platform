@@ -129,7 +129,8 @@ async def get_all_sheets():
         if not Path(_excel_file).exists():
             return {"success": False, "sheets": []}
 
-        wb = openpyxl.load_workbook(_excel_file)
+        # 使用read_only模式快速读取
+        wb = openpyxl.load_workbook(_excel_file, read_only=True)
         sheets = wb.sheetnames
         wb.close()
 

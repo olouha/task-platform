@@ -1,4 +1,4 @@
-import { Layout, Menu, Avatar, Dropdown, Badge } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Badge, Tooltip } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -10,9 +10,13 @@ import {
   UserOutlined,
   BellOutlined,
   SyncOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  RobotOutlined,
 } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import AIChatWindow from './AIChatWindow'
 
 const { Header, Sider, Content } = Layout
 
@@ -32,6 +36,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { key: '/materials', icon: <AppstoreOutlined />, label: '材料管理' },
     { key: '/prices', icon: <DollarOutlined />, label: '价格监控' },
     { key: '/adjustments', icon: <CalculatorOutlined />, label: '调差计算' },
+    { key: '/cost-reference', icon: <CalculatorOutlined />, label: '造价参考价' },
+    { key: '/adjustments/rules', icon: <SettingOutlined />, label: '规则配置' },
     { key: '/indicators', icon: <LineChartOutlined />, label: '指标库' },
     { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
   ]
@@ -42,59 +48,158 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }
 
   return (
-    <Layout>
+    <Layout className="app-layout">
       <Sider
+        className="app-sidebar"
         collapsible
         collapsed={collapsed}
         onCollapse={setCollapsed}
-        theme="light"
-        style={{ borderRight: '1px solid #f0f0f0' }}
+        trigger={null}
+        width={220}
+        collapsedWidth={64}
       >
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid #f0f0f0' }}>
+        {/* Logo 区域 - 科技渐变 */}
+        <div className="sidebar-logo">
           {collapsed ? (
-            <span style={{ fontSize: 20, fontWeight: 'bold', color: '#1890ff' }}>TP</span>
+            <div style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #4A86C8 0%, #16325C 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'white',
+              fontWeight: 700,
+              fontSize: 14,
+              letterSpacing: 1,
+              boxShadow: '0 4px 15px rgba(74, 134, 200, 0.4)',
+              border: '1px solid rgba(255,255,255,0.15)'
+            }}>
+              TP
+            </div>
           ) : (
-            <span style={{ fontSize: 18, fontWeight: 'bold', color: '#1890ff' }}>TaskPlatform</span>
+            <h1>工程调差系统</h1>
           )}
         </div>
+
+        {/* 导航菜单 */}
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
-          style={{ borderRight: 0, marginTop: 8 }}
+          theme="dark"
         />
+
+        {/* 折叠按钮 - 科技风格 */}
+        <div
+          className="sidebar-collapse-trigger"
+          onClick={() => setCollapsed(!collapsed)}
+        >
+          {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+        </div>
       </Sider>
 
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f0f0f0' }}>
-          <div style={{ fontSize: 14, color: '#666' }}>
-            工程调差计算系统
+        {/* 顶部状态栏 - 科技渐变 */}
+        <Header className="app-header">
+          <div className="header-title">
+            {collapsed && (
+              <div style={{
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.12)',
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontWeight: 700,
+                fontSize: 14,
+                marginRight: 12,
+                border: '1px solid rgba(255,255,255,0.15)',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
+              }}>
+                TP
+              </div>
+            )}
+            <span>工程材料调差计算系统</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <Badge count={3}>
-              <BellOutlined style={{ fontSize: 18, cursor: 'pointer' }} />
-            </Badge>
+          <div className="header-actions">
+            {/* 同步状态 */}
+            <div className="sync-status">
+              <span className="sync-dot" />
+              <span>数据已同步</span>
+            </div>
 
-            <Badge dot>
-              <SyncOutlined
-                style={{ fontSize: 18, cursor: 'pointer', color: syncing ? '#1890ff' : '#666' }}
-                spin={syncing}
-                onClick={syncData}
-              />
-            </Badge>
+            {/* 同步按钮 */}
+            <Tooltip title="同步数据">
+              <button className="header-btn" onClick={syncData}>
+                <SyncOutlined spin={syncing} />
+              </button>
+            </Tooltip>
 
-            <Dropdown menu={{ items: [{ key: 'logout', label: '退出登录' }] }} placement="bottomRight">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <Avatar size="small" icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
-                <span>管理员</span>
+            {/* AI 助手按钮 */}
+            <AIChatWindow position="header" />
+
+            {/* 通知 */}
+            <Tooltip title="通知中心">
+              <Badge count={3} size="small" offset={[-2, 2]}>
+                <button className="header-btn">
+                  <BellOutlined />
+                </button>
+              </Badge>
+            </Tooltip>
+
+            {/* 用户信息 */}
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'profile', label: '个人中心' },
+                  { key: 'settings', label: '系统设置', onClick: () => navigate('/settings') },
+                  { type: 'divider' },
+                  { key: 'logout', label: '退出登录', danger: true }
+                ]
+              }}
+              placement="bottomRight"
+              trigger={['click']}
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                padding: '6px 14px',
+                borderRadius: 8,
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                transition: 'all 0.25s ease',
+                backdropFilter: 'blur(10px)'
+              }}>
+                <Avatar
+                  size={30}
+                  icon={<UserOutlined />}
+                  style={{
+                    background: 'linear-gradient(135deg, #4A86C8 0%, #16325C 100%)',
+                    boxShadow: '0 2px 8px rgba(74, 134, 200, 0.3)'
+                  }}
+                />
+                <span style={{
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  letterSpacing: 0.3
+                }}>管理员</span>
               </div>
             </Dropdown>
           </div>
         </Header>
 
-        <Content style={{ padding: 24, minHeight: 'calc(100vh - 64px)', overflow: 'auto' }}>
+        {/* 内容区域 */}
+        <Content className="app-content">
           {children}
         </Content>
       </Layout>

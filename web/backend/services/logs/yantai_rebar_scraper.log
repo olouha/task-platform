@@ -205,3 +205,196 @@ ConnectionResetError: [WinError 10054] 远程主机强迫关闭了一个现有�
 2026-05-14 16:57:07,128 - INFO - 配置已保存: username=M6616592358
 2026-05-14 16:57:12,172 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051410/25B3355C6617BD3C.html
 2026-05-14 16:57:25,582 - INFO - 截图已保存
+2026-05-15 08:00:32,099 - INFO - 已加载 27 个Cookie
+2026-05-15 08:00:32,172 - INFO - 已加载Cookie
+2026-05-15 08:00:32,172 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051510/25B3355C6617BD3C.html
+2026-05-15 08:00:47,675 - INFO - 截图已保存
+2026-05-15 17:16:34,141 - INFO - 已加载 44 个Cookie
+2026-05-15 17:16:34,191 - INFO - 已加载Cookie
+2026-05-15 17:16:34,191 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051510/25B3355C6617BD3C.html
+2026-05-15 17:16:45,058 - INFO - 截图已保存
+2026-05-15 17:33:52,022 - INFO - 已加载 44 个Cookie
+2026-05-15 17:33:52,069 - INFO - 已加载Cookie
+2026-05-15 17:33:58,971 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-15 17:33:58,972 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-15 17:34:11,325 - INFO - 截图已保存
+2026-05-15 17:34:11,366 - INFO - 抓取成功: 111 条数据
+2026-05-15 17:34:11,367 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-15 17:34:11,367 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-15 17:34:11,368 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-15 17:34:11,368 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-15 17:34:13,750 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-15
+2026-05-15 17:37:27,104 - INFO - 已加载 44 个Cookie
+2026-05-15 17:37:27,145 - INFO - 已加载Cookie
+2026-05-15 17:37:33,756 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-15 17:37:33,756 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-15 17:37:46,060 - INFO - 截图已保存
+2026-05-15 17:37:46,110 - INFO - 抓取成功: 111 条数据
+2026-05-15 17:37:46,110 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-15 17:37:46,110 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-15 17:37:46,111 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-15 17:37:46,111 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-15 17:37:48,130 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-15_173747
+2026-05-16 08:00:57,671 - INFO - 已加载 44 个Cookie
+2026-05-16 08:00:57,694 - INFO - 已加载Cookie
+2026-05-16 08:01:03,710 - WARNING - 查找URL失败: Page.evaluate: Execution context was destroyed, most likely because of a navigation
+2026-05-16 08:01:03,710 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051610/25B3355C6617BD3C.html
+2026-05-16 08:01:03,791 - ERROR - 抓取失败: Page.goto: Navigation to "https://jiancai.mysteel.com/m/26051610/25B3355C6617BD3C.html" is interrupted by another navigation to "https://jiancai.mysteel.com/"
+Call log:
+  - navigating to "https://jiancai.mysteel.com/m/26051610/25B3355C6617BD3C.html", waiting until "domcontentloaded"
+
+2026-05-16 13:52:00,496 - INFO - 已加载 44 个Cookie
+2026-05-16 13:52:00,515 - INFO - 已加载Cookie
+2026-05-16 13:52:06,629 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-16 13:52:06,629 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-16 13:52:18,165 - INFO - 截图已保存
+2026-05-16 18:16:23,467 - ERROR - Task exception was never retrieved
+future: <Task finished name='Task-57' coro=<Connection.run() done, defined at C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_connection.py:305> exception=NotImplementedError()>
+Traceback (most recent call last):
+  File "C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_connection.py", line 312, in run
+    await self._transport.connect()
+  File "C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_transport.py", line 133, in connect
+    raise exc
+  File "C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_transport.py", line 120, in connect
+    self._proc = await asyncio.create_subprocess_exec(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\asyncio\subprocess.py", line 223, in create_subprocess_exec
+    transport, protocol = await loop.subprocess_exec(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\asyncio\base_events.py", line 1708, in subprocess_exec
+    transport = await self._make_subprocess_transport(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\asyncio\base_events.py", line 503, in _make_subprocess_transport
+    raise NotImplementedError
+NotImplementedError
+2026-05-16 18:16:23,474 - ERROR - 抓取失败: 
+2026-05-16 18:16:26,976 - ERROR - Task exception was never retrieved
+future: <Task finished name='Task-61' coro=<Connection.run() done, defined at C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_connection.py:305> exception=NotImplementedError()>
+Traceback (most recent call last):
+  File "C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_connection.py", line 312, in run
+    await self._transport.connect()
+  File "C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_transport.py", line 133, in connect
+    raise exc
+  File "C:\Users\admin\AppData\Roaming\Python\Python311\site-packages\playwright\_impl\_transport.py", line 120, in connect
+    self._proc = await asyncio.create_subprocess_exec(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\asyncio\subprocess.py", line 223, in create_subprocess_exec
+    transport, protocol = await loop.subprocess_exec(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\asyncio\base_events.py", line 1708, in subprocess_exec
+    transport = await self._make_subprocess_transport(
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python311\Lib\asyncio\base_events.py", line 503, in _make_subprocess_transport
+    raise NotImplementedError
+NotImplementedError
+2026-05-16 18:16:26,978 - ERROR - 抓取失败: 
+2026-05-17 08:00:33,353 - INFO - 已加载 44 个Cookie
+2026-05-17 08:00:33,629 - INFO - 已加载Cookie
+2026-05-17 08:00:44,495 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-17 08:00:44,497 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051516/06AC8B0B0D2BB9BF.html
+2026-05-17 08:00:58,749 - INFO - 截图已保存
+2026-05-19 08:00:10,451 - INFO - 已加载 43 个Cookie
+2026-05-19 08:00:10,492 - INFO - 已加载Cookie
+2026-05-19 08:00:25,553 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051816/706A540ABCE5C43E.html
+2026-05-19 08:00:37,522 - INFO - 截图已保存
+2026-05-19 10:21:35,980 - INFO - 已加载 44 个Cookie
+2026-05-19 10:21:36,002 - INFO - 已加载Cookie
+2026-05-19 10:21:42,449 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:21:42,449 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:21:53,843 - INFO - 截图已保存
+2026-05-19 10:21:53,866 - INFO - 抓取成功: 111 条数据
+2026-05-19 10:21:53,866 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:21:53,867 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-19 10:21:53,867 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:21:53,867 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-19 10:21:56,279 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-19_102154
+2026-05-19 10:22:02,855 - INFO - 已加载 44 个Cookie
+2026-05-19 10:22:02,876 - INFO - 已加载Cookie
+2026-05-19 10:22:08,949 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:22:08,949 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:22:20,248 - INFO - 截图已保存
+2026-05-19 10:22:20,283 - INFO - 抓取成功: 111 条数据
+2026-05-19 10:22:20,283 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:22:20,283 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-19 10:22:20,284 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:22:20,284 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-19 10:22:22,379 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-19_102221
+2026-05-19 10:22:52,345 - INFO - 已加载 44 个Cookie
+2026-05-19 10:22:52,365 - INFO - 已加载Cookie
+2026-05-19 10:22:58,358 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:22:58,358 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:23:09,754 - INFO - 截图已保存
+2026-05-19 10:23:09,785 - INFO - 抓取成功: 111 条数据
+2026-05-19 10:23:09,786 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:23:09,786 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-19 10:23:09,787 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:23:09,787 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-19 10:23:12,058 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-19_102310
+2026-05-19 10:23:14,369 - INFO - 已加载 44 个Cookie
+2026-05-19 10:23:14,400 - INFO - 已加载Cookie
+2026-05-19 10:23:20,537 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:23:20,537 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:23:31,834 - INFO - 截图已保存
+2026-05-19 10:23:31,913 - INFO - 抓取成功: 111 条数据
+2026-05-19 10:23:31,914 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:23:31,914 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-19 10:23:31,914 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:23:31,914 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-19 10:23:34,052 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-19_102332
+2026-05-19 10:24:34,640 - INFO - 已加载 44 个Cookie
+2026-05-19 10:24:34,662 - INFO - 已加载Cookie
+2026-05-19 10:24:40,734 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:24:40,735 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-19 10:24:52,354 - INFO - 截图已保存
+2026-05-19 10:24:52,388 - INFO - 抓取成功: 111 条数据
+2026-05-19 10:24:52,388 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:24:52,388 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-19 10:24:52,388 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-19 10:24:52,389 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-19 10:24:55,023 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-19_102453
+2026-05-19 18:33:41,597 - INFO - 缓存已清除
+2026-05-19 18:34:47,215 - INFO - 缓存已清除
+2026-05-20 08:00:09,981 - INFO - 已加载 58 个Cookie
+2026-05-20 08:00:10,011 - INFO - 已加载Cookie
+2026-05-20 08:00:25,419 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26051910/7CC8EB373BB8025D.html
+2026-05-20 08:00:36,999 - INFO - 截图已保存
+2026-05-20 16:42:43,534 - INFO - HTTP Request: GET http://testserver/api/yantai-prices/range?start_date=2026-05-01&end_date=2026-05-20 "HTTP/1.1 200 OK"
+2026-05-20 17:05:03,295 - INFO - 已加载 180 个Cookie
+2026-05-20 17:05:03,356 - INFO - 已加载Cookie
+2026-05-20 17:05:09,850 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052016/FDB08B57C8C93EB5.html
+2026-05-20 17:05:09,852 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052016/FDB08B57C8C93EB5.html
+2026-05-20 17:05:21,477 - INFO - 截图已保存
+2026-05-20 17:05:21,505 - INFO - 抓取成功: 111 条数据
+2026-05-20 17:05:21,506 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-20 17:05:21,506 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-20 17:05:21,506 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-20 17:05:21,506 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-20 17:05:31,072 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-20_170522
+2026-05-20 17:05:31,072 - INFO - 缓存已清除
+2026-05-20 17:10:18,577 - INFO - 已加载 180 个Cookie
+2026-05-20 17:10:18,609 - INFO - 已加载Cookie
+2026-05-20 17:10:25,124 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052016/FDB08B57C8C93EB5.html
+2026-05-20 17:10:25,124 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052016/FDB08B57C8C93EB5.html
+2026-05-20 17:10:36,513 - INFO - 截图已保存
+2026-05-20 17:10:36,544 - INFO - 抓取成功: 111 条数据
+2026-05-20 17:10:36,544 - INFO -    - 高线: 11条, 品牌: 永锋, 江苏镔鑫, 石横特钢
+2026-05-20 17:10:36,545 - INFO -    - 螺纹钢: 75条, 品牌: 永锋, 江苏镔鑫, 石横特钢, 莱钢
+2026-05-20 17:10:36,545 - INFO -    - 盘螺: 21条, 品牌: 敬业营口, 日照, 永锋, 江苏镔鑫, 石横特钢
+2026-05-20 17:10:36,545 - INFO -    - 圆钢: 4条, 品牌: 永锋, 石横特钢
+2026-05-20 17:10:47,028 - INFO - 保存成功: E:\E\任务\task-platform\web\backend\services\data\山东烟台钢筋价格.xlsx, Sheet: 2026-05-20_171037
+2026-05-20 17:10:47,028 - INFO - 缓存已清除
+2026-05-21 08:00:09,051 - INFO - 已加载 180 个Cookie
+2026-05-21 08:00:09,119 - INFO - 已加载Cookie
+2026-05-21 08:00:20,069 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052016/FDB08B57C8C93EB5.html
+2026-05-21 08:00:20,069 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052016/FDB08B57C8C93EB5.html
+2026-05-21 08:00:32,485 - INFO - 截图已保存
+2026-05-22 08:34:51,675 - WARNING - 材料 '钢筋HRB400' 不在调差配置中，跳过
+2026-05-22 08:37:48,049 - WARNING - 材料 '钢筋HRB400' 不在调差配置中，跳过
+2026-05-22 08:38:37,726 - WARNING - 材料 '钢筋HRB400' 不在调差配置中，跳过
+2026-05-22 08:38:37,726 - WARNING - 材料 '钢筋HRB400' 不在调差配置中，跳过
+2026-05-22 08:39:59,812 - WARNING - 材料 '钢筋HRB400' 不在调差配置中，跳过
+2026-05-22 08:39:59,812 - WARNING - 材料 '钢筋HRB400' 不在调差配置中，跳过
+2026-05-22 15:13:46,888 - WARNING - 未配置 Supabase，无法进行知识库检索
+2026-05-22 15:13:46,889 - WARNING - 未配置 AI 服务，将返回模拟响应
+2026-05-22 15:13:52,096 - WARNING - 未配置 Supabase，无法进行知识库检索
+2026-05-22 15:13:52,097 - WARNING - 未配置 AI 服务，将返回模拟响应

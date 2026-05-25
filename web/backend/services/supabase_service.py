@@ -7,7 +7,7 @@ import os
 import requests
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,32 @@ class SupabaseService:
         record['id'] = str(uuid.uuid4())
         return self._request('POST', '/adjustment_records', json=record) is not None
 
+    # ========== 调差规则 ==========
+
+    def get_adjustment_rules(self) -> List[Dict]:
+        """获取所有调差规则"""
+        result = self._request('GET', '/adjustment_rules?select=*&order=created_at.desc')
+        return result if result else []
+
+    def get_adjustment_rule(self, rule_id: str) -> Optional[Dict]:
+        """获取单个调差规则"""
+        result = self._request('GET', f'/adjustment_rules?id=eq.{rule_id}&select=*')
+        if result and len(result) > 0:
+            return result[0]
+        return None
+
+    def create_adjustment_rule(self, rule_data: Dict) -> bool:
+        """创建调差规则"""
+        return self._request('POST', '/adjustment_rules', json=rule_data) is not None
+
+    def update_adjustment_rule(self, rule_id: str, update_data: Dict) -> bool:
+        """更新调差规则"""
+        return self._request('PATCH', f'/adjustment_rules?id=eq.{rule_id}', json=update_data) is not None
+
+    def delete_adjustment_rule(self, rule_id: str) -> bool:
+        """删除调差规则"""
+        return self._request('DELETE', f'/adjustment_rules?id=eq.{rule_id}') is not None
+
     # ========== 统计 ==========
 
     def get_statistics(self) -> Dict:
@@ -197,6 +223,247 @@ class SupabaseService:
             'total_price_sources': len(sources),
             'categories': categories
         }
+
+    # ========== AI 对话会话 ==========
+
+    def get_ai_conversations(self, user_id: str, limit: int = 20, offset: int = 0) -> List[Dict]:
+        """获取用户的 AI 对话会话列表"""
+        result = self._request(
+            'GET',
+            f'/ai_conversations?user_id=eq.{user_id}&order=last_message_at.desc&limit={limit}&offset={offset}'
+        )
+        return result if result else []
+
+    def get_ai_conversation(self, conversation_id: str, user_id: str) -> Optional[Dict]:
+        """获取单个 AI 对话会话"""
+        result = self._request(
+            'GET',
+            f'/ai_conversations?id=eq.{conversation_id}&user_id=eq.{user_id}&select=*'
+        )
+        if result and len(result) > 0:
+            conv = result[0]
+            # 获取消息数量
+            msg_count = self._request(
+                'GET',
+                f'/ai_messages?conversation_id=eq.{conversation_id}&select=id'
+            )
+            conv['message_count'] = len(msg_count) if msg_count else 0
+            return conv
+        return None
+
+    def create_ai_conversation(
+        self,
+        user_id: str,
+        title: str = "新对话",
+        model: str = "gpt-4",
+        system_prompt: str = None
+    ) -> Optional[Dict]:
+        """创建新的 AI 对话会话"""
+        import uuid
+        import time
+
+        conversation = {
+            'id': str(uuid.uuid4()),
+            'user_id': user_id,
+            'title': title,
+            'model': model,
+            'system_prompt': system_prompt,
+            'is_active': True,
+            'last_message_at': time.time()
+        }
+
+        if self._request('POST', '/ai_conversations', json=conversation):
+            return conversation
+        return None
+
+    def update_ai_conversation(self, conversation_id: str, user_id: str, data: Dict) -> bool:
+        """更新 AI 对话会话"""
+        return self._request(
+            'PATCH',
+            f'/ai_conversations?id=eq.{conversation_id}&user_id=eq.{user_id}',
+            json=data
+        ) is not None
+
+    def delete_ai_conversation(self, conversation_id: str, user_id: str) -> bool:
+        """删除 AI 对话会话（级联删除消息）"""
+        return self._request(
+            'DELETE',
+            f'/ai_conversations?id=eq.{conversation_id}&user_id=eq.{user_id}'
+        ) is not None
+
+    def get_ai_messages(
+        self,
+        conversation_id: str,
+        user_id: str,
+        limit: int = 50
+    ) -> List[Dict]:
+        """获取 AI 对话消息历史"""
+        # 先验证用户是否有权访问这个会话
+        conv = self.get_ai_conversation(conversation_id, user_id)
+        if not conv:
+            return []
+
+        result = self._request(
+            'GET',
+            f'/ai_messages?conversation_id=eq.{conversation_id}&order=created_at.asc&limit={limit}'
+        )
+        return result if result else []
+
+    def save_ai_message(
+        self,
+        user_id: str,
+        role: str,
+        content: str,
+        conversation_id: str = None,
+        metadata: Dict = None
+    ) -> bool:
+        """保存 AI 对话消息"""
+        import uuid
+        import time
+
+        # 如果没有指定会话，查找或创建最新会话
+        if not conversation_id:
+            conversations = self.get_ai_conversations(user_id, limit=1)
+            if conversations and conversations[0].get('is_active'):
+                conversation_id = conversations[0]['id']
+            else:
+                # 创建新会话
+                new_conv = self.create_ai_conversation(user_id, title=f"对话 {time.strftime('%Y-%m-%d %H:%M')}")
+                if new_conv:
+                    conversation_id = new_conv['id']
+
+        if not conversation_id:
+            return False
+
+        # 生成标题（如果这是第一条消息）
+        messages_count = self._request(
+            'GET',
+            f'/ai_messages?conversation_id=eq.{conversation_id}&select=id'
+        )
+        is_first = not messages_count or len(messages_count) == 0
+
+        message = {
+            'id': str(uuid.uuid4()),
+            'conversation_id': conversation_id,
+            'role': role,
+            'content': content,
+            'created_at': time.time()
+        }
+
+        if metadata:
+            message['metadata'] = metadata
+
+        if self._request('POST', '/ai_messages', json=message):
+            # 更新会话的最后消息时间
+            self._request(
+                'PATCH',
+                f'/ai_conversations?id=eq.{conversation_id}',
+                json={'last_message_at': time.time()}
+            )
+
+            # 如果是第一条消息，更新会话标题
+            if is_first and role == "user":
+                title = content[:30] + "..." if len(content) > 30 else content
+                self._request(
+                    'PATCH',
+                    f'/ai_conversations?id=eq.{conversation_id}',
+                    json={'title': title}
+                )
+
+            return True
+
+        return False
+
+    # ========== 知识库文档 ==========
+
+    def list_kb_documents(
+        self,
+        category: str = None,
+        limit: int = 20,
+        offset: int = 0
+    ) -> List[Dict]:
+        """获取知识库文档列表"""
+        query = f'/kb_documents?order=created_at.desc&limit={limit}&offset={offset}'
+        if category:
+            query = f'/kb_documents?category=eq.{category}&order=created_at.desc&limit={limit}&offset={offset}'
+
+        result = self._request('GET', query)
+        return result if result else []
+
+    def search_knowledge_base(
+        self,
+        query: str,
+        top_k: int = 5,
+        min_similarity: float = 0.7,
+        category: str = None
+    ) -> List[Dict]:
+        """
+        搜索知识库（简化的全文搜索）
+
+        注意：完整的向量搜索需要 Supabase pgvector RPC 函数
+        这里使用回退的全文搜索方案
+        """
+        keywords = query.split()[:5]
+        search_parts = []
+
+        for kw in keywords:
+            if kw.strip():
+                search_parts.append(f"content.ilike.%{kw}%")
+
+        if not search_parts:
+            return []
+
+        # 构建 OR 查询
+        search_query = ",".join(search_parts)
+        api_query = f'/kb_documents?or=({search_query})&limit={top_k}'
+
+        if category:
+            api_query += f"&category=eq.{category}"
+
+        result = self._request('GET', api_query)
+        if result:
+            return [{
+                'id': r.get('id'),
+                'title': r.get('title'),
+                'content_chunk': r.get('content', '')[:500],
+                'similarity': 0.8,  # 模拟相似度
+                'category': r.get('category'),
+                'source_url': r.get('source_url')
+            } for r in result]
+        return []
+
+    def create_kb_document(
+        self,
+        title: str,
+        content: str,
+        category: str = None,
+        tags: List[str] = None,
+        source_url: str = None,
+        created_by: str = None
+    ) -> Optional[Dict]:
+        """创建知识库文档"""
+        import uuid
+
+        doc = {
+            'id': str(uuid.uuid4()),
+            'title': title,
+            'content': content,
+            'category': category,
+            'tags': tags or [],
+            'source_url': source_url,
+            'created_by': created_by
+        }
+
+        if self._request('POST', '/kb_documents', json=doc):
+            return doc
+        return None
+
+    def delete_kb_document(self, document_id: str) -> bool:
+        """删除知识库文档"""
+        return self._request(
+            'DELETE',
+            f'/kb_documents?id=eq.{document_id}'
+        ) is not None
 
 
 # ========== 价格抓取器 ==========

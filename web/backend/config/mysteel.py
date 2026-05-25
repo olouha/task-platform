@@ -1,0 +1,5 @@
+"""
+我的钢铁网登录配置
+"""
+MYSTEEL_USERNAME = "M6616592358"
+MYSTEEL_PASSWORD = "mysteel573005"

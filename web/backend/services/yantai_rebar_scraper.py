@@ -622,8 +622,8 @@ class YantaiRebarScraper:
                     await context.add_cookies(cookies)
                     logger.info("已加载Cookie")
 
-                # 访问价格页面
-                url = self._get_today_url()
+                # 从首页获取今日URL
+                url = await self._find_latest_yantai_url(page)
                 logger.info(f"打开价格页: {url}")
 
                 await page.goto(url, wait_until='domcontentloaded', timeout=60000)
@@ -704,8 +704,8 @@ def save_to_excel(result: CrawlResult, excel_file: str = None) -> bool:
         today_str = today.isoformat()
         fetch_time = datetime.now().strftime("%H:%M:%S")
 
-        # 每次都创建今天的日期sheet（不使用时间区分，保留最近一次抓取）
-        sheet_name = today_str
+        # 每次抓取都创建新的 sheet，格式：YYYY-MM-DD_HHMM
+        sheet_name = f"{today_str}_{fetch_time.replace(':', '')}"
 
         # 样式
         header_font = Font(bold=True, size=12, color="FFFFFF")
@@ -719,9 +719,7 @@ def save_to_excel(result: CrawlResult, excel_file: str = None) -> bool:
         # 打开或创建workbook
         if Path(excel_file).exists():
             wb = openpyxl.load_workbook(excel_file)
-            # 删除已存在的今日sheet，重新创建
-            if sheet_name in wb.sheetnames:
-                del wb[sheet_name]
+            # 不删除旧 sheet，保留历史数据
         else:
             wb = openpyxl.Workbook()
             if 'Sheet' in wb.sheetnames:
@@ -784,6 +782,10 @@ def save_to_excel(result: CrawlResult, excel_file: str = None) -> bool:
         wb.save(excel_file)
         wb.close()
         logger.info(f"保存成功: {excel_file}, Sheet: {sheet_name}")
+
+        # 保存后清除缓存，下次读取会重新加载
+        invalidate_cache()
+
         return True
 
     except Exception as e:
@@ -793,13 +795,45 @@ def save_to_excel(result: CrawlResult, excel_file: str = None) -> bool:
         return False
 
 
-def read_from_excel(excel_file: str = None) -> dict:
-    """读取Excel数据"""
+# 缓存机制
+import time
+_cache: dict = {
+    'data': None,
+    'timestamp': 0,
+    'ttl': 300  # 缓存5分钟
+}
+_sheet_cache: dict = {}  # 单个sheet的缓存
+
+
+def _is_cache_valid() -> bool:
+    """检查缓存是否有效"""
+    return (_cache['data'] is not None and
+            time.time() - _cache['timestamp'] < _cache['ttl'])
+
+
+def invalidate_cache():
+    """清除所有缓存"""
+    global _cache, _sheet_cache
+    _cache = {'data': None, 'timestamp': 0, 'ttl': 300}
+    _sheet_cache = {}
+    logger.info("缓存已清除")
+
+
+def read_from_excel(excel_file: str = None, use_cache: bool = True) -> dict:
+    """读取Excel数据（带缓存）"""
     if not HAS_OPENPYXL:
         return {}
 
     if excel_file is None:
         excel_file = str(DATA_DIR / "山东烟台钢筋价格.xlsx")
+
+    # 检查缓存
+    cache_key = excel_file
+    if use_cache and cache_key in _sheet_cache:
+        cached = _sheet_cache[cache_key]
+        if time.time() - cached['timestamp'] < _cache['ttl']:
+            logger.debug(f"使用缓存读取: {excel_file}")
+            return cached['data']
 
     try:
         if not Path(excel_file).exists():
@@ -837,6 +871,13 @@ def read_from_excel(excel_file: str = None) -> dict:
             all_data[sheet_name] = {'prices': prices, 'has_screenshot': True}
 
         wb.close()
+
+        # 更新缓存
+        _sheet_cache[cache_key] = {
+            'data': all_data,
+            'timestamp': time.time()
+        }
+
         return all_data
 
     except Exception as e:

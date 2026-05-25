@@ -1,18 +1,58 @@
-import { Row, Col, Card, Statistic, Table, Tag, Typography, Space, Alert, Button, Select, Tooltip } from 'antd'
+import { Row, Col, Card, Statistic, Table, Tag, Space, Alert, Button, Select, Tooltip } from 'antd'
 import {
   ProjectOutlined,
   DollarOutlined,
   SyncOutlined,
-  CalendarOutlined,
   DownloadOutlined,
+  LineChartOutlined,
+  DatabaseOutlined,
+  BarChartOutlined,
+  RiseOutlined,
+  FallOutlined,
 } from '@ant-design/icons'
 import { Column } from '@ant-design/charts'
 import { useEffect, useState } from 'react'
 import { statsApi } from '../services/api'
 import * as XLSX from 'xlsx'
 
-const { Title } = Typography
 const LOCAL_API = 'http://localhost:8000'
+
+// 科技数据卡片组件 - 轻奢高科技风格
+const TechStatCard = ({
+  title,
+  value,
+  suffix,
+  icon,
+  color,
+  trend,
+  trendValue
+}: {
+  title: string
+  value: number | string
+  suffix?: string
+  icon: React.ReactNode
+  color: string
+  trend?: 'up' | 'down'
+  trendValue?: string
+}) => (
+  <div className="tech-card">
+    <div className="card-accent-line" />
+    <div className="tech-card-header">
+      <span className="tech-card-title">{title}</span>
+      <div className="tech-card-icon" style={{ color }}>{icon}</div>
+    </div>
+    <div className="tech-card-value" style={{ background: `linear-gradient(135deg, ${color} 0%, ${color}88 100%)`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+      {typeof value === 'number' ? value.toLocaleString() : value}
+    </div>
+    {suffix && <div className="tech-card-sub" style={{ fontSize: 13 }}>{suffix}</div>}
+    {trend && trendValue && (
+      <div className={`tech-card-trend ${trend}`}>
+        {trend === 'up' ? <RiseOutlined /> : <FallOutlined />}
+        <span>{trendValue}</span>
+      </div>
+    )}
+  </div>
+)
 
 interface Stats {
   projects: number;
@@ -181,7 +221,7 @@ export default function Dashboard() {
     xField: 'type',
     yField: 'avgPrice',
     label: { position: 'top' as const },
-    color: '#1890ff',
+    color: '#16325C',
   }
 
   // 导出数据
@@ -227,79 +267,78 @@ export default function Dashboard() {
     { title: '规格', dataIndex: 'spec', width: 80 },
     { title: '上期价格', dataIndex: 'prev', width: 100, render: (v: number) => v.toLocaleString() },
     { title: '本期价格', dataIndex: 'curr', width: 100, render: (v: number) => v.toLocaleString() },
-    { title: '涨跌额', dataIndex: 'change', width: 100, render: (v: number) => v > 0 ? `+${v}` : v.toString() },
+    {
+      title: '涨跌额',
+      dataIndex: 'change',
+      width: 100,
+      render: (v: number) => {
+        const color = v > 0 ? '#EF4444' : v < 0 ? '#10B981' : '#999'
+        return <span style={{ color }}>{v > 0 ? '+' : ''}{v}</span>
+      }
+    },
     {
       title: '涨跌幅',
       dataIndex: 'changeRate',
       width: 100,
       render: (v: number) => {
-        const color = v > 0 ? '#f5222d' : v < 0 ? '#52c41a' : '#999'
-        return <span style={{ color }}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span>
+        const color = v > 0 ? '#EF4444' : v < 0 ? '#10B981' : '#999'
+        return <span style={{ color, fontWeight: 600 }}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span>
       }
     }
   ]
 
   return (
     <div>
-      <Title level={4}>仪表盘</Title>
+      {/* 页面标题 - 科技风格 */}
+      <div className="page-header">
+        <h2 className="page-title">数据仪表盘</h2>
+        <p className="page-subtitle">工程项目材料调差数据总览，实时监控价格动态</p>
+      </div>
 
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="项目总数"
-              value={stats.projects}
-              prefix={<ProjectOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="材料种类"
-              value={stats.materials}
-              prefix={<DollarOutlined />}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="价格记录"
-              value={latestPrices.length}
-              prefix={<SyncOutlined />}
-              valueStyle={{ color: '#13c2c2' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="最新均价"
-              value={priceStats.avgPrice}
-              suffix="元/吨"
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {/* 科技统计卡片 */}
+      <div className="stats-grid">
+        <TechStatCard
+          title="项目总数"
+          value={stats.projects}
+          icon={<ProjectOutlined />}
+          color="#16325C"
+          suffix="个工程项目"
+        />
+        <TechStatCard
+          title="材料种类"
+          value={stats.materials}
+          icon={<DollarOutlined />}
+          color="#722ed1"
+          suffix="种材料类型"
+        />
+        <TechStatCard
+          title="价格记录"
+          value={latestPrices.length}
+          icon={<SyncOutlined />}
+          color="#4A86C8"
+          suffix="条实时数据"
+        />
+        <TechStatCard
+          title="市场均价"
+          value={priceStats.avgPrice}
+          icon={<BarChartOutlined />}
+          color="#10B981"
+          suffix="元/吨"
+        />
+      </div>
 
-      {/* 钢筋价格快捷查看 */}
-      <Card
-        title={
-          <Space>
-            <CalendarOutlined />
-            <span>山东烟台钢筋价格</span>
-            {selectedDate && <Tag color="blue">{selectedDate}</Tag>}
-          </Space>
-        }
-        extra={
+      {/* 价格监控区块 */}
+      <div className="data-section" style={{ marginTop: 24 }}>
+        <div className="data-section-header">
+          <div className="data-section-title">
+            <LineChartOutlined />
+            <span>山东烟台钢筋价格监控</span>
+            {selectedDate && <Tag color="#4A86C8" style={{ marginLeft: 8 }}>{selectedDate}</Tag>}
+          </div>
           <Space>
             <Select
               placeholder="对比日期"
-              style={{ width: 150 }}
+              style={{ width: 140 }}
               allowClear
               value={comparisonDate}
               onChange={(v) => setComparisonDate(v)}
@@ -311,102 +350,144 @@ export default function Dashboard() {
             <Select
               value={selectedDate || ''}
               onChange={(v) => setSelectedDate(v)}
-              style={{ width: 150 }}
+              style={{ width: 140 }}
               options={availableDates.map(d => ({
                 label: d,
                 value: d
               }))}
             />
-            <Tooltip title="导出Excel">
-              <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={latestPrices.length === 0}>
-                导出
-              </Button>
-            </Tooltip>
+            <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={latestPrices.length === 0}>
+              导出数据
+            </Button>
           </Space>
-        }
-        style={{ marginBottom: 24 }}
-      >
-        {priceLoading ? (
-          <div style={{ textAlign: 'center', padding: 40 }}>加载中...</div>
-        ) : latestPrices.length > 0 ? (
-          <>
-            <Row gutter={16} style={{ marginBottom: 16 }}>
-              <Col span={6}>
-                <Card size="small">
-                  <Statistic title="最高价" value={priceStats.maxPrice} suffix="元/吨" valueStyle={{ color: '#f5222d' }} />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card size="small">
-                  <Statistic title="最低价" value={priceStats.minPrice} suffix="元/吨" valueStyle={{ color: '#52c41a' }} />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card size="small">
-                  <Statistic title="均价" value={priceStats.avgPrice} suffix="元/吨" />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card size="small">
-                  <Statistic title="记录数" value={latestPrices.length} suffix="条" />
-                </Card>
-              </Col>
-            </Row>
+        </div>
 
-            {/* 价格趋势图 */}
-            {trendData.length > 0 && (
-              <Card title="按品名均价" size="small" style={{ marginBottom: 16 }}>
-                <Column {...trendConfig} height={200} />
-              </Card>
-            )}
+        <div className="data-section-body">
+          {priceLoading ? (
+            <div style={{ textAlign: 'center', padding: 60 }}>数据加载中...</div>
+          ) : latestPrices.length > 0 ? (
+            <>
+              {/* 统计卡片行 */}
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                <Col span={6}>
+                  <div className="tech-card" style={{ padding: 16 }}>
+                    <div className="card-accent-line" />
+                    <div className="tech-card-title">最高价</div>
+                    <div className="tech-card-value digital-value" style={{ fontSize: 28, background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                      {priceStats.maxPrice.toLocaleString()}
+                    </div>
+                    <div className="tech-card-sub">元/吨</div>
+                  </div>
+                </Col>
+                <Col span={6}>
+                  <div className="tech-card" style={{ padding: 16 }}>
+                    <div className="card-accent-line" />
+                    <div className="tech-card-title">最低价</div>
+                    <div className="tech-card-value digital-value" style={{ fontSize: 28, background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                      {priceStats.minPrice.toLocaleString()}
+                    </div>
+                    <div className="tech-card-sub">元/吨</div>
+                  </div>
+                </Col>
+                <Col span={6}>
+                  <div className="tech-card highlight" style={{ padding: 16 }}>
+                    <div className="card-accent-line" />
+                    <div className="tech-card-title">市场均价</div>
+                    <div className="tech-card-value highlight-number" style={{ fontSize: 28 }}>
+                      {priceStats.avgPrice}
+                    </div>
+                    <div className="tech-card-sub">元/吨</div>
+                  </div>
+                </Col>
+                <Col span={6}>
+                  <div className="tech-card" style={{ padding: 16 }}>
+                    <div className="card-accent-line" />
+                    <div className="tech-card-title">数据记录</div>
+                    <div className="tech-card-value" style={{ fontSize: 28, background: 'linear-gradient(135deg, #4A86C8 0%, #1a4080 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                      {latestPrices.length}
+                    </div>
+                    <div className="tech-card-sub">条价格记录</div>
+                  </div>
+                </Col>
+              </Row>
 
-            {/* 涨幅分析 */}
-            {priceChanges.length > 0 && comparisonDate && (
-              <Card
-                title={
-                  <Space>
-                    <span>涨幅分析</span>
-                    <Tag color="blue">{selectedDate} vs {comparisonDate}</Tag>
-                  </Space>
-                }
-                size="small"
-                style={{ marginBottom: 16 }}
-              >
-                <Table
-                  dataSource={priceChanges.map((c, i) => ({ ...c, key: i }))}
-                  rowKey="key"
-                  pagination={false}
-                  size="small"
-                  columns={changeColumns}
-                />
-              </Card>
-            )}
+              {/* 价格趋势图 */}
+              {trendData.length > 0 && (
+                <div className="chart-container" style={{ marginBottom: 24 }}>
+                  <div className="chart-title">
+                    <BarChartOutlined />
+                    <span>按品名均价走势</span>
+                  </div>
+                  <Column {...trendConfig} height={250} />
+                </div>
+              )}
 
-            {/* 最新价格表格 */}
-            <Table
-              dataSource={latestPrices.map((p, i) => ({ ...p, key: i }))}
-              rowKey="key"
-              pagination={{ pageSize: 10, showSizeChanger: true }}
-              size="small"
-              scroll={{ x: 900 }}
-              columns={[
-                { title: '日期', dataIndex: 'date', width: 100, render: (v: string) => v || selectedDate },
-                { title: '时间', dataIndex: 'time', width: 80 },
-                { title: '品名', dataIndex: 'material_name', width: 80 },
-                { title: '规格', dataIndex: 'spec', width: 80 },
-                { title: '品牌', dataIndex: 'brand', width: 100 },
-                {
-                  title: '单价(元/吨)',
-                  dataIndex: 'price',
-                  render: (v: number) => <strong style={{ color: '#1890ff' }}>{v.toLocaleString()}</strong>
-                },
-              ]}
+              {/* 涨幅分析 */}
+              {priceChanges.length > 0 && comparisonDate && (
+                <div className="data-section" style={{ marginBottom: 24 }}>
+                  <div className="data-section-header">
+                    <div className="data-section-title">
+                      {priceChanges[0]?.change > 0 ? <RiseOutlined style={{ color: '#EF4444' }} /> : <FallOutlined style={{ color: '#10B981' }} />}
+                      <span>价格涨幅分析</span>
+                      <Tag color="#4A86C8">{selectedDate}</Tag>
+                      <span style={{ color: '#999' }}>对比</span>
+                      <Tag color="blue">{comparisonDate}</Tag>
+                    </div>
+                  </div>
+                  <div className="data-section-body">
+                    <Table
+                      dataSource={priceChanges.map((c, i) => ({ ...c, key: i }))}
+                      rowKey="key"
+                      pagination={false}
+                      size="small"
+                      columns={changeColumns}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 最新价格表格 */}
+              <div className="data-section">
+                <div className="data-section-header">
+                  <div className="data-section-title">
+                    <DatabaseOutlined />
+                    <span>价格明细列表</span>
+                  </div>
+                </div>
+                <div className="data-section-body">
+                  <Table
+                    dataSource={latestPrices.map((p, i) => ({ ...p, key: i }))}
+                    rowKey="key"
+                    pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total: number) => `共 ${total} 条` }}
+                    size="small"
+                    scroll={{ x: 900 }}
+                    columns={[
+                      { title: '日期', dataIndex: 'date', width: 100, render: (v: string) => v || selectedDate },
+                      { title: '时间', dataIndex: 'time', width: 80 },
+                      { title: '品名', dataIndex: 'material_name', width: 80 },
+                      { title: '规格', dataIndex: 'spec', width: 80 },
+                      { title: '品牌', dataIndex: 'brand', width: 100 },
+                      {
+                        title: '单价(元/吨)',
+                        dataIndex: 'price',
+                        width: 120,
+                        render: (v: number) => <strong style={{ color: '#16325C', fontWeight: 600 }}>{v.toLocaleString()}</strong>
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <Alert
+              message="暂无钢筋价格数据"
+              description="请确保后端服务已启动并已抓取价格数据"
+              type="warning"
+              showIcon
             />
-          </>
-        ) : (
-          <Alert message="暂无钢筋价格数据，请先运行后端服务并抓取数据" type="warning" showIcon />
-        )}
-      </Card>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
