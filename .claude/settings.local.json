@@ -110,7 +110,11 @@
       "Bash(npx tsc *)",
       "Bash(python -c \"from main import app; print\\('FastAPI app import OK'\\)\")",
       "Bash(python -m web.backend.services.merge_price_history)",
-      "Bash(curl -s -X POST http://localhost:8000/api/ai/chat/completions -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}')"
+      "Bash(curl -s -X POST http://localhost:8000/api/ai/chat/completions -H 'Content-Type: application/json' -d '{\"messages\":[{\"role\":\"user\",\"content\":\"你好\"}]}')",
+      "Bash(curl -s \"http://localhost:8000/api/yantai-prices/trend?days=7\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\admin\\Desktop"

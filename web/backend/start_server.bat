@@ -38,7 +38,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000 ^| findstr LISTENING') 
     echo 服务已在运行 (PID: %%a)
     goto :menu
 )
-start python -m uvicorn main:app --host 127.0.0.1 --port 8000
+start python -m uvicorn main:app --host 0.0.0.0 --port 8000
 timeout /t 3 > nul
 echo 服务已启动！
 echo.
@@ -66,7 +66,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000 ^| findstr LISTENING') 
     taskkill /F /PID %%a > nul 2>&1
 )
 timeout /t 2 > nul
-start python -m uvicorn main:app --host 127.0.0.1 --port 8000
+start python -m uvicorn main:app --host 0.0.0.0 --port 8000
 timeout /t 3 > nul
 echo 服务已重启！
 echo.

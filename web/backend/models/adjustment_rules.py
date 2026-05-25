@@ -4,7 +4,7 @@
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from pydantic import BaseModel, Field
 from enum import Enum
 
@@ -151,7 +151,7 @@ class AdjustmentRuleConfig(BaseModel):
     风险幅度: Dict[str, RiskConfig] = {}  # 按材料名称索引
     基准价来源: Optional[PriceSource] = None
     基准价取价规则: Optional[str] = None
-    施工期价格采集规则: Optional[str | Dict[str, str]] = "按月算术平均"  # 支持字符串或字典
+    施工期价格采集规则: Optional[Union[str, Dict[str, str]]] = "按月算术平均"  # 支持字符串或字典
     节假日无价处理规则: HolidayHandling = HolidayHandling.SHIFT_DAY
     价格取整规则: PriceRounding = PriceRounding.TWO_DECIMAL
     价格信息来源: Optional[str] = None  # 补充说明价格来源
