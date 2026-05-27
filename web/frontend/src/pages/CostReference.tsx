@@ -1,7 +1,7 @@
-import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Input, Select, message, Tabs, Alert, Upload, Modal, List, Divider } from 'antd';
-import { SearchOutlined, DollarOutlined, InboxOutlined, FileOutlined, DeleteOutlined, EyeOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Input, Select, message, Tabs, Alert, Upload, Modal, List, Divider, DatePicker } from 'antd';
+import { SearchOutlined, DollarOutlined, InboxOutlined, FileOutlined, DeleteOutlined, EyeOutlined, DatabaseOutlined, HistoryOutlined, LineChartOutlined } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
-import { costReferenceApi } from '../services/api';
+import { costReferenceApi, costHistoryApi } from '../services/api';
 import type { UploadProps } from 'antd';
 
 // 科技数据卡片组件
@@ -61,6 +61,27 @@ interface MortarPriceItem {
   unit: string;
 }
 
+interface PeriodInfo {
+  year: string;
+  quarter: string;
+  label: string;
+  concrete_count: number;
+  rebar_count: number;
+}
+
+interface ConcreteHistoryItem {
+  grade: string;
+  yantai: number | null;
+  rushan: number | null;
+}
+
+interface SteelHistoryItem {
+  grade: string;
+  size: string;
+  price: number | null;
+  spec: string;
+}
+
 interface UploadFile {
   id: string;
   name: string;
@@ -72,6 +93,7 @@ interface UploadFile {
 
 export default function CostReference() {
   const [activeTab, setActiveTab] = useState('steel');
+  const [historyTab, setHistoryTab] = useState('concrete-history');
   const [steelPrices, setSteelPrices] = useState<SteelPriceItem[]>([]);
   const [concretePrices, setConcretePrices] = useState<ConcretePriceItem[]>([]);
   const [mortarPrices, setMortarPrices] = useState<MortarPriceItem[]>([]);
@@ -87,10 +109,22 @@ export default function CostReference() {
   const [previewVisible, setPreviewVisible] = useState(false);
   const [previewFile, setPreviewFile] = useState<UploadFile | null>(null);
 
+  // 历史数据状态
+  const [periods, setPeriods] = useState<PeriodInfo[]>([]);
+  const [selectedYear, setSelectedYear] = useState<string>('');
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('');
+  const [concreteHistory, setConcreteHistory] = useState<ConcreteHistoryItem[]>([]);
+  const [steelHistory, setSteelHistory] = useState<SteelHistoryItem[]>([]);
+  const [availableYears, setAvailableYears] = useState<string[]>([]);
+
+  // 趋势分析状态
+  const [trendData, setTrendData] = useState<any[]>([]);
+
   useEffect(() => {
     loadSources();
     loadInitialData();
     loadUploadedFiles();
+    loadHistoryPeriods();
   }, []);
 
   const loadSources = async () => {
@@ -112,6 +146,24 @@ export default function CostReference() {
       if (specsRes.specs) setSteelSpecs(specsRes.specs);
     } catch (error) {
       console.error('加载初始数据失败:', error);
+    }
+  };
+
+  const loadHistoryPeriods = async () => {
+    try {
+      const [periodsRes, yearsRes] = await Promise.all([
+        costHistoryApi.getPeriods(),
+        costHistoryApi.getYears()
+      ]);
+      if (periodsRes) setPeriods(periodsRes);
+      if (yearsRes?.years) {
+        setAvailableYears(yearsRes.years);
+        if (yearsRes.years.length > 0) {
+          setSelectedYear(yearsRes.years[yearsRes.years.length - 1]);
+        }
+      }
+    } catch (error) {
+      console.error('加载历史时期失败:', error);
     }
   };
 
@@ -154,6 +206,58 @@ export default function CostReference() {
     }
   };
 
+  const loadConcreteHistory = async (year: string, quarter: string) => {
+    setLoading(true);
+    try {
+      const res = await costHistoryApi.getConcreteByPeriod(year, quarter);
+      if (res.items) setConcreteHistory(res.items);
+    } catch (error) {
+      console.error('加载混凝土历史数据失败:', error);
+      setConcreteHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSteelHistory = async (year: string, quarter: string) => {
+    setLoading(true);
+    try {
+      const res = await costHistoryApi.getSteelByPeriod(year, quarter);
+      if (res.items) setSteelHistory(res.items);
+    } catch (error) {
+      console.error('加载钢筋历史数据失败:', error);
+      setSteelHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadConcreteTrend = async () => {
+    setLoading(true);
+    try {
+      const res = await costHistoryApi.getLatestConcrete(undefined, 20);
+      if (res.items) {
+        // 转换数据为趋势图格式
+        const trendItems: any[] = [];
+        res.items.forEach((period: any) => {
+          period.items.forEach((item: any) => {
+            trendItems.push({
+              period: period.label,
+              grade: item.grade,
+              yantai: item.yantai,
+              rushan: item.rushan
+            });
+          });
+        });
+        setTrendData(trendItems);
+      }
+    } catch (error) {
+      console.error('加载趋势数据失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const loadUploadedFiles = () => {
     const saved = localStorage.getItem('cost_reference_files');
     if (saved) {
@@ -180,6 +284,16 @@ export default function CostReference() {
       console.error('搜索失败:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePeriodChange = (year: string, quarter: string) => {
+    setSelectedYear(year);
+    setSelectedQuarter(quarter);
+    if (historyTab === 'concrete-history' && year && quarter) {
+      loadConcreteHistory(year, quarter);
+    } else if (historyTab === 'steel-history' && year && quarter) {
+      loadSteelHistory(year, quarter);
     }
   };
 
@@ -254,7 +368,38 @@ export default function CostReference() {
     { title: '单位', dataIndex: 'unit', key: 'unit', width: 100 },
   ];
 
+  // 历史混凝土列
+  const concreteHistoryColumns = [
+    { title: '强度等级', dataIndex: 'grade', key: 'grade', width: 100,
+      render: (val: string) => <Tag color="#10B981">{val}</Tag>
+    },
+    { title: '烟台含税(元/m³)', dataIndex: 'yantai', key: 'yantai',
+      render: (val: number | null) => val ? <strong style={{ color: '#16325C' }}>{val}</strong> : '-'
+    },
+    { title: '蓬莱含税(元/m³)', dataIndex: 'rushan', key: 'rushan',
+      render: (val: number | null) => val ? <strong>{val}</strong> : '-'
+    },
+  ];
+
+  // 历史钢筋列
+  const steelHistoryColumns = [
+    { title: '等级', dataIndex: 'grade', key: 'grade', width: 80,
+      render: (val: string) => <Tag color="#16325C">{val}</Tag>
+    },
+    { title: '规格', dataIndex: 'size', key: 'size', width: 80 },
+    { title: '完整规格', dataIndex: 'spec', key: 'spec' },
+    { title: '价格(含税元/吨)', dataIndex: 'price', key: 'price',
+      render: (val: number | null) => val ? <strong style={{ color: '#16325C' }}>{val.toLocaleString()}</strong> : '-'
+    },
+  ];
+
   const currentSource = sources.find(s => s.id === selectedSource);
+
+  // 获取当前选中时期的数据
+  const getQuartersForYear = () => {
+    if (!selectedYear) return [];
+    return periods.filter(p => p.year === selectedYear);
+  };
 
   const uploadProps: UploadProps = {
     name: 'file',
@@ -289,11 +434,11 @@ export default function CostReference() {
           suffix="个等级"
         />
         <TechStatCard
-          title="砂浆品种"
-          value={mortarPrices.length || 0}
-          icon={<DollarOutlined />}
-          color="#F59E0B"
-          suffix="种材料"
+          title="历史数据时期"
+          value={periods.length || 0}
+          icon={<HistoryOutlined />}
+          color="#4A86C8"
+          suffix="个季度"
         />
         <TechStatCard
           title="上传资料"
@@ -304,7 +449,7 @@ export default function CostReference() {
         />
       </div>
 
-      {/* 价格数据 */}
+      {/* 主内容区 */}
       <div className="data-section">
         <div className="data-section-header">
           <div className="data-section-title">
@@ -384,6 +529,103 @@ export default function CostReference() {
                     pagination={{ pageSize: 10 }}
                     size="small"
                   />
+                ),
+              },
+              {
+                key: 'history',
+                label: '历史数据',
+                children: (
+                  <div>
+                    <Alert
+                      message="历史造价参考价查询"
+                      description="查询2021年至2026年的钢筋、混凝土历史造价参考价数据"
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 16 }}
+                    />
+
+                    {/* 时期选择器 */}
+                    <Space style={{ marginBottom: 16 }}>
+                      <Select
+                        placeholder="选择年份"
+                        style={{ width: 120 }}
+                        value={selectedYear || undefined}
+                        onChange={(val) => {
+                          setSelectedYear(val);
+                          setSelectedQuarter('');
+                          if (historyTab === 'concrete-history') {
+                            const yearPeriods = periods.filter(p => p.year === val);
+                            if (yearPeriods.length > 0) {
+                              setSelectedQuarter(yearPeriods[yearPeriods.length - 1].quarter);
+                              loadConcreteHistory(val, yearPeriods[yearPeriods.length - 1].quarter);
+                            }
+                          } else {
+                            const yearPeriods = periods.filter(p => p.year === val);
+                            if (yearPeriods.length > 0) {
+                              setSelectedQuarter(yearPeriods[yearPeriods.length - 1].quarter);
+                              loadSteelHistory(val, yearPeriods[yearPeriods.length - 1].quarter);
+                            }
+                          }
+                        }}
+                        options={availableYears.map(y => ({ label: `${y}年`, value: y }))}
+                      />
+                      <Select
+                        placeholder="选择季度"
+                        style={{ width: 150 }}
+                        value={selectedQuarter || undefined}
+                        onChange={(val) => {
+                          setSelectedQuarter(val);
+                          if (historyTab === 'concrete-history') {
+                            loadConcreteHistory(selectedYear, val);
+                          } else {
+                            loadSteelHistory(selectedYear, val);
+                          }
+                        }}
+                        options={getQuartersForYear().map(p => ({ label: p.quarter, value: p.quarter }))}
+                      />
+                      <Button icon={<HistoryOutlined />} onClick={() => {
+                        if (historyTab === 'concrete-history') loadConcreteTrend();
+                      }}>趋势分析</Button>
+                    </Space>
+
+                    {/* 历史数据子标签 */}
+                    <Tabs
+                      activeKey={historyTab}
+                      onChange={setHistoryTab}
+                      items={[
+                        {
+                          key: 'concrete-history',
+                          label: '混凝土历史',
+                          children: (
+                            <Table
+                              dataSource={concreteHistory}
+                              columns={concreteHistoryColumns}
+                              rowKey="grade"
+                              loading={loading}
+                              pagination={false}
+                              size="small"
+                              locale={{ emptyText: '请选择年份和季度查询' }}
+                            />
+                          ),
+                        },
+                        {
+                          key: 'steel-history',
+                          label: '钢筋历史',
+                          children: (
+                            <Table
+                              dataSource={steelHistory}
+                              columns={steelHistoryColumns}
+                              rowKey="spec"
+                              loading={loading}
+                              pagination={{ pageSize: 15 }}
+                              size="small"
+                              locale={{ emptyText: '请选择年份和季度查询' }}
+                            />
+                          ),
+                        },
+                      ]}
+                    />
+                  </div>
                 ),
               },
               {

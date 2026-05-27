@@ -6,7 +6,7 @@ FastAPI 应用入口
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, building_schedule, building_adjustment
+from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, building_schedule, building_adjustment, cost_history
 from api import ai_chat, ai_self_review
 from services.websocket_manager import ws_manager
 
@@ -48,6 +48,7 @@ app.include_router(file_parser.router, prefix="/api", tags=["文件解析"])
 app.include_router(adjustment_prices.router, prefix="/api/adjustment-prices", tags=["调差价格获取"])
 app.include_router(building_schedule.router, prefix="/api/building-schedule", tags=["楼栋施工时间"])
 app.include_router(building_adjustment.router, prefix="/api/building-adjustment", tags=["楼栋调差计算"])
+app.include_router(cost_history.router, prefix="/api/cost-history", tags=["造价历史参考价"])
 
 
 @app.get("/")

@@ -1,14 +1,10 @@
 // API 服务配置
-// 连接 Railway 后端（烟台钢筋价格）
+// 连接后端服务器（烟台钢筋价格）
 
-const API_BASE_URL = 'https://task-platform-production-a96f.up.railway.app';
-
-// 本地后端地址（仅开发用）
-const LOCAL_API_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const config = {
   apiUrl: API_BASE_URL,
-  localApiUrl: LOCAL_API_URL,
 };
 
 // 类型定义
@@ -28,7 +24,7 @@ export interface YantaiPrice {
 // Stats API
 export const statsApi = {
   get: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/stats`);
+    const response = await fetch(`${config.apiUrl}/api/stats`);
     return response.json();
   }
 };
@@ -36,11 +32,11 @@ export const statsApi = {
 // Projects API
 export const projectsApi = {
   list: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/projects`);
+    const response = await fetch(`${config.apiUrl}/api/projects`);
     return response.json();
   },
   create: async (data: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/projects`, {
+    const response = await fetch(`${config.apiUrl}/api/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -48,7 +44,7 @@ export const projectsApi = {
     return response.json();
   },
   delete: async (id: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/projects/${id}`, {
+    const response = await fetch(`${config.apiUrl}/api/projects/${id}`, {
       method: 'DELETE',
     });
     return response.json();
@@ -66,15 +62,15 @@ export interface Project {
 // 调差规则 API
 export const adjustmentRulesApi = {
   list: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/`);
     return response.json();
   },
   get: async (id: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/${id}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/${id}`);
     return response.json();
   },
   create: async (data: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -82,7 +78,7 @@ export const adjustmentRulesApi = {
     return response.json();
   },
   update: async (id: string, data: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/${id}`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -90,17 +86,17 @@ export const adjustmentRulesApi = {
     return response.json();
   },
   delete: async (id: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/${id}`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/${id}`, {
       method: 'DELETE',
     });
     return response.json();
   },
   getPresets: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/presets`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/presets`);
     return response.json();
   },
   applyPreset: async (_presetName: string, projectName: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/apply-preset`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/apply-preset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 项目名称: projectName }),
@@ -108,7 +104,7 @@ export const adjustmentRulesApi = {
     return response.json();
   },
   saveBidPrices: async (ruleId: string, bidPrices: any[]) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/bid-prices`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/bid-prices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rule_id: ruleId, bid_prices: bidPrices }),
@@ -116,7 +112,7 @@ export const adjustmentRulesApi = {
     return response.json();
   },
   getBidPrices: async (ruleId: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-rules/${ruleId}/bid-prices`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-rules/${ruleId}/bid-prices`);
     return response.json();
   },
 };
@@ -124,7 +120,7 @@ export const adjustmentRulesApi = {
 // 调差计算 API
 export const adjustmentCalcApi = {
   calculate: async (request: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustments/calculate`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustments/calculate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -132,7 +128,7 @@ export const adjustmentCalcApi = {
     return response.json();
   },
   calculateByProject: async (projectId: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustments/calculate-by-project/${projectId}`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustments/calculate-by-project/${projectId}`, {
       method: 'POST',
     });
     return response.json();
@@ -153,11 +149,11 @@ export const adjustmentCalcApi = {
       ...(params.risk_fixed && { risk_fixed: params.risk_fixed.toString() }),
       ...(params.tax_rate && { tax_rate: params.tax_rate.toString() }),
     });
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustments/calculate-simple?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustments/calculate-simple?${query}`);
     return response.json();
   },
   validateConfig: async (config: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustments/validate-config`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustments/validate-config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
@@ -169,43 +165,43 @@ export const adjustmentCalcApi = {
 // 调度器 API
 export const schedulerApi = {
   getStatus: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/status`);
+    const response = await fetch(`${config.apiUrl}/api/scheduler/status`);
     return response.json();
   },
   getTaskStatus: async (sourceId: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/${sourceId}/status`);
+    const response = await fetch(`${config.apiUrl}/api/scheduler/${sourceId}/status`);
     return response.json();
   },
   executeTask: async (sourceId: string, force: boolean = false) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/${sourceId}/execute?force=${force}`, {
+    const response = await fetch(`${config.apiUrl}/api/scheduler/${sourceId}/execute?force=${force}`, {
       method: 'POST',
     });
     return response.json();
   },
   executeAllPending: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/execute-all`, {
+    const response = await fetch(`${config.apiUrl}/api/scheduler/execute-all`, {
       method: 'POST',
     });
     return response.json();
   },
   executeAllSites: async (force: boolean = false) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/execute-all-sites?force=${force}`, {
+    const response = await fetch(`${config.apiUrl}/api/scheduler/execute-all-sites?force=${force}`, {
       method: 'POST',
     });
     return response.json();
   },
   forceFetchAll: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/force-fetch-all`, {
+    const response = await fetch(`${config.apiUrl}/api/scheduler/force-fetch-all`, {
       method: 'POST',
     });
     return response.json();
   },
   getNextExecution: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/next-execution`);
+    const response = await fetch(`${config.apiUrl}/api/scheduler/next-execution`);
     return response.json();
   },
   getSupportedMaterials: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/scheduler/supported-materials`);
+    const response = await fetch(`${config.apiUrl}/api/scheduler/supported-materials`);
     return response.json();
   },
 };
@@ -213,11 +209,11 @@ export const schedulerApi = {
 // 人工抓取 API
 export const fetchApi = {
   getFetchStatus: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/fetch/status`);
+    const response = await fetch(`${config.apiUrl}/api/fetch/status`);
     return response.json();
   },
   triggerManualFetch: async (cookies: any[]) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/fetch/manual`, {
+    const response = await fetch(`${config.apiUrl}/api/fetch/manual`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cookies }),
@@ -225,24 +221,24 @@ export const fetchApi = {
     return response.json();
   },
   triggerAutoFetch: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/fetch/auto`, {
+    const response = await fetch(`${config.apiUrl}/api/fetch/auto`, {
       method: 'POST',
     });
     return response.json();
   },
   getManualRequired: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/fetch/manual-required`);
+    const response = await fetch(`${config.apiUrl}/api/fetch/manual-required`);
     return response.json();
   },
   getExcelData: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/fetch/excel-data`);
+    const response = await fetch(`${config.apiUrl}/api/fetch/excel-data`);
     return response.json();
   },
   downloadExcel: () => {
-    window.open(`${LOCAL_API_URL}/api/fetch/download`, '_blank');
+    window.open(`${config.apiUrl}/api/fetch/download`, '_blank');
   },
   getCookieGuide: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/fetch/export-cookie-guide`);
+    const response = await fetch(`${config.apiUrl}/api/fetch/export-cookie-guide`);
     return response.json();
   },
 };
@@ -250,21 +246,21 @@ export const fetchApi = {
 // 定时抓取 API (Cloudflare Workers cron 触发)
 export const cronFetchApi = {
   fetchToday: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cron/fetch-today`);
+    const response = await fetch(`${config.apiUrl}/api/cron/fetch-today`);
     return response.json();
   },
   getStatus: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cron/status`);
+    const response = await fetch(`${config.apiUrl}/api/cron/status`);
     return response.json();
   },
   forceFetch: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cron/force-fetch`, {
+    const response = await fetch(`${config.apiUrl}/api/cron/force-fetch`, {
       method: 'POST',
     });
     return response.json();
   },
   getLatest: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cron/latest`);
+    const response = await fetch(`${config.apiUrl}/api/cron/latest`);
     return response.json();
   },
 };
@@ -272,46 +268,46 @@ export const cronFetchApi = {
 // 造价参考价 API
 export const costReferenceApi = {
   getSources: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/sources`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/sources`);
     return response.json();
   },
   getCategories: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/categories`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/categories`);
     return response.json();
   },
   getSummary: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/summary`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/summary`);
     return response.json();
   },
   getSteelPrices: async (params?: { spec?: string; steel_type?: string }) => {
     const query = new URLSearchParams(params || {}).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/steel${query ? '?' + query : ''}`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/steel${query ? '?' + query : ''}`);
     return response.json();
   },
   getSteelTypes: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/steel/types`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/steel/types`);
     return response.json();
   },
   getSteelSpecs: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/steel/specs`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/steel/specs`);
     return response.json();
   },
   getConcretePrices: async (params?: { min_grade?: string; max_grade?: string }) => {
     const query = new URLSearchParams(params || {}).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/concrete${query ? '?' + query : ''}`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/concrete${query ? '?' + query : ''}`);
     return response.json();
   },
   getConcreteGrades: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/concrete/grades`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/concrete/grades`);
     return response.json();
   },
   getMortarPrices: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/mortar`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/mortar`);
     return response.json();
   },
   search: async (keyword: string, category?: string) => {
     const query = new URLSearchParams({ keyword, ...(category && { category }) }).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/cost-reference/search?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/cost-reference/search?${query}`);
     return response.json();
   },
 };
@@ -319,11 +315,11 @@ export const costReferenceApi = {
 // 调差项目管理 API
 export const adjustmentProjectApi = {
   list: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/`);
     return response.json();
   },
   get: async (id: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}`);
     return response.json();
   },
   create: async (data: {
@@ -333,7 +329,7 @@ export const adjustmentProjectApi = {
     rule_name?: string;
     base_price_source?: string;
   }) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -341,7 +337,7 @@ export const adjustmentProjectApi = {
     return response.json();
   },
   update: async (id: string, data: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -349,17 +345,17 @@ export const adjustmentProjectApi = {
     return response.json();
   },
   delete: async (id: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}`, {
       method: 'DELETE',
     });
     return response.json();
   },
   getMaterials: async (id: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}/materials`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}/materials`);
     return response.json();
   },
   setMaterials: async (id: string, materials: any[]) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}/materials`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}/materials`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(materials),
@@ -367,7 +363,7 @@ export const adjustmentProjectApi = {
     return response.json();
   },
   addAttachment: async (id: string, attachment: any) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}/attachments`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}/attachments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(attachment),
@@ -375,7 +371,7 @@ export const adjustmentProjectApi = {
     return response.json();
   },
   deleteAttachment: async (id: string, attachmentId: string) => {
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-projects/${id}/attachments/${attachmentId}`, {
+    const response = await fetch(`${config.apiUrl}/api/adjustment-projects/${id}/attachments/${attachmentId}`, {
       method: 'DELETE',
     });
     return response.json();
@@ -387,7 +383,7 @@ export const fileParserApi = {
   upload: async (file: File): Promise<any> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${LOCAL_API_URL}/api/file-parser/upload`, {
+    const response = await fetch(`${config.apiUrl}/api/file-parser/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -396,14 +392,64 @@ export const fileParserApi = {
   preview: async (file: File): Promise<any> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${LOCAL_API_URL}/api/file-parser/preview`, {
+    const response = await fetch(`${config.apiUrl}/api/file-parser/preview`, {
       method: 'POST',
       body: formData,
     });
     return response.json();
   },
   getTemplates: async () => {
-    const response = await fetch(`${LOCAL_API_URL}/api/file-parser/templates`);
+    const response = await fetch(`${config.apiUrl}/api/file-parser/templates`);
+    return response.json();
+  },
+};
+
+// 造价历史参考价 API
+export const costHistoryApi = {
+  getPeriods: async () => {
+    const response = await fetch(`${config.apiUrl}/api/cost-history/periods`);
+    return response.json();
+  },
+  getYears: async () => {
+    const response = await fetch(`${config.apiUrl}/api/cost-history/years`);
+    return response.json();
+  },
+  getSummary: async () => {
+    const response = await fetch(`${config.apiUrl}/api/cost-history/summary`);
+    return response.json();
+  },
+  getConcreteByPeriod: async (year: string, quarter: string) => {
+    const query = new URLSearchParams({ year, quarter }).toString();
+    const response = await fetch(`${config.apiUrl}/api/cost-history/concrete/by-period?${query}`);
+    return response.json();
+  },
+  getSteelByPeriod: async (year: string, quarter: string) => {
+    const query = new URLSearchParams({ year, quarter }).toString();
+    const response = await fetch(`${config.apiUrl}/api/cost-history/steel/by-period?${query}`);
+    return response.json();
+  },
+  getLatestConcrete: async (year?: string, limit?: number) => {
+    const params = new URLSearchParams();
+    if (year) params.set('year', year);
+    if (limit) params.set('limit', limit.toString());
+    const query = params.toString();
+    const response = await fetch(`${config.apiUrl}/api/cost-history/concrete/latest${query ? '?' + query : ''}`);
+    return response.json();
+  },
+  getLatestSteel: async (year?: string, limit?: number) => {
+    const params = new URLSearchParams();
+    if (year) params.set('year', year);
+    if (limit) params.set('limit', limit.toString());
+    const query = params.toString();
+    const response = await fetch(`${config.apiUrl}/api/cost-history/steel/latest${query ? '?' + query : ''}`);
+    return response.json();
+  },
+  getConcreteGrades: async () => {
+    const response = await fetch(`${config.apiUrl}/api/cost-history/concrete/grades`);
+    return response.json();
+  },
+  getSteelSpecs: async () => {
+    const response = await fetch(`${config.apiUrl}/api/cost-history/steel/specs`);
     return response.json();
   },
 };
@@ -418,7 +464,7 @@ export const adjustmentPricesApi = {
     brands?: string;
   }) => {
     const query = new URLSearchParams(params).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-prices/query?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-prices/query?${query}`);
     return response.json();
   },
   getPeriodAverage: async (params: {
@@ -428,7 +474,7 @@ export const adjustmentPricesApi = {
     brands?: string;
   }) => {
     const query = new URLSearchParams(params).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-prices/period-average?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-prices/period-average?${query}`);
     return response.json();
   },
   getBasePrice: async (params: {
@@ -438,7 +484,7 @@ export const adjustmentPricesApi = {
     brands?: string;
   }) => {
     const query = new URLSearchParams(params).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-prices/base-price?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-prices/base-price?${query}`);
     return response.json();
   },
   getAdjustmentPrices: async (params: {
@@ -449,7 +495,7 @@ export const adjustmentPricesApi = {
     brands?: string;
   }) => {
     const query = new URLSearchParams(params).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-prices/adjustment-prices?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-prices/adjustment-prices?${query}`);
     return response.json();
   },
   batchGet: async (params: {
@@ -459,12 +505,12 @@ export const adjustmentPricesApi = {
     period_end: string;
   }) => {
     const query = new URLSearchParams(params).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-prices/batch?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-prices/batch?${query}`);
     return response.json();
   },
   getLatest: async (material: string, spec?: string) => {
     const query = new URLSearchParams({ material, ...(spec && { spec }) }).toString();
-    const response = await fetch(`${LOCAL_API_URL}/api/adjustment-prices/latest?${query}`);
+    const response = await fetch(`${config.apiUrl}/api/adjustment-prices/latest?${query}`);
     return response.json();
   },
 };

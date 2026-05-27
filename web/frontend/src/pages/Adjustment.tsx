@@ -221,6 +221,7 @@ export default function Adjustment() {
       bid_price: 0,
       base_price: 0,
       phase: '',
+      location: '',
     }]);
   };
 
@@ -261,7 +262,7 @@ export default function Adjustment() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${config.localApiUrl}/api/file-parser/upload`, {
+      const response = await fetch(`${config.apiUrl}/api/file-parser/upload`, {
         method: 'POST',
         body: formData,
       });
