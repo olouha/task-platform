@@ -79,6 +79,27 @@ docker run -d \
     --restart unless-stopped \
     $IMAGE_NAME
 
+# 配置开机自启
+echo -e "${YELLOW}配置开机自启...${NC}"
+cat > /etc/systemd/system/$PROJECT_NAME-docker.service << EOF
+[Unit]
+Description=TaskPlatform Docker Container
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/docker start $CONTAINER_NAME
+ExecStop=/usr/bin/docker stop $CONTAINER_NAME
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable $PROJECT_NAME-docker.service 2>/dev/null || true
+
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}部署完成！${NC}"
 echo -e "${GREEN}========================================${NC}"
@@ -88,6 +109,9 @@ docker ps | grep $CONTAINER_NAME || echo "容器未运行"
 echo ""
 echo "查看日志:"
 echo "  docker logs -f $CONTAINER_NAME"
+echo ""
+echo "开机自启已配置:"
+echo "  systemctl status $PROJECT_NAME-docker"
 echo ""
 echo "访问地址: http://localhost:$PORT"
 echo "API文档:   http://localhost:$PORT/docs"

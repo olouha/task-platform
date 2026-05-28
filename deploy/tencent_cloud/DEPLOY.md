@@ -1,5 +1,26 @@
 # 腾讯云部署指南
 
+## 快速部署
+
+### 一键部署脚本（推荐）
+
+```bash
+cd /root
+tar -xzvf task-platform.tar.gz
+chmod +x web/backend/deploy/tencent_cloud/deploy-docker.sh
+./web/backend/deploy/tencent_cloud/deploy-docker.sh
+```
+
+部署脚本会自动：
+1. 安装 Docker（如未安装）
+2. 构建镜像
+3. 启动容器
+4. **配置开机自启**
+
+---
+
+## 详细步骤
+
 ## 方式一：Docker 部署（推荐）
 
 ### 1. 服务器安装 Docker
@@ -19,9 +40,6 @@ systemctl enable docker
 
 ```bash
 cd e:\E\任务\task-platform
-
-# 复制 Dockerfile 到正确位置（已在项目中）
-# 项目结构 web/backend/Dockerfile 已配置
 
 # 打包（不含 node_modules）
 tar -czvf task-platform.tar.gz \
@@ -48,6 +66,16 @@ tar -xzvf task-platform.tar.gz
 # 构建 Docker 镜像
 cd web/backend
 docker build -t task-platform:latest .
+
+# 启动容器（自动配置开机自启）
+docker run -d \
+    --name task-platform \
+    -p 8000:8000 \
+    --env-file web/backend/.env \
+    -v $(pwd)/services/data:/app/services/data \
+    -v $(pwd)/services/logs:/app/services/logs \
+    --restart unless-stopped \
+    task-platform:latest
 
 # 运行容器
 docker run -d \

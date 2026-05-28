@@ -827,6 +827,20 @@ def read_from_excel(excel_file: str = None, use_cache: bool = True) -> dict:
     if excel_file is None:
         excel_file = str(DATA_DIR / "山东烟台钢筋价格.xlsx")
 
+    # 如果指定文件不存在，自动查找其他版本
+    if not Path(excel_file).exists():
+        # 查找可用的Excel文件 - 按数据完整性排序
+        candidates = [
+            DATA_DIR / "山东烟台钢筋价格_current.xlsx",  # 最新，包含更多数据
+            DATA_DIR / "山东烟台钢筋价格_完整版.xlsx",   # 完整历史
+            DATA_DIR / "山东烟台钢筋价格.xlsx",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                excel_file = str(candidate)
+                logger.info(f"使用备用Excel文件: {candidate.name}")
+                break
+
     # 检查缓存
     cache_key = excel_file
     if use_cache and cache_key in _sheet_cache:
@@ -892,6 +906,19 @@ def get_sheet_names(excel_file: str = None) -> list:
 
     if excel_file is None:
         excel_file = str(DATA_DIR / "山东烟台钢筋价格.xlsx")
+
+    # 如果文件不存在，查找备用文件
+    if not Path(excel_file).exists():
+        candidates = [
+            DATA_DIR / "山东烟台钢筋价格.xlsx",
+            DATA_DIR / "山东烟台钢筋价格_完整版.xlsx",
+            DATA_DIR / "山东烟台钢筋价格_current.xlsx",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                excel_file = str(candidate)
+                logger.info(f"使用备用Excel文件: {candidate.name}")
+                break
 
     try:
         if not Path(excel_file).exists():

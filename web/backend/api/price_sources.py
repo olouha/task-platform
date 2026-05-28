@@ -8,14 +8,27 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 import json
-from pathlib import Path
-
-from pathlib import Path
+import os
 
 router = APIRouter()
 
-# 修正Excel路径 - 使用相对路径
-_excel_file = "services/data/山东烟台钢筋价格.xlsx"
+
+def get_excel_file():
+    """获取可用的Excel文件路径"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_current.xlsx"),
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_完整版.xlsx"),
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格.xlsx"),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
+# 修正Excel路径 - 使用动态查找
+_excel_file = get_excel_file()
 
 
 @router.get("/latest")
@@ -24,7 +37,7 @@ async def get_latest_price():
     try:
         import openpyxl
 
-        if not Path(_excel_file).exists():
+        if not _excel_file or not os.path.exists(_excel_file):
             return {
                 "success": False,
                 "message": "暂无数据，请先运行爬虫抓取"
@@ -84,7 +97,7 @@ async def get_price_history(days: int = 30):
         import openpyxl
         from datetime import timedelta
 
-        if not Path(_excel_file).exists():
+        if not _excel_file or not os.path.exists(_excel_file):
             return {"success": False, "prices": []}
 
         wb = openpyxl.load_workbook(_excel_file)
@@ -126,7 +139,7 @@ async def get_all_sheets():
     try:
         import openpyxl
 
-        if not Path(_excel_file).exists():
+        if not _excel_file or not os.path.exists(_excel_file):
             return {"success": False, "sheets": []}
 
         # 使用read_only模式快速读取

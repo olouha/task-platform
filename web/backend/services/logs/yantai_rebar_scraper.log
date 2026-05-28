@@ -413,3 +413,26 @@ NotImplementedError
 2026-05-28 08:00:20,681 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052716/F397E9E69DB11079.html
 2026-05-28 08:00:20,681 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052716/F397E9E69DB11079.html
 2026-05-28 08:00:33,025 - INFO - 截图已保存
+2026-05-28 09:00:42,736 - INFO - 缓存已清除
+2026-05-28 09:00:42,737 - INFO - 使用备用Excel文件: 山东烟台钢筋价格_完整版.xlsx
+2026-05-28 09:01:16,642 - INFO - 缓存已清除
+2026-05-28 09:04:02,494 - INFO - 缓存已清除
+2026-05-28 09:05:05,773 - INFO - 缓存已清除
+2026-05-28 09:05:27,313 - INFO - Date: 2026-05-16, Available sheets: ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-08', '2024-01-09', '2024-01-10', '2024-01-11', '2024-01-12', '2024-01-15'], Matching: ['2026-05-16']
+2026-05-28 09:05:27,318 - INFO - HTTP Request: GET http://testserver/api/yantai-prices/latest?date=2026-05-16 "HTTP/1.1 200 OK"
+2026-05-28 09:05:56,683 - INFO - Date: 2026-05-16, Available sheets: ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-08', '2024-01-09', '2024-01-10', '2024-01-11', '2024-01-12', '2024-01-15'], Matching: ['2026-05-16']
+2026-05-28 09:07:23,675 - INFO - No date specified, using latest sheet: 2026-05-16
+2026-05-28 09:07:23,679 - INFO - HTTP Request: GET http://testserver/api/yantai-prices/latest "HTTP/1.1 200 OK"
+2026-05-28 09:07:49,330 - INFO - No date specified, using latest sheet: 2026-05-16
+2026-05-28 09:12:29,628 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:15:35,528 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:19:32,172 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:23:06,437 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:31:43,552 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:38:29,060 - WARNING - 未配置 Supabase，无法进行知识库检索
+2026-05-28 09:38:29,062 - WARNING - 未配置 AI 服务，将返回模拟响应
+2026-05-28 09:38:54,044 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:41:28,475 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:42:35,772 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:45:53,950 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-28 09:48:37,802 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954

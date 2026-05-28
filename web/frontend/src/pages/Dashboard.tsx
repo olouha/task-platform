@@ -106,13 +106,21 @@ export default function Dashboard() {
       const response = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
       const data = await response.json()
       if (data.success && data.sheets) {
-        const dateSheets = data.sheets.filter((s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s))
-        dateSheets.sort().reverse()
-        setAvailableDates(dateSheets)
-        if (dateSheets.length > 0 && !selectedDate) {
-          setSelectedDate(dateSheets[0])
-          if (dateSheets.length > 1) {
-            setComparisonDate(dateSheets[1])
+        // 支持多种sheet格式: YYYY-MM-DD, YYYY-MM-DD_PM, YYYY-MM-DD_PM_HHMMSS
+        const dateSheets = data.sheets.filter((s: string) => {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return true
+          if (/^\d{4}-\d{2}-\d{2}_(AM|PM)$/.test(s)) return true
+          if (/^\d{4}-\d{2}-\d{2}_(AM|PM)_\d{6}$/.test(s)) return true
+          if (/^\d{4}-\d{2}-\d{2}_\d{6}$/.test(s)) return true
+          return false
+        })
+        // 提取纯日期部分并去重
+        const uniqueDates = [...new Set(dateSheets.map(s => s.substring(0, 10)))].sort().reverse()
+        setAvailableDates(uniqueDates)
+        if (uniqueDates.length > 0 && !selectedDate) {
+          setSelectedDate(uniqueDates[0])
+          if (uniqueDates.length > 1) {
+            setComparisonDate(uniqueDates[1])
           }
         }
       }
@@ -124,7 +132,8 @@ export default function Dashboard() {
   const fetchPricesByDate = async (date: string) => {
     setPriceLoading(true)
     try {
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest?date=${date}`)
+      // 直接获取最新数据（API会自动返回最新的111条）
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest`)
       const data = await response.json()
 
       if (data.success && data.prices) {

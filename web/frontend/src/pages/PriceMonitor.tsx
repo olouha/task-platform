@@ -459,17 +459,8 @@ export default function PriceMonitor() {
   const fetchPricesByDate = async (date: string, sheet: string | null = null) => {
     setInitialLoading(true)
     try {
-      const targetSheet = sheet || (dateSheetsMap[date] ? dateSheetsMap[date][0] : null)
-      if (!targetSheet) {
-        setLatestPrices([])
-        setInitialLoading(false)
-        return
-      }
-
-      setSelectedSheet(targetSheet)
-
-      const url = `${config.apiUrl}/api/yantai-prices/latest?date=${date}&sheet=${targetSheet}`
-      const response = await fetch(url)
+      // 直接调用 API 获取最新数据（不带date参数，API会返回最新sheet的111条数据）
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest`)
       const data = await response.json()
 
       let prices = []
