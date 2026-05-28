@@ -1,15 +1,12 @@
 import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Select, message, Spin, Alert, Badge, Tooltip, DatePicker, Empty } from 'antd'
 import { SyncOutlined, ReloadOutlined, FilterOutlined, CalendarOutlined, DownloadOutlined, ClockCircleOutlined, RiseOutlined, FallOutlined, LineChartOutlined, DatabaseOutlined, DollarOutlined, SafetyCertificateOutlined, ClearOutlined } from '@ant-design/icons'
 import { useState, useEffect, useRef } from 'react'
-import { YantaiPrice, fetchApi } from '../services/api'
+import { YantaiPrice, fetchApi, config } from '../services/api'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
 import { Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Area, ComposedChart, Brush } from 'recharts'
 
 const { RangePicker } = DatePicker
-
-// API地址 - 从环境变量读取
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 // 科技数据卡片组件 - 轻奢高科技风格
 const TechCard = ({
@@ -131,7 +128,9 @@ export default function PriceMonitor() {
 
   const connectWebSocket = () => {
     try {
-      const ws = new WebSocket(`ws://localhost:8000/ws`)
+      const wsProtocol = config.apiUrl.startsWith('https') ? 'wss:' : 'ws:'
+      const wsUrl = config.apiUrl.replace(/^https?:/, wsProtocol) + '/ws'
+      const ws = new WebSocket(wsUrl)
 
       ws.onopen = () => {
         console.log('WebSocket已连接')
@@ -175,7 +174,7 @@ export default function PriceMonitor() {
   useEffect(() => {
     const init = async () => {
       try {
-        const sheetsRes = await fetch(`${API_URL}/api/price-sources/sheets`)
+        const sheetsRes = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
         const sheetsData = await sheetsRes.json()
 
         if (sheetsData.success && sheetsData.sheets) {
@@ -271,7 +270,7 @@ export default function PriceMonitor() {
   // 获取所有可用的日期
   const fetchAvailableDates = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/price-sources/sheets`)
+      const response = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
       const data = await response.json()
       if (data.success && data.sheets) {
         const dateSheets = data.sheets.filter((s: string) => {
@@ -334,7 +333,7 @@ export default function PriceMonitor() {
   // 获取所有历史数据汇总
   const fetchAllDataSummary = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/yantai-prices/summary?include_all=true`)
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/summary?include_all=true`)
       const data = await response.json()
       setAllDataSummary(data)
     } catch (error) {
@@ -346,11 +345,11 @@ export default function PriceMonitor() {
   const fetchTrendData = async (startDate?: string, endDate?: string) => {
     setTrendLoading(true)
     try {
-      let url = `${API_URL}/api/yantai-prices/trend?days=730`  // 默认获取2年数据
+      let url = `${config.apiUrl}/api/yantai-prices/trend?days=730`  // 默认获取2年数据
       if (startDate && endDate) {
-        url = `${API_URL}/api/yantai-prices/trend?start_date=${startDate}&end_date=${endDate}`
+        url = `${config.apiUrl}/api/yantai-prices/trend?start_date=${startDate}&end_date=${endDate}`
       } else if (startDate) {
-        url = `${API_URL}/api/yantai-prices/trend?start_date=${startDate}&days=730`
+        url = `${config.apiUrl}/api/yantai-prices/trend?start_date=${startDate}&days=730`
       }
       const response = await fetch(url)
       const data = await response.json()
@@ -366,7 +365,7 @@ export default function PriceMonitor() {
   // 获取抓取状态
   const fetchStatusData = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/fetch/status`)
+      const response = await fetch(`${config.apiUrl}/api/fetch/status`)
       const data = await response.json()
       setFetchStatus(data)
     } catch (error) {
@@ -377,7 +376,7 @@ export default function PriceMonitor() {
   // 获取调度器状态
   const fetchSchedulerStatus = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/scheduler/status`)
+      const response = await fetch(`${config.apiUrl}/api/scheduler/status`)
       const data = await response.json()
       if (Array.isArray(data)) {
         setSchedulerStatus(data)
@@ -390,7 +389,7 @@ export default function PriceMonitor() {
   // 获取下次执行时间
   const fetchNextExecution = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/scheduler/next-execution`)
+      const response = await fetch(`${config.apiUrl}/api/scheduler/next-execution`)
       const data = await response.json()
       if (data.next_executions) {
         setNextExecution(data.next_executions)
@@ -403,7 +402,7 @@ export default function PriceMonitor() {
   // 获取上次抓取信息
   const fetchLastFetchInfo = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/cron/status`)
+      const response = await fetch(`${config.apiUrl}/api/cron/status`)
       const data = await response.json()
       setLastFetchInfo(data)
     } catch (error) {
@@ -426,7 +425,7 @@ export default function PriceMonitor() {
   const handleAutoFetch = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`${API_URL}/api/cron/force-fetch`, { method: 'POST' })
+      const response = await fetch(`${config.apiUrl}/api/cron/force-fetch`, { method: 'POST' })
       const data = await response.json()
 
       if (data.success) {
@@ -469,7 +468,7 @@ export default function PriceMonitor() {
 
       setSelectedSheet(targetSheet)
 
-      const url = `${API_URL}/api/yantai-prices/latest?date=${date}&sheet=${targetSheet}`
+      const url = `${config.apiUrl}/api/yantai-prices/latest?date=${date}&sheet=${targetSheet}`
       const response = await fetch(url)
       const data = await response.json()
 
@@ -497,7 +496,7 @@ export default function PriceMonitor() {
     setInitialLoading(true)
     setLoading(true)
     try {
-      const url = `${API_URL}/api/yantai-prices/range?start_date=${startDate}&end_date=${endDate}`
+      const url = `${config.apiUrl}/api/yantai-prices/range?start_date=${startDate}&end_date=${endDate}`
       const response = await fetch(url)
       const data = await response.json()
 
@@ -581,7 +580,7 @@ export default function PriceMonitor() {
     if (!comparisonDate || allPrices[comparisonDate]) return
 
     try {
-      const response = await fetch(`${API_URL}/api/yantai-prices/latest?date=${comparisonDate}`)
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest?date=${comparisonDate}`)
       const data = await response.json()
       if (data.prices) {
         setAllPrices(prev => ({ ...prev, [comparisonDate]: data.prices }))

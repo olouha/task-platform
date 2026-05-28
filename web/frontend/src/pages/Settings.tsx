@@ -1,8 +1,7 @@
 import { Card, Form, Input, Select, Switch, Button, Space, Divider, message, Tabs, Alert, Tag } from 'antd'
 import { SaveOutlined, SyncOutlined, SafetyCertificateOutlined, SettingOutlined, CloudOutlined, DatabaseOutlined, UserOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
-
-const LOCAL_API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { config } from '../services/api'
 
 // 科技数据卡片组件
 const TechStatCard = ({
@@ -43,7 +42,7 @@ export default function Settings() {
 
   const fetchCredentialsStatus = async () => {
     try {
-      const response = await fetch(`${LOCAL_API}/api/yantai-prices/credentials`)
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/credentials`)
       const data = await response.json()
       setCredentialsStatus(data)
     } catch (error) {
@@ -62,7 +61,7 @@ export default function Settings() {
   const handleUpdateCredentials = async (values: any) => {
     setUpdating(true)
     try {
-      const response = await fetch(`${LOCAL_API}/api/yantai-prices/update-credentials`, {
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/update-credentials`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

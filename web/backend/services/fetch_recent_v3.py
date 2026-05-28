@@ -1,7 +1,4 @@
-"""
-批量抓取烟台钢筋价格历史数据
-账号: M6616592358 / panhui199261
-"""
+"""抓取最近日期数据 - 修正URL格式"""
 import asyncio
 import json
 import base64
@@ -15,13 +12,15 @@ from openpyxl.drawing.image import Image
 
 DATA_DIR = Path('services/data')
 COOKIE_FILE = DATA_DIR / 'mysteel_cookies.json'
-EXCEL_FILE = DATA_DIR / '山东烟台钢筋价格_历史抓取.xlsx'
+EXCEL_FILE = DATA_DIR / '山东烟台钢筋价格_完整版.xlsx'
 
 USERNAME = 'M6616592358'
 PASSWORD = 'panhui199261'
 
-LOG_FILE = DATA_DIR / 'logs' / f'fetch_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+LOG_FILE = DATA_DIR / 'logs' / f'fetch_recent_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 
+# 正确的hash值（从已成功的URL中获取）
+HASH_AM = '25B3355C6617BD3C'
 
 def log(msg):
     print(f'[{datetime.now().strftime("%H:%M:%S")}] {msg}')
@@ -29,17 +28,21 @@ def log(msg):
     with open(LOG_FILE, 'a', encoding='utf-8') as f:
         f.write(f'[{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}] {msg}\n')
 
-
 def random_sleep():
-    return random.uniform(12, 15)
+    return random.uniform(8, 12)
 
+def get_url(date_str, period):
+    """生成正确格式的URL - 使用YYMMDD格式"""
+    # 从 "2026-05-21" 提取 "260521"
+    parts = date_str.split('-')
+    date_part = parts[0][2:] + parts[1] + parts[2]  # "26" + "05" + "21" = "260521"
+    suffix = '10' if period == 'AM' else '16'
+    return f'https://jiancai.mysteel.com/m/{date_part}{suffix}/{HASH_AM}.html'
 
 async def login(page, context):
-    """登录"""
     log('登录中...')
     await page.goto('https://passport.mysteel.com/', wait_until='networkidle', timeout=60000)
     await page.wait_for_timeout(3000)
-
     try:
         tab = await page.query_selector('text=账号登录')
         if tab:
@@ -47,7 +50,6 @@ async def login(page, context):
             await page.wait_for_timeout(2000)
     except:
         pass
-
     await page.evaluate(f'''
         () => {{
             const inputs = document.querySelectorAll('input');
@@ -59,7 +61,6 @@ async def login(page, context):
         }}
     ''')
     await page.wait_for_timeout(1000)
-
     try:
         btn = await page.query_selector('.form-button-login, button:has-text("登录")')
         if btn:
@@ -70,24 +71,20 @@ async def login(page, context):
                     break
     except:
         pass
-
     cookies = await context.cookies()
     COOKIE_FILE.write_text(json.dumps(cookies, ensure_ascii=False), encoding='utf-8')
     log(f'登录成功，Cookie: {len(cookies)}条')
 
-
 async def fetch_price_data(page, url, date_str, period):
-    """抓取单个日期的价格数据"""
     try:
+        log(f'  访问: {url}')
         await page.goto(url, wait_until='domcontentloaded', timeout=60000)
         await page.wait_for_timeout(5000)
 
-        # 滚动加载
         for i in range(5):
             await page.evaluate('window.scrollBy(0, 500)')
             await page.wait_for_timeout(500)
 
-        # 截图
         screenshot_b64 = None
         try:
             screenshot = await page.screenshot(full_page=True)
@@ -95,7 +92,6 @@ async def fetch_price_data(page, url, date_str, period):
         except:
             pass
 
-        # 提取表格数据
         data = await page.evaluate('''
             () => {
                 const results = [];
@@ -115,7 +111,6 @@ async def fetch_price_data(page, url, date_str, period):
             }
         ''')
 
-        # 解析价格
         prices = []
         for row in data:
             if len(row) >= 5:
@@ -124,10 +119,9 @@ async def fetch_price_data(page, url, date_str, period):
                 mat_type = row[2].strip() if len(row) > 2 else ''
                 brand = row[3].strip() if len(row) > 3 else ''
                 price_text = row[4].strip() if len(row) > 4 else ''
-
-                # 检查是否是有效数据
                 valid_materials = ['高线', '螺纹钢', '盘螺', '圆钢', '拉丝材']
                 if any(m in material for m in valid_materials):
+                    import re
                     price_match = re.search(r'(\d{3,5})', price_text)
                     if price_match:
                         price = int(price_match.group(1))
@@ -138,57 +132,38 @@ async def fetch_price_data(page, url, date_str, period):
                             'brand': brand,
                             'price': price
                         })
-
         return prices, screenshot_b64
-
     except Exception as e:
         log(f'  抓取失败: {e}')
         return [], None
 
-
 def save_to_excel(prices, period, date_str, screenshot_b64):
-    """保存到Excel"""
     try:
         if EXCEL_FILE.exists():
             try:
                 wb = openpyxl.load_workbook(EXCEL_FILE)
             except:
-                wb = openpyxl.Workbook()
-                if 'Sheet' in wb.sheetnames:
-                    del wb['Sheet']
+                log('  Excel文件损坏')
+                return False
         else:
             wb = openpyxl.Workbook()
             if 'Sheet' in wb.sheetnames:
                 del wb['Sheet']
-
-        # 生成sheet名
-        if period == 'AM':
-            sheet_name = date_str
-        else:
-            sheet_name = f'{date_str}_PM'
-
-        # 检查是否已存在
+        sheet_name = date_str if period == 'AM' else f'{date_str}_PM'
         if sheet_name in wb.sheetnames:
             log(f'  Sheet已存在，跳过')
             wb.close()
             return False
-
         ws = wb.create_sheet(title=sheet_name[:31])
-
-        # 样式
         header_font = Font(bold=True, size=12, color='FFFFFF')
         header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid') if period == 'AM' else \
                       PatternFill(start_color='FF6B6B', end_color='FF6B6B', fill_type='solid')
         border = Border(left=Side(style='thin'), right=Side(style='thin'),
                         top=Side(style='thin'), bottom=Side(style='thin'))
-
-        # 标题
         period_text = '下午' if period == 'PM' else '上午'
         ws.merge_cells('A1:K1')
         ws.cell(row=1, column=1, value=f'山东烟台钢筋价格 - {date_str} {period_text}').font = Font(bold=True, size=14)
         ws.cell(row=1, column=1).alignment = Alignment(horizontal='center')
-
-        # 表头
         headers = ['日期', '时间', '品名', '规格', '材质', '品牌/钢厂', '单价(元/吨)', '涨跌', '备注', '钢号', '地区']
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=3, column=col, value=header)
@@ -196,8 +171,6 @@ def save_to_excel(prices, period, date_str, screenshot_b64):
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal='center', vertical='center')
             cell.border = border
-
-        # 数据
         fetch_time = datetime.now().strftime('%H:%M:%S')
         for i, price in enumerate(prices):
             row = 4 + i
@@ -206,106 +179,62 @@ def save_to_excel(prices, period, date_str, screenshot_b64):
                                        '', '', '', '山东烟台'], 1):
                 cell = ws.cell(row=row, column=col, value=val)
                 cell.border = border
-
-        # 截图
         if screenshot_b64:
             screenshot_path = DATA_DIR / f'screenshot_{date_str.replace("-", "")}_{period}.png'
             with open(screenshot_path, 'wb') as f:
                 f.write(base64.b64decode(screenshot_b64))
-
             row = 4 + len(prices) + 2
             ws.cell(row=row, column=1, value='当日截图').font = Font(bold=True, size=12)
-
             img_obj = Image(str(screenshot_path))
             img_obj.width = 900
             img_obj.height = 500
             img_obj.anchor = f'A{row + 1}'
             ws.add_image(img_obj)
-
         wb.save(EXCEL_FILE)
         wb.close()
         return True
-
     except Exception as e:
         log(f'  保存失败: {e}')
         return False
 
-
-def get_existing_dates():
-    """获取已有数据的日期"""
-    existing = set()
-    if EXCEL_FILE.exists():
-        try:
-            wb = openpyxl.load_workbook(EXCEL_FILE, read_only=True)
-            for name in wb.sheetnames:
-                if name.startswith('20'):
-                    existing.add(name[:10])
-                    if '_PM' in name:
-                        existing.add(f'{name[:10]}_PM')
-            wb.close()
-        except:
-            pass
-    return existing
-
-
 async def main():
     print()
     print('=' * 70)
-    print('批量抓取烟台钢筋价格历史数据')
+    print('抓取最近日期数据')
     print('=' * 70)
     print()
 
-    # 从已有数据获取已存在的日期
-    existing = get_existing_dates()
-    log(f'已有数据: {len(existing)} 个')
+    # 需要抓取的日期
+    missing_dates = [
+        ('2026-05-21', 'AM'),
+        ('2026-05-22', 'AM'),
+        ('2026-05-25', 'AM'),
+        ('2026-05-26', 'AM'),
+        ('2026-05-27', 'AM'),
+    ]
 
-    # 从test_urls.json读取URL
-    urls_file = DATA_DIR / 'test_urls.json'
-    if not urls_file.exists():
-        log('错误: real_urls.json 不存在')
-        return
+    # 生成URL
+    urls = [(date, period, get_url(date, period)) for date, period in missing_dates]
+    for date, period, url in urls:
+        log(f'URL: {url}')
 
-    with open(urls_file, 'r', encoding='utf-8') as f:
-        urls = json.load(f)
-
-    log(f'URL总数: {len(urls)}')
-
-    # 过滤需要抓取的
-    tasks = []
-    for date_str, period, url in urls:
-        target = date_str if period == 'AM' else f'{date_str}_PM'
-        if target not in existing:
-            tasks.append((date_str, period, url))
-
-    log(f'需要抓取: {len(tasks)} 条')
-    print()
-
-    if not tasks:
-        log('所有数据已抓取完成')
-        return
+    log(f'需要抓取: {len(urls)} 个日期')
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context(
-            viewport={'width': 1920, 'height': 3000},
-            locale='zh-CN'
-        )
+        context = await browser.new_context(viewport={'width': 1920, 'height': 3000}, locale='zh-CN')
         page = await context.new_page()
-
         await login(page, context)
 
         success = 0
         fail = 0
 
-        for i, (date_str, period, url) in enumerate(tasks):
-            log(f'[{i+1}/{len(tasks)}] {date_str} {period}...')
+        for date_str, period, url in urls:
+            log(f'{date_str} {period}...')
             print(f'  -> 抓取中...', end='', flush=True)
-
             prices, screenshot = await fetch_price_data(page, url, date_str, period)
-
             if prices:
                 if save_to_excel(prices, period, date_str, screenshot):
-                    existing.add(date_str)
                     log(f' {len(prices)}条 [OK]')
                     success += 1
                 else:
@@ -314,8 +243,6 @@ async def main():
             else:
                 log(' 无数据')
                 fail += 1
-
-            # 停顿
             await asyncio.sleep(random_sleep())
 
         await browser.close()
@@ -324,8 +251,6 @@ async def main():
     print('=' * 70)
     log(f'成功: {success} 条')
     log(f'失败: {fail} 条')
-    log(f'最终数据: {len(get_existing_dates())} 个日期')
-
 
 if __name__ == '__main__':
     asyncio.run(main())

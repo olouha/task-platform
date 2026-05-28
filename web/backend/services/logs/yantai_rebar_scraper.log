@@ -398,3 +398,18 @@ NotImplementedError
 2026-05-22 15:13:46,889 - WARNING - 未配置 AI 服务，将返回模拟响应
 2026-05-22 15:13:52,096 - WARNING - 未配置 Supabase，无法进行知识库检索
 2026-05-22 15:13:52,097 - WARNING - 未配置 AI 服务，将返回模拟响应
+2026-05-26 08:00:09,705 - INFO - 已加载 180 个Cookie
+2026-05-26 08:00:09,780 - INFO - 已加载Cookie
+2026-05-26 08:00:19,116 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052516/ED35290D8C78A3B9.html
+2026-05-26 08:00:19,117 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052516/ED35290D8C78A3B9.html
+2026-05-26 08:00:31,073 - INFO - 截图已保存
+2026-05-27 08:00:13,999 - INFO - 已加载 180 个Cookie
+2026-05-27 08:00:14,218 - INFO - 已加载Cookie
+2026-05-27 08:00:24,595 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052616/F448041F81815F8A.html
+2026-05-27 08:00:24,596 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052616/F448041F81815F8A.html
+2026-05-27 08:00:37,221 - INFO - 截图已保存
+2026-05-28 08:00:10,464 - INFO - 已加载 28 个Cookie
+2026-05-28 08:00:10,536 - INFO - 已加载Cookie
+2026-05-28 08:00:20,681 - INFO - 从首页找到烟台URL: https://jiancai.mysteel.com/m/26052716/F397E9E69DB11079.html
+2026-05-28 08:00:20,681 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052716/F397E9E69DB11079.html
+2026-05-28 08:00:33,025 - INFO - 截图已保存

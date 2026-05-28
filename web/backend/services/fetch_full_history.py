@@ -26,12 +26,12 @@ COOKIE_FILE = DATA_DIR / 'mysteel_cookies.json'
 EXCEL_FILE = DATA_DIR / '山东烟台钢筋价格.xlsx'
 MARKET_URL = 'https://jiancai.mysteel.com/market/pa228aa010101a0a01010205aaaa1.html'
 
-# 目标时间范围：2024年1月1日 到 今天
-START_DATE = datetime(2024, 1, 1)
-END_DATE = datetime.now()
+# 目标时间范围：2020年1月1日 到 今天 (2026-05-27)
+START_DATE = datetime(2020, 1, 1)
+END_DATE = datetime(2026, 5, 27)
 
-USERNAME = 'M6616592358'
-PASSWORD = 'mysteel573005'
+USERNAME = 'M6616672758'
+PASSWORD = 'Panhui199261*'
 
 LOG_FILE = DATA_DIR / 'logs' / f'full_history_fetch_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
 

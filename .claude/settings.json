@@ -77,7 +77,23 @@
       "Bash(python -c \"import main; print\\('OK'\\)\")",
       "Bash(python -c \"from api.file_parser import router; print\\('file_parser OK'\\)\")",
       "Bash(python -c \"from main import app; print\\('Backend OK'\\)\")",
-      "Bash(python -c \"from api.file_parser import router; print\\('OK'\\)\")"
+      "Bash(python -c \"from api.file_parser import router; print\\('OK'\\)\")",
+      "Bash(rm -f \"e:/E/任务/task-platform/web/backend/services/data/\"temp_*.png)",
+      "Bash(python -m services.strict_integrate)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(python -m http.server 8080)",
+      "Bash(python -c \"from models.cost_history import *\")",
+      "Bash(curl -s http://localhost:8000/api/cost-history/years)",
+      "Bash(curl -s \"http://localhost:8000/api/cost-history/concrete/by-period?year=2024&quarter=2024年一季度\")",
+      "Bash(python -c \"from main import app; print\\('OK'\\)\")",
+      "Bash(curl -s \"http://localhost:8000/api/cost-history/concrete/by-period?year=2024&quarter=2024%E5%B9%B4%E4%B8%80%E5%AD%A3%E5%BA%A6\")",
+      "Bash(curl -s \"http://localhost:8000/api/cost-history/steel/by-period?year=2024&quarter=2024%E5%B9%B4%E4%B8%80%E5%AD%A3%E5%BA%A6\")",
+      "Bash(python -m http.server 8888 --bind 0.0.0.0)",
+      "Bash(curl -s http://localhost:8888)",
+      "Bash(curl -s http://localhost:8080)",
+      "Bash(curl -s http://192.168.255.10:8080)",
+      "Bash(curl -s http://localhost:5174)",
+      "Bash(python services/merge_data.py)"
     ]
   }
 }

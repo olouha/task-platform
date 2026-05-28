@@ -12,10 +12,8 @@ import {
 } from '@ant-design/icons'
 import { Column } from '@ant-design/charts'
 import { useEffect, useState } from 'react'
-import { statsApi } from '../services/api'
+import { statsApi, config } from '../services/api'
 import * as XLSX from 'xlsx'
-
-const LOCAL_API = 'http://localhost:8000'
 
 // 科技数据卡片组件 - 轻奢高科技风格
 const TechStatCard = ({
@@ -105,7 +103,7 @@ export default function Dashboard() {
 
   const fetchAvailableDates = async () => {
     try {
-      const response = await fetch(`${LOCAL_API}/api/price-sources/sheets`)
+      const response = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
       const data = await response.json()
       if (data.success && data.sheets) {
         const dateSheets = data.sheets.filter((s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s))
@@ -126,7 +124,7 @@ export default function Dashboard() {
   const fetchPricesByDate = async (date: string) => {
     setPriceLoading(true)
     try {
-      const response = await fetch(`${LOCAL_API}/api/yantai-prices/latest?date=${date}`)
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest?date=${date}`)
       const data = await response.json()
 
       if (data.success && data.prices) {
@@ -146,7 +144,7 @@ export default function Dashboard() {
     if (!comparisonDate || allPrices[comparisonDate]) return
 
     try {
-      const response = await fetch(`${LOCAL_API}/api/yantai-prices/latest?date=${comparisonDate}`)
+      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest?date=${comparisonDate}`)
       const data = await response.json()
       if (data.prices) {
         setAllPrices(prev => ({ ...prev, [comparisonDate]: data.prices }))
