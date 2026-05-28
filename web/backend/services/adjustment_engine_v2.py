@@ -214,3 +214,5 @@ class AdjustmentEngineV2:
 
         # 找不到则返回0
         return 0
+# 向后兼容别名
+AdjustmentEngine = AdjustmentEngineV2
