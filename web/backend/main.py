@@ -5,11 +5,19 @@ FastAPI 应用入口
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, building_schedule, building_adjustment, cost_history, yantai_db
 from api import ai_chat, ai_self_review
 from services.websocket_manager import ws_manager
+from services.rate_limiter import get_rate_limiter
 
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="TaskPlatform API",
@@ -17,14 +25,39 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS 配置
+# CORS 配置（生产环境应限制来源）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # TODO: 部署时改为具体域名
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# 限流中间件
+@app.middleware("http")
+async def rate_limit_middleware(request, call_next):
+    """HTTP请求限流中间件"""
+    from fastapi.responses import JSONResponse
+
+    limiter = get_rate_limiter()
+    client_ip = request.client.host if request.client else 'unknown'
+
+    # 排除健康检查和根路径
+    if request.url.path in ['/', '/health', '/docs', '/openapi.json', '/redoc']:
+        return await call_next(request)
+
+    allowed, message = limiter.check_ip(client_ip)
+    if not allowed:
+        logger.warning(f"[RateLimit] 限流触发 | ip={client_ip}, path={request.url.path}")
+        return JSONResponse(
+            status_code=429,
+            content={"detail": message}
+        )
+
+    response = await call_next(request)
+    return response
 
 # 注册API路由
 app.include_router(projects.router, prefix="/api/projects", tags=["项目管理"])
@@ -55,15 +88,23 @@ app.include_router(cost_history.router, prefix="/api/cost-history", tags=["造�
 @app.get("/")
 async def root():
     """根路径"""
+    logger.info("[root] 根路径访问")
     return {"message": "TaskPlatform API", "version": "1.0.0"}
 
 
 @app.get("/health")
 async def health_check():
     """健康检查"""
-    return {"status": "healthy"}
+    logger.debug("[health_check] 健康检查")
+    limiter = get_rate_limiter()
+    limiter_stats = limiter.get_stats()
+    return {
+        "status": "healthy",
+        "rate_limit": limiter_stats
+    }
 
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("[startup] 启动应用")
     uvicorn.run(app, host="0.0.0.0", port=8000)

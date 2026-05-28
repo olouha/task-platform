@@ -1,6 +1,7 @@
 """
 Supabase 数据库服务
 连接真实数据库并操作数据
+支持环境变量配置优先
 """
 
 import os
@@ -16,13 +17,19 @@ class SupabaseService:
     """Supabase 数据库服务"""
 
     def __init__(self, url: str = None, api_key: str = None):
+        # 优先级：1. 构造函数参数 2. 环境变量 3. 配置文件
+        if not url:
+            url = os.environ.get('SUPABASE_URL')
+        if not api_key:
+            api_key = os.environ.get('SUPABASE_KEY')
+
         if not url or not api_key:
             config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'cloud.json')
             if os.path.exists(config_path):
                 with open(config_path, 'r') as f:
                     config = json.load(f)
-                    url = config.get('supabase_url')
-                    api_key = config.get('supabase_key')
+                    url = url or config.get('supabase_url')
+                    api_key = api_key or config.get('supabase_key')
 
         self.url = url.rstrip('/') if url else None
         self.api_key = api_key
@@ -33,6 +40,8 @@ class SupabaseService:
             'Prefer': 'return=representation'
         }
         self.timeout = 30
+
+        logger.info(f"[SupabaseService] 初始化 | url={self.url[:30]}... if self.url else 'None'")
 
     def _request(self, method: str, endpoint: str, **kwargs) -> Optional[Any]:
         """发送请求"""
@@ -173,6 +182,191 @@ class SupabaseService:
         if result and len(result) > 0:
             return result[0]
         return None
+
+    def create_project(self, project_data: Dict) -> Optional[Dict]:
+        """创建项目"""
+        import uuid
+        project_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/projects', json=project_data):
+            return project_data
+        return None
+
+    def update_project(self, project_id: str, update_data: Dict) -> bool:
+        """更新项目"""
+        return self._request('PATCH', f'/projects?id=eq.{project_id}', json=update_data) is not None
+
+    def delete_project(self, project_id: str) -> bool:
+        """删除项目"""
+        return self._request('DELETE', f'/projects?id=eq.{project_id}') is not None
+
+    # ========== 施工阶段 ==========
+
+    def get_project_phases(self, project_id: str) -> List[Dict]:
+        """获取项目施工阶段"""
+        result = self._request('GET', f'/construction_phases?project_id=eq.{project_id}&select=*&order=start_date.asc')
+        return result if result else []
+
+    def create_project_phase(self, phase_data: Dict) -> Optional[Dict]:
+        """创建施工阶段"""
+        import uuid
+        phase_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/construction_phases', json=phase_data):
+            return phase_data
+        return None
+
+    # ========== 项目材料 ==========
+
+    def get_project_materials(self, project_id: str) -> List[Dict]:
+        """获取项目材料"""
+        result = self._request('GET', f'/project_materials?project_id=eq.{project_id}&select=*')
+        return result if result else []
+
+    def create_project_material(self, material_data: Dict) -> Optional[Dict]:
+        """创建项目材料"""
+        import uuid
+        material_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/project_materials', json=material_data):
+            return material_data
+        return None
+
+    def update_project_material(self, material_id: str, update_data: Dict) -> bool:
+        """更新项目材料"""
+        return self._request('PATCH', f'/project_materials?id=eq.{material_id}', json=update_data) is not None
+
+    def delete_project_material(self, material_id: str) -> bool:
+        """删除项目材料"""
+        return self._request('DELETE', f'/project_materials?id=eq.{material_id}') is not None
+
+    # ========== 材料分类 ==========
+
+    def create_material_category(self, category_data: Dict) -> Optional[Dict]:
+        """创建材料分类"""
+        import uuid
+        category_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/material_categories', json=category_data):
+            return category_data
+        return None
+
+    def update_material_category(self, category_id: str, update_data: Dict) -> bool:
+        """更新材料分类"""
+        return self._request('PATCH', f'/material_categories?id=eq.{category_id}', json=update_data) is not None
+
+    def delete_material_category(self, category_id: str) -> bool:
+        """删除材料分类"""
+        return self._request('DELETE', f'/material_categories?id=eq.{category_id}') is not None
+
+    # ========== 材料 ==========
+
+    def create_material(self, material_data: Dict) -> Optional[Dict]:
+        """创建材料"""
+        import uuid
+        material_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/materials', json=material_data):
+            return material_data
+        return None
+
+    def update_material(self, material_id: str, update_data: Dict) -> bool:
+        """更新材料"""
+        return self._request('PATCH', f'/materials?id=eq.{material_id}', json=update_data) is not None
+
+    def delete_material(self, material_id: str) -> bool:
+        """删除材料"""
+        return self._request('DELETE', f'/materials?id=eq.{material_id}') is not None
+
+    # ========== 指标分类 ==========
+
+    def get_indicator_categories(self, project_id: str = None) -> List[Dict]:
+        """获取指标分类"""
+        query = '/indicator_categories?select=*&order=sort_order.asc'
+        if project_id:
+            query = f'/indicator_categories?project_id=eq.{project_id}&select=*&order=sort_order.asc'
+        result = self._request('GET', query)
+        return result if result else []
+
+    def create_indicator_category(self, category_data: Dict) -> Optional[Dict]:
+        """创建指标分类"""
+        import uuid
+        category_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/indicator_categories', json=category_data):
+            return category_data
+        return None
+
+    def update_indicator_category(self, category_id: str, update_data: Dict) -> bool:
+        """更新指标分类"""
+        return self._request('PATCH', f'/indicator_categories?id=eq.{category_id}', json=update_data) is not None
+
+    def delete_indicator_category(self, category_id: str) -> bool:
+        """删除指标分类"""
+        return self._request('DELETE', f'/indicator_categories?id=eq.{category_id}') is not None
+
+    # ========== 指标 ==========
+
+    def get_indicators(self, project_id: str = None, category_id: str = None) -> List[Dict]:
+        """获取指标列表"""
+        query = '/indicators?select=*'
+        filters = []
+        if project_id:
+            filters.append(f'project_id=eq.{project_id}')
+        if category_id:
+            filters.append(f'category_id=eq.{category_id}')
+        if filters:
+            query = f'/indicators?{"&".join(filters)}&select=*'
+        result = self._request('GET', query)
+        return result if result else []
+
+    def create_indicator(self, indicator_data: Dict) -> Optional[Dict]:
+        """创建指标"""
+        import uuid
+        indicator_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/indicators', json=indicator_data):
+            return indicator_data
+        return None
+
+    def get_indicator(self, indicator_id: str) -> Optional[Dict]:
+        """获取单个指标"""
+        result = self._request('GET', f'/indicators?id=eq.{indicator_id}&select=*')
+        if result and len(result) > 0:
+            return result[0]
+        return None
+
+    def update_indicator(self, indicator_id: str, update_data: Dict) -> bool:
+        """更新指标"""
+        return self._request('PATCH', f'/indicators?id=eq.{indicator_id}', json=update_data) is not None
+
+    def delete_indicator(self, indicator_id: str) -> bool:
+        """删除指标"""
+        return self._request('DELETE', f'/indicators?id=eq.{indicator_id}') is not None
+
+    # ========== 价格历史 ==========
+
+    def create_price_record(self, record_data: Dict) -> Optional[Dict]:
+        """创建价格记录"""
+        import uuid
+        record_data['id'] = str(uuid.uuid4())
+        if self._request('POST', '/price_history', json=record_data):
+            return record_data
+        return None
+
+    def get_price_records(self, material_id: str = None, source_id: str = None,
+                          start_date: str = None, end_date: str = None,
+                          limit: int = 100) -> List[Dict]:
+        """获取价格记录"""
+        filters = []
+        if material_id:
+            filters.append(f'material_id=eq.{material_id}')
+        if source_id:
+            filters.append(f'source_id=eq.{source_id}')
+        if start_date:
+            filters.append(f'recorded_date=gte.{start_date}')
+        if end_date:
+            filters.append(f'recorded_date=lte.{end_date}')
+
+        query = f'/price_history?order=recorded_date.desc&limit={limit}'
+        if filters:
+            query = f'/price_history?{"&".join(filters)}&order=recorded_date.desc&limit={limit}'
+
+        result = self._request('GET', query)
+        return result if result else []
 
     # ========== 调差记录 ==========
 

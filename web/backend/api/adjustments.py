@@ -8,6 +8,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import datetime
 from pathlib import Path
+import logging
 
 from services.adjustment_calculator import AdjustmentCalculator
 from services.adjustment_engine import AdjustmentEngine, CalculationInput, PriceData, QuantityData
@@ -16,6 +17,7 @@ from models.schemas import AdjustmentRecord, AdjustmentResult
 from models.adjustment_rules import AdjustmentRuleConfig, PRESET_RULES
 
 router = APIRouter(prefix="/adjustments", tags=["调差计算"])
+logger = logging.getLogger(__name__)
 calculator = AdjustmentCalculator()
 
 # 模拟数据存储
@@ -69,25 +71,26 @@ async def calculate_adjustment_v2(
     - period_prices: 施工期价格字典
     - quantities: 工程量列表
     """
+    logger.info(f"[calculate_adjustment_v2] 计算调差 | rule_id={request.rule_id}, materials={len(request.quantities)}")
     try:
         # Step 1: 获取或解析配置
         if request.rule_id:
             rule = supabase.get_adjustment_rule(request.rule_id)
             if not rule:
+                logger.warning(f"[calculate_adjustment_v2] 规则不存在 | rule_id={request.rule_id}")
                 raise HTTPException(status_code=404, detail=f"规则 {request.rule_id} 不存在")
             config_dict = rule.get('config', {})
         elif request.config:
             config_dict = request.config
         else:
+            logger.warning("[calculate_adjustment_v2] 缺少参数")
             return CalculationResponse(
                 success=False,
                 error="必须提供 rule_id 或 config"
             )
 
-        # 构建配置对象
         config = AdjustmentRuleConfig(**config_dict)
 
-        # Step 2-5: 构建输入数据并计算
         input_data = CalculationInput(
             base_prices=request.base_prices,
             period_prices={
@@ -99,10 +102,10 @@ async def calculate_adjustment_v2(
             ]
         )
 
-        # 执行计算
         engine = AdjustmentEngine(config)
         result = engine.calculate(input_data)
 
+        logger.info(f"[calculate_adjustment_v2] 计算成功 | total={result.total_adjustment}")
         return CalculationResponse(
             success=True,
             data=result.model_dump()
@@ -111,6 +114,7 @@ async def calculate_adjustment_v2(
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"[calculate_adjustment_v2] 计算失败 | {e}", exc_info=True)
         return CalculationResponse(
             success=False,
             error=str(e)
@@ -132,6 +136,7 @@ async def calculate_adjustment_simple(
     直接输入参数计算单个材料的调差金额
     适用于快速计算，无需完整配置
     """
+    logger.info(f"[calculate_adjustment_simple] 计算 | base={base_price}, avg={avg_price}, qty={quantity}")
     result = AdjustmentEngine.calculate_simple(
         base_price=base_price,
         avg_price=avg_price,
@@ -141,6 +146,7 @@ async def calculate_adjustment_simple(
         tax_rate=tax_rate
     )
 
+    logger.info(f"[calculate_adjustment_simple] 完成 | result={result}")
     return {
         "success": True,
         "data": result,
@@ -151,12 +157,13 @@ async def calculate_adjustment_simple(
 @router.get("/presets")
 async def get_adjustment_presets():
     """获取预设规则列表"""
-    return {
-        "presets": [
-            {"name": name, "description": _get_preset_description(name)}
-            for name in PRESET_RULES.keys()
-        ]
-    }
+    logger.info("[get_adjustment_presets] 获取预设规则")
+    presets = [
+        {"name": name, "description": _get_preset_description(name)}
+        for name in PRESET_RULES.keys()
+    ]
+    logger.info(f"[get_adjustment_presets] 返回 {len(presets)} 个预设")
+    return {"presets": presets}
 
 
 def _get_preset_description(name: str) -> str:
@@ -173,9 +180,9 @@ def _get_preset_description(name: str) -> str:
 @router.post("/validate-config")
 async def validate_adjustment_config(config: Dict):
     """校验调差配置"""
+    logger.info("[validate_adjustment_config] 校验配置")
     errors = []
 
-    # 检查必填项
     if '调差项目' not in config:
         errors.append("缺少必填项: 调差项目")
 
@@ -197,6 +204,7 @@ async def validate_adjustment_config(config: Dict):
         if '税率' not in formula:
             errors.append("缺少必填项: 税率")
 
+    logger.info(f"[validate_adjustment_config] 校验完成 | valid={len(errors)==0}, errors={len(errors)}")
     return {
         "valid": len(errors) == 0,
         "errors": errors,
@@ -212,7 +220,7 @@ async def calculate_adjustment(
     price_history: dict = {}
 ):
     """计算调差"""
-    # 模拟数据
+    logger.info(f"[calculate_adjustment] 计算调差 | project_id={project_id}, materials={len(materials)}")
     phases = [{'id': phase_id, 'phase_name': '阶段一', 'start_date': '2024-01-01', 'end_date': '2024-06-30'}]
 
     result = calculator.calculate_project_adjustment(
@@ -222,15 +230,14 @@ async def calculate_adjustment(
         price_history
     )
 
+    logger.info(f"[calculate_adjustment] 计算完成 | phases={len(result.get('phases', []))}")
     return result.get('phases', [])
 
 
 @router.get("/records", response_model=List[AdjustmentRecord])
-async def list_adjustment_records(
-    project_id: str = None,
-    phase_id: str = None
-):
+async def list_adjustment_records(project_id: str = None, phase_id: str = None):
     """获取调差记录"""
+    logger.info(f"[list_adjustment_records] 查询记录 | project_id={project_id}, phase_id={phase_id}")
     records = list(_adjustment_records_db.values())
 
     if project_id:
@@ -238,24 +245,33 @@ async def list_adjustment_records(
     if phase_id:
         records = [r for r in records if r.phase_id == phase_id]
 
+    logger.info(f"[list_adjustment_records] 返回 {len(records)} 条记录")
     return records
 
 
 @router.post("/records", response_model=AdjustmentRecord)
 async def create_adjustment_record(record: AdjustmentRecord):
     """创建调差记录"""
-    import uuid
-    record.id = str(uuid.uuid4())
-    _adjustment_records_db[record.id] = record
-    return record
+    logger.info(f"[create_adjustment_record] 创建记录 | project={record.project_id}, material={record.material_id}")
+    try:
+        import uuid
+        record.id = str(uuid.uuid4())
+        _adjustment_records_db[record.id] = record
+        logger.info(f"[create_adjustment_record] 创建成功 | id={record.id}")
+        return record
+    except Exception as e:
+        logger.error(f"[create_adjustment_record] 创建失败 | {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="创建记录失败")
 
 
 @router.get("/project/{project_id}/summary")
 async def get_project_adjustment_summary(project_id: str):
     """获取项目调差汇总"""
+    logger.info(f"[get_project_adjustment_summary] 查询汇总 | project_id={project_id}")
     records = [r for r in _adjustment_records_db.values() if r.project_id == project_id]
 
     if not records:
+        logger.info("[get_project_adjustment_summary] 无记录")
         return {
             'project_id': project_id,
             'total_adjustment': 0,
@@ -263,7 +279,6 @@ async def get_project_adjustment_summary(project_id: str):
             'materials': []
         }
 
-    # 按阶段分组
     phase_summary = {}
     material_summary = {}
 
@@ -287,27 +302,32 @@ async def get_project_adjustment_summary(project_id: str):
 
     total = sum(r.adjustment_amount for r in records)
 
-    return {
+    result = {
         'project_id': project_id,
         'total_adjustment': round(total, 2),
         'adjustment_text': calculator.number_to_chinese(total),
         'phases': list(phase_summary.values()),
         'materials': list(material_summary.values())
     }
+    logger.info(f"[get_project_adjustment_summary] 汇总完成 | total={result['total_adjustment']}")
+    return result
 
 
 @router.post("/export/{project_id}")
 async def export_adjustment_report(project_id: str):
     """导出调差报告"""
+    logger.info(f"[export_adjustment_report] 导出报告 | project_id={project_id}")
     records = [r for r in _adjustment_records_db.values() if r.project_id == project_id]
 
     if not records:
+        logger.warning("[export_adjustment_report] 无调差记录")
         raise HTTPException(status_code=404, detail="无调差记录")
 
+    total = sum(r.adjustment_amount for r in records)
     result = {
         'project_id': project_id,
-        'total_adjustment': sum(r.adjustment_amount for r in records),
-        'adjustment_text': calculator.number_to_chinese(sum(r.adjustment_amount for r in records)),
+        'total_adjustment': total,
+        'adjustment_text': calculator.number_to_chinese(total),
         'records': [
             {
                 'phase_name': r.phase_name,
@@ -319,7 +339,7 @@ async def export_adjustment_report(project_id: str):
             for r in records
         ]
     }
-
+    logger.info(f"[export_adjustment_report] 导出成功 | total={total}")
     return result
 
 
@@ -338,8 +358,8 @@ async def calculate_by_project(project_id: str):
     4. 调用计算引擎
     5. 返回结果
     """
+    logger.info(f"[calculate_by_project] 开始计算 | project_id={project_id}")
     try:
-        # 1. 获取项目数据
         from api.adjustment_project import load_projects
 
         projects = load_projects()
@@ -350,28 +370,24 @@ async def calculate_by_project(project_id: str):
                 break
 
         if not project:
+            logger.warning(f"[calculate_by_project] 项目不存在 | project_id={project_id}")
             raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")
 
         materials = project.get('materials', [])
 
         if not materials:
+            logger.warning("[calculate_by_project] 项目未配置材料")
             return {
                 "success": False,
                 "error": "该项目尚未配置材料清单，请在'配置'中添加材料后重试"
             }
 
-        # 2. 获取预设规则配置
         rule_name = project.get('rule_name', '')
         preset_config = PRESET_RULES.get(rule_name)
 
         if not preset_config:
-            # 使用默认配置
             preset_config = PRESET_RULES.get("朱家庄")
 
-        # 3. 获取施工期价格（模拟）
-        # 暂时使用模拟价格，后续可对接真实价格API
-
-        # 构build立基准价和施工期价格
         base_prices = {}
         period_prices = {}
 
@@ -379,14 +395,11 @@ async def calculate_by_project(project_id: str):
             material_name = m.get('name', '')
             base_price = m.get('base_price', 0)
 
-            # 如果没有基准价，使用默认值
             if not base_price:
-                base_price = 4500  # 钢筋默认值
+                base_price = 4500
 
             base_prices[material_name] = base_price
 
-            # 施工期价格：使用模拟价格
-            # 默认模拟施工期价格比基准价高约5%
             simulated_price = base_price * 1.05
             period_prices[material_name] = [{
                 'date': datetime.now().strftime('%Y-%m-%d'),
@@ -394,7 +407,6 @@ async def calculate_by_project(project_id: str):
                 'source': '模拟数据'
             }]
 
-        # 4. 构建工程量数据
         quantities = []
         for m in materials:
             quantities.append({
@@ -404,7 +416,6 @@ async def calculate_by_project(project_id: str):
                 'phase': m.get('phase', '整体')
             })
 
-        # 5. 调用计算引擎
         config_dict = _convert_preset_to_config(preset_config, rule_name)
         config = AdjustmentRuleConfig(**config_dict)
 
@@ -422,7 +433,6 @@ async def calculate_by_project(project_id: str):
         engine = AdjustmentEngine(config)
         result = engine.calculate(input_data)
 
-        # 6. 更新项目状态
         for i, p in enumerate(projects):
             if p.get('id') == project_id:
                 projects[i]['status'] = 'calculated'
@@ -433,6 +443,7 @@ async def calculate_by_project(project_id: str):
         from api.adjustment_project import save_projects
         save_projects(projects)
 
+        logger.info(f"[calculate_by_project] 计算完成 | total={result.total_adjustment}")
         return {
             "success": True,
             "data": result.model_dump(mode='json'),
@@ -443,8 +454,7 @@ async def calculate_by_project(project_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[calculate_by_project] 计算失败 | {e}", exc_info=True)
         return {
             "success": False,
             "error": str(e)

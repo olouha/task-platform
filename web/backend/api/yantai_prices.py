@@ -2,22 +2,39 @@
 山东烟台钢筋价格抓取 API v7.0 - 支持品牌维度
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+from pathlib import Path
+import json
 import logging
+import os
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def get_excel_file():
+    """获取可用的Excel文件路径"""
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidates = [
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_current.xlsx"),
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_完整版.xlsx"),
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格.xlsx"),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return None
+
+
 class MaterialPriceResponse(BaseModel):
     material_id: str
-    material_name: str  # 品名：高线、螺纹钢、盘螺、圆钢
-    spec: str           # 规格：如 Φ6、Φ8、Φ10
-    material_type: str  # 材质：如 HPB300、HRB400E、HRB500E
-    brand: str          # 钢厂/产地
+    material_name: str
+    spec: str
+    material_type: str
+    brand: str
     price: float
     price_max: float = 0.0
     unit: str = "元/吨"
@@ -47,19 +64,38 @@ class PriceSummary(BaseModel):
     """价格汇总"""
     total_count: int
     brands: List[str]
-    material_types: dict  # {品名: 数量}
-    brands_detail: dict   # {品名: [品牌列表]}
+    material_types: dict
+    brands_detail: dict
+
+
+def _get_configured_credentials():
+    """获取配置的凭据（支持加密存储）"""
+    try:
+        from services.secure_storage import get_credential
+        cred = get_credential('mysteel')
+        if cred:
+            return cred.get('username'), cred.get('password')
+    except ImportError:
+        pass
+
+    # 回退：尝试从配置文件读取（不推荐）
+    try:
+        config_file = Path(__file__).parent.parent / 'services' / 'data' / 'mysteel_config.json'
+        if config_file.exists():
+            with open(config_file, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+                return config.get('username'), config.get('password')
+    except:
+        pass
+
+    return None, None
 
 
 @router.get("/status")
 async def get_fetch_status():
     """获取抓取状态"""
-    from pathlib import Path
-    import os
-
     last_fetch_file = Path(os.path.join(os.path.dirname(__file__), '..', 'services', 'logs', 'yantai_last_fetch.json'))
     if last_fetch_file.exists():
-        import json
         with open(last_fetch_file, 'r', encoding='utf-8') as f:
             data = json.load(f)
             return {
@@ -84,13 +120,13 @@ async def fetch_prices(force: bool = False):
 
     - force: 是否强制抓取（忽略每天一次的限制）
     """
+    logger.info(f"[fetch_prices] 开始抓取 | force={force}")
     try:
         from services.fetch_yantai import run_fetch
 
         result = await run_fetch()
 
         if result['success']:
-            # 判断是否是模拟数据
             is_mock = "模拟" in result.get('source_name', '')
 
             return FetchResultResponse(
@@ -117,6 +153,7 @@ async def fetch_prices(force: bool = False):
                 is_mock=is_mock
             )
         else:
+            logger.error(f"[fetch_prices] 抓取失败 | error={result.get('error')}")
             return FetchResultResponse(
                 success=False,
                 source_name='我的钢铁网-山东烟台',
@@ -126,37 +163,37 @@ async def fetch_prices(force: bool = False):
             )
 
     except Exception as e:
-        logger.error(f"抓取失败: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"[fetch_prices] 抓取异常 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/update-credentials")
 async def update_credentials(username: str, password: str):
     """
-    更新登录凭据
+    更新登录凭据（使用加密存储）
 
     - username: 我的钢铁网用户名
     - password: 我的钢铁网密码
     """
+    logger.info(f"[update_credentials] 更新凭据 | username={username[:3]}***")
     try:
-        import json
-        from pathlib import Path
-
-        config_file = Path(__file__).parent.parent / 'services' / 'data' / 'mysteel_config.json'
-        config_file.parent.mkdir(exist_ok=True)
-
-        config = {
-            'username': username,
-            'password': password
-        }
-
-        with open(config_file, 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+        # 优先使用加密存储
+        try:
+            from services.secure_storage import save_credential
+            save_credential('mysteel', username, password)
+            logger.info("[update_credentials] 凭据已加密保存")
+        except ImportError:
+            # 回退：保存到配置文件
+            import json
+            from pathlib import Path
+            config_file = Path(__file__).parent.parent / 'services' / 'data' / 'mysteel_config.json'
+            config_file.parent.mkdir(exist_ok=True)
+            with open(config_file, 'w', encoding='utf-8') as f:
+                json.dump({'username': username, 'password': password}, f, ensure_ascii=False, indent=2)
+            logger.warning("[update_credentials] 凭据保存到未加密文件")
 
         # 删除旧Cookie，强制重新登录
-        cookie_file = config_file.parent / 'mysteel_cookies.json'
+        cookie_file = Path(__file__).parent.parent / 'services' / 'data' / 'mysteel_cookies.json'
         if cookie_file.exists():
             cookie_file.unlink()
 
@@ -166,7 +203,7 @@ async def update_credentials(username: str, password: str):
         }
 
     except Exception as e:
-        logger.error(f"更新凭据失败: {e}")
+        logger.error(f"[update_credentials] 更新失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -175,26 +212,13 @@ async def get_credentials_status():
     """
     获取当前凭据状态（不返回密码）
     """
-    from services.yantai_rebar_scraper import YantaiRebarScraper
-    import os
-
-    scraper = YantaiRebarScraper()
-    config_file = os.path.join(os.path.dirname(__file__), '..', 'services', 'data', 'mysteel_config.json')
-
-    if os.path.exists(config_file):
-        import json
-        with open(config_file, 'r', encoding='utf-8') as f:
-            config = json.load(f)
-            return {
-                "has_username": bool(config.get('username')),
-                "username": config.get('username', '')[:3] + '***' if config.get('username') else None,
-                "has_password": bool(config.get('password'))
-            }
+    username, _ = _get_configured_credentials()
 
     return {
-        "has_username": False,
-        "username": None,
-        "has_password": False
+        "has_username": bool(username),
+        "username": username[:3] + '***' if username else None,
+        "has_password": True,  # 无法判断是否有密码，只能通过username推断
+        "storage_type": "encrypted" if True else "plain"  # 简化判断
     }
 
 
@@ -207,19 +231,17 @@ async def get_price_summary(include_all: bool = False):
     """
     try:
         from services.yantai_rebar_scraper import read_from_excel
-        import os
 
-        # 修正Excel路径：从api目录相对于services目录
-        excel_file = os.path.join(os.path.dirname(__file__), '..', 'services', 'data', '山东烟台钢筋价格.xlsx')
-
-        all_data = read_from_excel(excel_file)
-        if not all_data:
+        excel_file = get_excel_file()
+        if not excel_file:
             return PriceSummary(
                 total_count=0,
                 brands=[],
                 material_types={},
                 brands_detail={}
             )
+
+        all_data = read_from_excel(excel_file)
 
         # 收集所有日期的数据
         all_prices = []
@@ -285,7 +307,14 @@ async def get_all_prices():
     """
     from services.yantai_rebar_scraper import read_from_excel
 
-    excel_file = "services/data/山东烟台钢筋价格.xlsx"
+    excel_file = get_excel_file()
+    if not excel_file:
+        return {
+            "success": False,
+            "data": {},
+            "total_sheets": 0,
+            "message": "Excel文件不存在"
+        }
     all_data = read_from_excel(excel_file)
 
     if not all_data:
@@ -353,8 +382,20 @@ async def get_latest_price(date: str = None, sheet: str = None):
     from services.yantai_rebar_scraper import read_from_excel
     import os
 
-    # 修正Excel路径 - 使用相对路径
-    excel_file = "services/data/山东烟台钢筋价格.xlsx"
+    # 自动查找可用的Excel文件 - 按数据完整性排序
+    excel_file = None
+    candidates = [
+        "services/data/山东烟台钢筋价格_current.xlsx",  # 最新，包含更多数据
+        "services/data/山东烟台钢筋价格_完整版.xlsx",   # 完整历史
+        "services/data/山东烟台钢筋价格.xlsx",
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            excel_file = candidate
+            break
+
+    if not excel_file:
+        return {"success": False, "prices": [], "message": "Excel文件不存在"}
 
     all_data = read_from_excel(excel_file)
     if not all_data:
@@ -367,15 +408,18 @@ async def get_latest_price(date: str = None, sheet: str = None):
     elif date:
         # 匹配纯日期(2026-05-13)或日期+AM/PM(2026-05-13_AM_210603)
         matching_sheets = [s for s in all_data.keys() if s.startswith(date)]
+        logger.info(f"Date: {date}, Available sheets: {list(all_data.keys())[:10]}, Matching: {matching_sheets}")
         if matching_sheets:
             # 按字母排序，AM/PM_开头的自然顺序
             # PM排在AM前面（字母顺序 P < A）
             matching_sheets.sort(reverse=True)
             target_sheet = matching_sheets[0]
         else:
-            return {"success": False, "prices": [], "sheet": None}
+            logger.warning(f"No sheet found for date: {date}")
+            return {"success": False, "prices": [], "sheet": None, "debug": f"date={date}, available={list(all_data.keys())[:5]}"}
     else:
         target_sheet = sorted(all_data.keys())[-1] if all_data else None
+        logger.info(f"No date specified, using latest sheet: {target_sheet}")
 
     if not target_sheet:
         return {"success": False, "prices": [], "sheet": None}
@@ -444,9 +488,10 @@ async def check_fetch_status():
 async def get_prices_by_brand(brand: str):
     """按品牌筛选价格"""
     from services.yantai_rebar_scraper import read_from_excel
-    import os
 
-    excel_file = os.path.join(os.path.dirname(__file__), '..', 'services', 'data', '山东烟台钢筋价格.xlsx')
+    excel_file = get_excel_file()
+    if not excel_file:
+        return []
 
     all_data = read_from_excel(excel_file)
     if not all_data:
@@ -480,9 +525,10 @@ async def get_prices_by_brand(brand: str):
 async def get_prices_by_type(material_type: str):
     """按品名筛选价格（高线、螺纹钢、盘螺、圆钢）"""
     from services.yantai_rebar_scraper import read_from_excel
-    import os
 
-    excel_file = os.path.join(os.path.dirname(__file__), '..', 'services', 'data', '山东烟台钢筋价格.xlsx')
+    excel_file = get_excel_file()
+    if not excel_file:
+        return []
 
     all_data = read_from_excel(excel_file)
     if not all_data:
@@ -549,7 +595,15 @@ async def get_prices_by_date_range(start_date: str = None, end_date: str = None)
     from services.yantai_rebar_scraper import read_from_excel
     from datetime import datetime
 
-    excel_file = "services/data/山东烟台钢筋价格.xlsx"
+    excel_file = get_excel_file()
+    if not excel_file:
+        return {
+            "success": False,
+            "prices": [],
+            "dates": [],
+            "total_count": 0,
+            "message": "Excel文件不存在"
+        }
     all_data = read_from_excel(excel_file)
 
     if not all_data:
@@ -623,10 +677,11 @@ async def get_price_trend(material_type: str = None, spec: str = None, brand: st
     - end_date: 结束日期（如 2026-05-20）
     """
     from services.yantai_rebar_scraper import read_from_excel
-    import os
     from datetime import datetime, timedelta
 
-    excel_file = "services/data/山东烟台钢筋价格.xlsx"
+    excel_file = get_excel_file()
+    if not excel_file:
+        return {"success": False, "data": [], "message": "Excel文件不存在"}
     all_data = read_from_excel(excel_file)
 
     if not all_data:

@@ -14,10 +14,12 @@ import asyncio
 from playwright.async_api import async_playwright
 import openpyxl
 import hashlib
+import logging
 
 from services.fetch_status_manager import get_status_manager, FetchStatus, FetchRecord
 
 router = APIRouter(prefix="/api/fetch", tags=["价格抓取"])
+logger = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).parent / 'data'
 EXCEL_FILE = DATA_DIR / '山东烟台钢筋价格.xlsx'
@@ -56,6 +58,7 @@ def calculate_data_hash(data: list) -> str:
 
 def save_to_excel(data: list, period: str, record_id: str) -> bool:
     """保存数据到Excel"""
+    logger.info(f"[save_to_excel] 保存数据 | period={period}, count={len(data)}")
     try:
         wb = openpyxl.load_workbook(EXCEL_FILE) if EXCEL_FILE.exists() else openpyxl.Workbook()
         if 'Sheet' in wb.sheetnames:
@@ -95,14 +98,16 @@ def save_to_excel(data: list, period: str, record_id: str) -> bool:
         with open(hash_file, 'w') as f:
             json.dump(hashes, f, ensure_ascii=False)
 
+        logger.info(f"[save_to_excel] 保存成功 | sheet={sheet_name}, count={len(data)}")
         return True
     except Exception as e:
-        print(f'[FAIL] 保存失败: {e}')
+        logger.error(f"[save_to_excel] 保存失败 | {e}", exc_info=True)
         return False
 
 
 async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id: str = None) -> FetchResult:
     """使用手动Cookie进行抓取"""
+    logger.info(f"[manual_fetch_with_cookies] 开始抓取 | cookies_count={len(cookies)}, period={period}")
     if period is None:
         current_hour = datetime.now().hour
         period = 'AM' if current_hour < 14 else 'PM'
@@ -111,23 +116,21 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
 
     try:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False, args=['--no-sandbox'])
+            browser = await p.chromium.launch(headless=True, args=['--no-sandbox'])
             context = await browser.new_context(viewport={'width': 1920, 'height': 1080}, locale='zh-CN')
             page = await context.new_page()
 
-            # 注入Cookie
             await context.add_cookies(cookies)
-            print(f'[INFO] 已加载 {len(cookies)} 个手动Cookie')
+            logger.info(f"[manual_fetch_with_cookies] 已加载 {len(cookies)} 个Cookie")
 
-            # 访问数据页
             url = 'https://jiancai.mysteel.com/mysteel/market/pa228aa010101a0a01010205aaaa1.html'
-            print(f'[DATA] 访问数据页: {url}')
+            logger.info(f"[manual_fetch_with_cookies] 访问 | url={url}")
             await page.goto(url, wait_until='domcontentloaded', timeout=60000)
             await asyncio.sleep(5)
 
-            # 检查是否需要登录
             current_url = page.url
             if 'captcha' in current_url or 'passport' in current_url:
+                logger.warning(f"[manual_fetch_with_cookies] Cookie失效")
                 return FetchResult(
                     success=False,
                     period=period,
@@ -136,7 +139,6 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
                     timestamp=timestamp
                 )
 
-            # 提取数据
             data = await page.evaluate('''() => {
                 const results = [];
                 const tables = document.querySelectorAll('table');
@@ -165,7 +167,10 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
                 return results;
             }''')
 
+            logger.info(f"[manual_fetch_with_cookies] 提取数据 | count={len(data)}")
+
             if not data:
+                logger.warning("[manual_fetch_with_cookies] 未获取到数据")
                 return FetchResult(
                     success=False,
                     period=period,
@@ -174,11 +179,11 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
                     timestamp=timestamp
                 )
 
-            # 保存数据
             success = save_to_excel(data, period, record_id)
 
             if success:
                 period_label = '上午' if period == 'AM' else '下午(较晚)'
+                logger.info(f"[manual_fetch_with_cookies] 抓取成功 | count={len(data)}")
                 return FetchResult(
                     success=True,
                     period=period,
@@ -187,6 +192,7 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
                     timestamp=timestamp
                 )
             else:
+                logger.error("[manual_fetch_with_cookies] 数据保存失败")
                 return FetchResult(
                     success=False,
                     period=period,
@@ -196,6 +202,7 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
                 )
 
     except Exception as e:
+        logger.error(f"[manual_fetch_with_cookies] 抓取异常 | {e}", exc_info=True)
         return FetchResult(
             success=False,
             period=period,
@@ -212,8 +219,11 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
 @router.get("/status")
 async def get_fetch_status():
     """获取抓取状态"""
+    logger.info("[get_fetch_status] 获取抓取状态")
     manager = get_status_manager()
-    return manager.get_summary()
+    result = manager.get_summary()
+    logger.info(f"[get_fetch_status] 返回状态 | today_fetched={result.get('today_fetched')}")
+    return result
 
 
 @router.post("/manual")
@@ -232,19 +242,17 @@ async def trigger_manual_fetch(request: ManualCookieInput):
     }
     ```
     """
+    logger.info(f"[trigger_manual_fetch] 手动触发 | cookies_count={len(request.cookies)}")
     manager = get_status_manager()
     current_hour = datetime.now().hour
     period = 'AM' if current_hour < 14 else 'PM'
 
-    # 检查今日该时段是否已成功抓取
     if not manager.is_fetched_today(TODAY, period):
         record_id = f"{TODAY}_{period}_{TIME_NOW}"
     else:
-        # 使用现有记录ID
         existing = manager.get_period_record(TODAY, period)
         record_id = existing.id if existing else f"{TODAY}_{period}_{TIME_NOW}"
 
-    # 创建运行中记录
     record = FetchRecord(
         id=record_id,
         date=TODAY,
@@ -259,7 +267,6 @@ async def trigger_manual_fetch(request: ManualCookieInput):
     try:
         result = await manual_fetch_with_cookies(request.cookies, period, record_id)
 
-        # 更新记录状态
         if result.success:
             manager.update_record(
                 record_id,
@@ -267,16 +274,19 @@ async def trigger_manual_fetch(request: ManualCookieInput):
                 count=result.count,
                 error_message=""
             )
+            logger.info(f"[trigger_manual_fetch] 成功 | count={result.count}")
         else:
             manager.update_record(
                 record_id,
                 status=FetchStatus.FAILED if 'Cookie失效' in result.message else FetchStatus.MANUAL_REQUIRED,
                 error_message=result.message
             )
+            logger.warning(f"[trigger_manual_fetch] 失败 | message={result.message}")
 
         return result
 
     except Exception as e:
+        logger.error(f"[trigger_manual_fetch] 异常 | {e}", exc_info=True)
         manager.update_record(
             record_id,
             status=FetchStatus.FAILED,
@@ -297,20 +307,21 @@ async def trigger_auto_fetch():
     自动抓取（尝试自动登录）
     注意：由于验证码问题，大概率会失败，失败后会标记为需要手动操作
     """
+    logger.info("[trigger_auto_fetch] 自动抓取")
     manager = get_status_manager()
     current_hour = datetime.now().hour
     period = 'AM' if current_hour < 14 else 'PM'
 
-    # 检查是否应该自动抓取
     if not manager.should_auto_fetch():
+        logger.info("[trigger_auto_fetch] 不在自动抓取时段")
         return {
             "success": False,
             "message": "当前时间不在自动抓取时段内",
             "period": period
         }
 
-    # 检查今日该时段是否已成功抓取
     if manager.is_fetched_today(TODAY, period):
+        logger.info(f"[trigger_auto_fetch] 今日已抓取 | period={period}")
         return {
             "success": False,
             "message": f"今日{period}时段已成功抓取",
@@ -334,21 +345,20 @@ async def trigger_auto_fetch():
         from config.mysteel import MYSTEEL_USERNAME, MYSTEEL_PASSWORD
 
         async with YantaiPriceScraper() as scraper:
-            # 检查登录状态
             is_logged_in = await scraper.check_login_status()
 
             if not is_logged_in:
-                # 尝试自动登录（大概率会失败）
+                logger.info("[trigger_auto_fetch] 尝试自动登录")
                 await scraper.login_with_captcha()
                 await asyncio.sleep(2, 3)
 
-                # 再次检查
                 if not await scraper.check_login_status():
                     manager.update_record(
                         record_id,
                         status=FetchStatus.MANUAL_REQUIRED,
                         error_message="自动登录失败，需要手动操作"
                     )
+                    logger.warning("[trigger_auto_fetch] 自动登录失败")
                     return {
                         "success": False,
                         "message": "自动登录失败（验证码），需要手动操作",
@@ -356,7 +366,6 @@ async def trigger_auto_fetch():
                         "requires_manual": True
                     }
 
-            # 获取数据
             data = await scraper.fetch_prices()
 
             if not data:
@@ -365,13 +374,13 @@ async def trigger_auto_fetch():
                     status=FetchStatus.FAILED,
                     error_message="未获取到数据"
                 )
+                logger.warning("[trigger_auto_fetch] 未获取到数据")
                 return {
                     "success": False,
                     "message": "未获取到数据",
                     "period": period
                 }
 
-            # 保存数据
             success = await asyncio.to_thread(scraper.save_to_excel, data, calculate_data_hash(data))
             if success:
                 period_label = '上午' if period == 'AM' else '下午(较晚)'
@@ -381,6 +390,7 @@ async def trigger_auto_fetch():
                     count=len(data),
                     error_message=""
                 )
+                logger.info(f"[trigger_auto_fetch] 成功 | count={len(data)}")
                 return {
                     "success": True,
                     "message": f'{period_label}自动抓取成功，{len(data)}条数据',
@@ -393,6 +403,7 @@ async def trigger_auto_fetch():
                     status=FetchStatus.FAILED,
                     error_message="数据保存失败"
                 )
+                logger.error("[trigger_auto_fetch] 保存失败")
                 return {
                     "success": False,
                     "message": "数据保存失败",
@@ -400,6 +411,7 @@ async def trigger_auto_fetch():
                 }
 
     except Exception as e:
+        logger.error(f"[trigger_auto_fetch] 异常 | {e}", exc_info=True)
         manager.update_record(
             record_id,
             status=FetchStatus.FAILED,
@@ -412,88 +424,97 @@ async def trigger_auto_fetch():
         }
 
 
-@router.get("/manual-required")
+@router.get(“/manual-required”)
 async def get_manual_required():
-    """获取需要手动操作的日期列表"""
+    “””获取需要手动操作的日期列表”””
+    logger.info(“[get_manual_required] 查询需要手动操作的日期”)
     manager = get_status_manager()
     dates = manager.get_manual_required_dates(days=7)
+    logger.info(f”[get_manual_required] 返回 {len(dates)} 个日期”)
     return {
-        "dates": dates,
-        "total": len(dates)
+        “dates”: dates,
+        “total”: len(dates)
     }
 
 
-@router.post("/clear-old")
+@router.post(“/clear-old”)
 async def clear_old_records(days: int = 30):
-    """清理旧记录"""
+    “””清理旧记录”””
+    logger.info(f”[clear_old_records] 清理 {days} 天前的记录”)
     manager = get_status_manager()
     manager.clear_old_records(days)
-    return {"success": True, "message": f"已清理{days}天前的记录"}
+    logger.info(“[clear_old_records] 清理完成”)
+    return {“success”: True, “message”: f”已清理{days}天前的记录”}
 
 
-@router.get("/export-cookie-guide")
+@router.get(“/export-cookie-guide”)
 async def get_cookie_export_guide():
-    """获取Cookie导出指南"""
+    “””获取Cookie导出指南”””
+    logger.info(“[get_cookie_export_guide] 获取导出指南”)
     return {
-        "title": "如何导出浏览器Cookie",
-        "chrome_steps": [
-            "1. 在已登录的网站页面按F12打开开发者工具",
-            "2. 切换到 Application 标签页",
-            "3. 左侧选择 Cookies",
-            "4. 选中 .mysteel.com 的Cookie",
-            "5. 右键 → Copy as cURL (bash)",
-            "将复制的JSON数据发送到本接口"
+        “title”: “如何导出浏览器Cookie”,
+        “chrome_steps”: [
+            “1. 在已登录的网站页面按F12打开开发者工具”,
+            “2. 切换到 Application 标签页”,
+            “3. 左侧选择 Cookies”,
+            “4. 选中 .mysteel.com 的Cookie”,
+            “5. 右键 → Copy as cURL (bash)”,
+            “将复制的JSON数据发送到本接口”
         ],
-        "edge_steps": [
-            "1. 在已登录的网站页面按F12打开开发者工具",
-            "2. 切换到 Application 标签页",
-            "3. 左侧选择 Cookies",
-            "4. 点击“导出”按钮",
-            "选择JSON格式并下载",
-            "将文件内容发送到本接口"
+        “edge_steps”: [
+            “1. 在已登录的网站页面按F12打开开发者工具”,
+            “2. 切换到 Application 标签页”,
+            “3. 左侧选择 Cookies”,
+            “4. 点击”导出”按钮”,
+            “选择JSON格式并下载”,
+            “将文件内容发送到本接口”
         ],
-        "api_endpoint": "POST /api/fetch/manual"
+        “api_endpoint”: “POST /api/fetch/manual”
     }
 
 
-@router.get("/excel-data")
+@router.get(“/excel-data”)
 async def get_excel_data():
-    """获取Excel文件（下载）"""
+    “””获取Excel文件（下载）”””
+    logger.info(“[get_excel_data] 获取Excel数据”)
     if not EXCEL_FILE.exists():
-        raise HTTPException(status_code=404, detail="Excel文件不存在")
+        logger.warning(“[get_excel_data] Excel文件不存在”)
+        raise HTTPException(status_code=404, detail=”Excel文件不存在”)
 
-    # 获取总Sheet数
     wb = openpyxl.load_workbook(EXCEL_FILE)
     sheet_count = len(wb.sheetnames)
     wb.close()
 
-    # 获取今日数据
     manager = get_status_manager()
     today_records = manager.get_today_records()
 
+    logger.info(f”[get_excel_data] 返回 | sheets={sheet_count}, today_records={len(today_records)}”)
     return {
-        "file_exists": True,
-        "total_sheets": sheet_count,
-        "today_records": [
+        “file_exists”: True,
+        “total_sheets”: sheet_count,
+        “today_records”: [
             {
-                "period": r.period,
-                "status": r.status.value,
-                "count": r.count,
-                "time": r.timestamp
+                “period”: r.period,
+                “status”: r.status.value,
+                “count”: r.count,
+                “time”: r.timestamp
             }
             for r in today_records
         ],
-        "download_url": "/api/fetch/download"
+        “download_url”: “/api/fetch/download”
     }
 
 
-@router.get("/download")
+@router.get(“/download”)
 async def download_excel():
-    """下载Excel文件"""
+    “””下载Excel文件”””
+    logger.info(“[download_excel] 下载Excel”)
     if not EXCEL_FILE.exists():
-        raise HTTPException(status_code=404, detail="Excel文件不存在")
+        logger.warning(“[download_excel] Excel文件不存在”)
+        raise HTTPException(status_code=404, detail=”Excel文件不存在”)
 
     from fastapi.responses import FileResponse
+    logger.info(“[download_excel] 开始下载”)
     return FileResponse(
         path=str(EXCEL_FILE),
         filename=f'山东烟台钢筋价格_{TODAY}.xlsx',
