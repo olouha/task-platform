@@ -24,14 +24,19 @@ def extract_rebar_spec(text):
     - HPB30010 -> 10
     - HRB400≤12 -> 12
     - HRB40018 -> 18
+    - HRB400中6 -> 6 (中=直径6)
+    - HRB4008 -> 8 (2位数字)
     """
-    # 1. HRB/HPB + 符号 + 数字
-    match = re.search(r'(?:HPB|HRB)\d*(?:≤|>|＜)\s*(\d+)', text)
+    # 清理文本中的干扰字符
+    clean_text = text.replace('≤', '≤').replace('＞', '>').replace('＜', '<')
+
+    # 1. HRB/HPB + 符号 + 数字 (如 HRB400≤12, HPB300>12)
+    match = re.search(r'(?:HPB|HRB)\d*(?:≤|>|＜)\s*(\d+)', clean_text)
     if match:
         return match.group(1)
 
     # 2. HPB300 + 小数点数字（如HPB3006.5）
-    match = re.search(r'HPB300(\d+(?:\.\d+)?)', text)
+    match = re.search(r'HPB300(\d+(?:\.\d+)?)', clean_text)
     if match:
         num_str = match.group(1)
         if '.' in num_str:
@@ -55,14 +60,22 @@ def extract_rebar_spec(text):
 
         return num_str if int(num_str) <= 50 else None
 
-    # 3. HRB400 + 数字（如HRB40018）
-    match = re.search(r'HRB400(\d+)', text)
+    # 3. HRB400 + 数字（包括中/≤/>/等符号后的情况）
+    # 匹配 HRB400 + 可选符号(中/≤/>/) + 数字
+    match = re.search(r'HRB400[中中≤＞<]*(\d+)', clean_text)
     if match:
         num_str = match.group(1)
-        if len(num_str) == 2:
-            return num_str
-        if len(num_str) == 3 and num_str.startswith('4'):
-            return num_str[1:]  # '418' -> '18'
+        return num_str  # 直接返回数字部分
+
+    # 4. HRB400 + 2位数字 (如 HRB40018 -> 18)
+    match = re.search(r'HRB400(\d{2})', clean_text)
+    if match:
+        return match.group(1)
+
+    # 5. HRB400 + 3位数字以4开头 (如 HRB40018)
+    match = re.search(r'HRB400(4\d{2})', clean_text)
+    if match:
+        return match.group(1)[1:]  # '418' -> '18'
 
     return None
 
@@ -123,7 +136,7 @@ def parse_rebar_image(img_path):
     data = []
     rows = defaultdict(list)
 
-    # 按Y坐标分组到行
+    # 按Y坐标分组到行 - 使用较小的行高以保持精度
     for item in items:
         y_group = round(item['y'] / 15) * 15
         rows[y_group].append(item)
@@ -144,7 +157,7 @@ def parse_rebar_image(img_path):
             continue
 
         # 跳过"冷轧"、"螺纹"、"预应力"等非普通钢筋
-        skip_patterns = ['冷轧', '预应力', '镀锌', '钢丝', '钢丝绳']
+        skip_patterns = ['冷轧', '预应力', '镀锌', '钢丝', '钢丝绳', '环氧', '钢航']
         if any(p in row_text for p in skip_patterns):
             continue
 
@@ -175,8 +188,8 @@ def parse_rebar_image(img_path):
         # 提取规格
         size = extract_rebar_spec(row_text)
         if not size:
-            # 尝试纯数字格式
-            simple_match = re.search(r'钢筋(?:≤|>|＜)\s*(\d+(?:\.\d+)?)', row_text)
+            # 尝试纯数字格式（钢筋后面直接跟数字）
+            simple_match = re.search(r'钢筋\s*(?:HRB|HPB)?[\s一-龥]*(\d+)', row_text)
             if simple_match:
                 size = simple_match.group(1)
             else:
@@ -198,27 +211,44 @@ def parse_rebar_image(img_path):
         # 找价格：
         # 1. 在当前行X > 250区域找数字（包含不同格式的截图）
         price = None
+        price_y = None
         for item in row_items:
             text = item['text']
             x = item['x']
             if x > 250:
                 # 匹配价格: 5280.00, 7450.00, 5,280.00 等（4位数+.00格式）
-                price_match = re.match(r'^(\d{3,5}\.00)$', text)
+                price_match = re.match(r'^(\d{3,5}\. ?\d{2})$', text)
                 if price_match:
-                    price = text.split('.')[0]
+                    # 处理带空格的情况，如 "4540. 00"
+                    clean_price = text.replace(' ', '').replace(',', '')
+                    price = clean_price.split('.')[0]
+                    price_y = y
                     break
                 # 匹配带逗号的价格: 5,280.00
-                price_match2 = re.match(r'^(\d,\d{3}\.00)$', text)
+                price_match2 = re.match(r'^(\d,\d{3}\. ?\d{2})$', text)
                 if price_match2:
-                    price = text.replace(',', '').split('.')[0]
+                    price = text.replace(',', '').replace(' ', '').split('.')[0]
+                    price_y = y
+                    break
+                # 匹配价格+税率混合文本: 4031.3113.00% 或 4143.2913.00%
+                price_match3 = re.search(r'(\d{3,5}\.\d{2})\d*13\. ?00%', text)
+                if price_match3:
+                    price = price_match3.group(1).split('.')[0]
+                    price_y = y
+                    break
+                # 匹配纯价格数字（如4069.16）和税率分开的情况）
+                price_match4 = re.match(r'^(\d{3,5}\.\d{2})$', text)
+                if price_match4 and not text.startswith('17'):  # 跳过单位价格如17.67
+                    price = price_match4.group(1).split('.')[0]
+                    price_y = y
                     break
                 # 三位数带小数点: 5.28 (单位kg)
                 if re.match(r'^\d+\.\d{2}$', text):
                     continue  # 跳过单位价格
 
         # 2. 如果当前行没找到，检查上下行
-        if not price:
-            for offset in [-15, -30, 15, 30]:
+        if not price or not price_y:
+            for offset in [-15, -30, 15, 30, 45]:
                 check_y = y + offset
                 if check_y in row_by_y:
                     prev_items = row_by_y[check_y]['items']
@@ -227,13 +257,28 @@ def parse_rebar_image(img_path):
                         x = item['x']
                         # 价格通常在X=250-550区域
                         if 200 < x < 600:
-                            price_match = re.match(r'^(\d{3,5}\.00)$', text)
+                            price_match = re.match(r'^(\d{3,5}\. ?\d{2})$', text)
                             if price_match:
-                                price = text.split('.')[0]
+                                clean_price = text.replace(' ', '').replace(',', '')
+                                price = clean_price.split('.')[0]
+                                price_y = check_y
                                 break
-                            price_match2 = re.match(r'^(\d,\d{3}\.00)$', text)
+                            price_match2 = re.match(r'^(\d,\d{3}\. ?\d{2})$', text)
                             if price_match2:
-                                price = text.replace(',', '').split('.')[0]
+                                price = text.replace(',', '').replace(' ', '').split('.')[0]
+                                price_y = check_y
+                                break
+                            # 匹配价格+税率混合文本
+                            price_match3 = re.search(r'(\d{3,5}\.\d{2})\d*13\. ?00%', text)
+                            if price_match3:
+                                price = price_match3.group(1).split('.')[0]
+                                price_y = check_y
+                                break
+                            # 匹配纯价格数字
+                            price_match4 = re.match(r'^(\d{3,5}\.\d{2})$', text)
+                            if price_match4 and not text.startswith('17'):
+                                price = price_match4.group(1).split('.')[0]
+                                price_y = check_y
                                 break
                     if price:
                         break

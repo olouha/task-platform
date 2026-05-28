@@ -196,6 +196,28 @@ async def get_steel_specs():
     return {"specs": sorted([s for s in specs if s], key=lambda x: int(x) if x.isdigit() else 0)}
 
 
+@router.get("/periods-with-steel", response_model=List[PeriodInfo])
+async def list_periods_with_steel():
+    """
+    获取所有有钢筋数据的时期列表
+    """
+    from models.cost_history import get_steel_rebar_history
+
+    steel_history = get_steel_rebar_history()
+    periods = []
+
+    for year in sorted(steel_history.keys()):
+        for quarter in sorted(steel_history[year].keys()):
+            periods.append({
+                "year": year,
+                "quarter": quarter,
+                "label": quarter,
+                "rebar_count": len(steel_history[year][quarter])
+            })
+
+    return sorted(periods, key=lambda x: (x["year"], x["quarter"]))
+
+
 @router.get("/summary")
 async def get_summary():
     """

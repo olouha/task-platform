@@ -174,63 +174,58 @@ export default function PriceMonitor() {
   useEffect(() => {
     const init = async () => {
       try {
-        const sheetsRes = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
-        const sheetsData = await sheetsRes.json()
+        // 从 yantai-db API 获取可用日期
+        const datesRes = await fetch(`${config.apiUrl}/api/yantai-db/dates`)
+        const datesData = await datesRes.json()
 
-        if (sheetsData.success && sheetsData.sheets) {
-          const dateSheets = sheetsData.sheets.filter((s: string) => {
-            if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return true
-            if (/^\d{4}-\d{2}-\d{2}_PM$/.test(s)) return true
-            if (/^\d{4}-\d{2}-\d{2}_\d{6}$/.test(s)) return true
-            if (/^\d{4}-\d{2}-\d{2}_(AM|PM)_\d{6}$/.test(s)) return true
-            return false
-          })
-
-          const sheetsMap: Record<string, string[]> = {}
-          dateSheets.forEach((sheet: string) => {
-            const date = sheet.substring(0, 10)
-            if (!sheetsMap[date]) sheetsMap[date] = []
-            sheetsMap[date].push(sheet)
-          })
-
-          Object.keys(sheetsMap).forEach(date => {
-            sheetsMap[date].sort((a, b) => {
-              const getSortKey = (s: string) => {
-                if (/_PM$/.test(s)) return 1000
-                if (s.includes('_PM_')) return 1000
-                if (s.includes('_AM_')) return 2000
-                return 3000
-              }
-              const getTimestamp = (s: string) => {
-                const match = s.match(/_(\d{6})$/)
-                if (match) return parseInt(match[1])
-                if (/_PM$/.test(s)) return 1500
-                return 3000
-              }
-              const sortKeyA = getSortKey(a) + getTimestamp(a)
-              const sortKeyB = getSortKey(b) + getTimestamp(b)
-              return sortKeyB - sortKeyA
-            })
-          })
-
-          setDateSheetsMap(sheetsMap)
-          const uniqueDates = Object.keys(sheetsMap).sort().reverse()
+        if (datesData.success && datesData.dates) {
+          // 日期列表已经是升序排列
+          const uniqueDates = datesData.dates // 已经是升序: ['2024-01-02', ..., '2026-05-27']
           setAvailableDates(uniqueDates)
 
-          // 获取所有历史数据汇总
+          // 获取统计信息
           await fetchAllDataSummary()
 
+          // 获取最新日期的数据（数组最后一个元素是最新日期）
           if (uniqueDates.length > 0) {
-            const latestDate = uniqueDates[0]
+            const latestDate = uniqueDates[uniqueDates.length - 1] // 最新日期
             setSelectedDate(latestDate)
-            const latestSheet = sheetsMap[latestDate]?.[0] || null
-            setSelectedSheet(latestSheet)
-
-            await fetchPricesByDate(latestDate, latestSheet)
+            await fetchPricesByDate(latestDate)
           }
 
           // 获取趋势数据
           await fetchTrendData()
+        } else {
+          // 回退：尝试从 price-sources/sheets 获取
+          const sheetsRes = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
+          const sheetsData = await sheetsRes.json()
+
+          if (sheetsData.success && sheetsData.sheets) {
+            const dateSheets = sheetsData.sheets.filter((s: string) => {
+              if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return true
+              if (/^\d{4}-\d{2}-\d{2}_PM$/.test(s)) return true
+              if (/^\d{4}-\d{2}-\d{2}_\d{6}$/.test(s)) return true
+              if (/^\d{4}-\d{2}-\d{2}_(AM|PM)_\d{6}$/.test(s)) return true
+              return false
+            })
+
+            const sheetsMap: Record<string, string[]> = {}
+            dateSheets.forEach((sheet: string) => {
+              const date = sheet.substring(0, 10)
+              if (!sheetsMap[date]) sheetsMap[date] = []
+              sheetsMap[date].push(sheet)
+            })
+
+            setDateSheetsMap(sheetsMap)
+            const uniqueDatesFallback = Object.keys(sheetsMap).sort().reverse()
+            setAvailableDates(uniqueDatesFallback)
+
+            if (uniqueDatesFallback.length > 0) {
+              const latestDate = uniqueDatesFallback[0]
+              setSelectedDate(latestDate)
+              await fetchPricesByDate(latestDate)
+            }
+          }
         }
         setInitialLoading(false)
       } catch (error) {
@@ -333,9 +328,18 @@ export default function PriceMonitor() {
   // 获取所有历史数据汇总
   const fetchAllDataSummary = async () => {
     try {
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/summary?include_all=true`)
+      // 使用 yantai-db stats API
+      const response = await fetch(`${config.apiUrl}/api/yantai-db/stats`)
       const data = await response.json()
-      setAllDataSummary(data)
+      if (data.total_count !== undefined) {
+        // 转换为前端期望的格式
+        setAllDataSummary({
+          total_count: data.total_count,
+          brands: Object.keys(data.materials || {}),
+          material_types: data.materials || {},
+          brands_detail: {}
+        })
+      }
     } catch (error) {
       console.error('获取汇总失败:', error)
     }
@@ -345,11 +349,13 @@ export default function PriceMonitor() {
   const fetchTrendData = async (startDate?: string, endDate?: string) => {
     setTrendLoading(true)
     try {
-      let url = `${config.apiUrl}/api/yantai-prices/trend?days=730`  // 默认获取2年数据
+      let url = `${config.apiUrl}/api/yantai-db/trend?days=730` // 默认获取2年数据
       if (startDate && endDate) {
-        url = `${config.apiUrl}/api/yantai-prices/trend?start_date=${startDate}&end_date=${endDate}`
+        url = `${config.apiUrl}/api/yantai-db/trend?start_date=${startDate}&end_date=${endDate}`
       } else if (startDate) {
-        url = `${config.apiUrl}/api/yantai-prices/trend?start_date=${startDate}&days=730`
+        url = `${config.apiUrl}/api/yantai-db/trend?start_date=${startDate}&days=730`
+      } else if (endDate) {
+        url = `${config.apiUrl}/api/yantai-db/trend?end_date=${endDate}&days=730`
       }
       const response = await fetch(url)
       const data = await response.json()
@@ -459,8 +465,8 @@ export default function PriceMonitor() {
   const fetchPricesByDate = async (date: string, sheet: string | null = null) => {
     setInitialLoading(true)
     try {
-      // 直接调用 API 获取最新数据（不带date参数，API会返回最新sheet的111条数据）
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest`)
+      // 使用 yantai-db API 获取指定日期的数据
+      const response = await fetch(`${config.apiUrl}/api/yantai-db/latest?date=${date}&limit=200`)
       const data = await response.json()
 
       let prices = []
@@ -487,48 +493,30 @@ export default function PriceMonitor() {
     setInitialLoading(true)
     setLoading(true)
     try {
-      const url = `${config.apiUrl}/api/yantai-prices/range?start_date=${startDate}&end_date=${endDate}`
+      // 使用 yantai-db API 获取日期范围的数据
+      const url = `${config.apiUrl}/api/yantai-db/range?start_date=${startDate}&end_date=${endDate}`
       const response = await fetch(url)
       const data = await response.json()
 
-      if (data.success && data.prices && data.prices.length > 0) {
-        setLatestPrices(data.prices)
-
-        // 按日期分组存储
-        const pricesByDate: { [date: string]: YantaiPrice[] } = {}
-        data.prices.forEach((p: YantaiPrice) => {
-          const date = p.date || ''
-          if (!pricesByDate[date]) {
-            pricesByDate[date] = []
-          }
-          pricesByDate[date].push(p)
+      if (data.success && data.data) {
+        // 将 data.data 转换为 prices 数组
+        const allPrices: YantaiPrice[] = []
+        Object.entries(data.data).forEach(([date, prices]) => {
+          (prices as YantaiPrice[]).forEach(p => allPrices.push(p))
         })
-        setAllPrices(pricesByDate)
 
-        updateFiltersAndSummary(data.prices)
+        setLatestPrices(allPrices)
+        setAllPrices(data.data as { [date: string]: YantaiPrice[] })
+
+        updateFiltersAndSummary(allPrices)
 
         // 同时获取该范围的趋势数据
         fetchTrendData(startDate, endDate)
 
-        message.success(`已加载 ${data.dates?.length || 0} 个交易日，共 ${data.prices.length} 条记录`)
+        message.success(`已加载 ${data.dates_count || Object.keys(data.data).length} 个交易日，共 ${allPrices.length} 条记录`)
       } else {
         setLatestPrices([])
-        const rangeInfo = data.date_range
-        if (rangeInfo?.start && rangeInfo?.end) {
-          message.warning({
-            content: (
-              <div>
-                <div>该日期范围内暂无数据</div>
-                <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
-                  当前数据范围：{rangeInfo.start} 至 {rangeInfo.end}
-                </div>
-              </div>
-            ),
-            duration: 5
-          })
-        } else {
-          message.warning('该日期范围内暂无数据，请检查数据是否已抓取')
-        }
+        message.warning('该日期范围内暂无数据，请检查数据是否已抓取')
       }
     } catch (error) {
       console.error('获取价格失败:', error)

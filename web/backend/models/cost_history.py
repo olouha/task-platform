@@ -1,5 +1,14 @@
 # -*- coding: utf-8 -*-
 from typing import List, Dict, Optional
+import sqlite3
+from pathlib import Path
+
+# 数据库路径
+DB_PATH = Path(__file__).parent.parent / "services" / "data" / "cost_reference.db"
+
+def _get_db_connection():
+    """获取数据库连接"""
+    return sqlite3.connect(DB_PATH)
 
 # ============================================================
 # 混凝土价格历史数据
@@ -241,11 +250,46 @@ CONCRETE_HISTORY: Dict[str, Dict[str, List[Dict]]] = {
     },
 }
 
-# ============================================================
-# 钢筋价格历史数据
-# ============================================================
 
+def get_steel_rebar_history() -> Dict[str, Dict[str, List[Dict]]]:
+    """从数据库加载钢筋历史数据"""
+    if not DB_PATH.exists():
+        return {}
+
+    conn = _get_db_connection()
+    c = conn.cursor()
+
+    # 从数据库读取所有钢筋数据
+    c.execute('SELECT year, quarter, grade, spec, price FROM rebar_prices ORDER BY year, quarter')
+    rows = c.fetchall()
+    conn.close()
+
+    # 转换为字典格式
+    history = {}
+    for row in rows:
+        year, quarter, grade, spec, price = row
+        if year not in history:
+            history[year] = {}
+        if quarter not in history[year]:
+            history[year][quarter] = []
+        history[year][quarter].append({
+            "grade": grade,
+            "size": spec,
+            "price": price,
+            "spec": f"Φ{spec}"  # 添加规格显示格式
+        })
+
+    return history
+
+
+# 延迟加载钢筋历史数据
 STEEL_REBAR_HISTORY: Dict[str, Dict[str, List[Dict]]] = {}
+
+
+def _load_steel_history():
+    """加载钢筋历史数据到模块变量"""
+    global STEEL_REBAR_HISTORY
+    STEEL_REBAR_HISTORY = get_steel_rebar_history()
 
 
 def get_available_periods():
@@ -271,7 +315,18 @@ def get_concrete_prices(year: str, quarter: str) -> List[Dict]:
 
 
 def get_steel_prices(year: str, quarter: str) -> List[Dict]:
-    """获取指定时期的钢筋价格"""
+    """获取指定时期的钢筋价格（从数据库）"""
+    # 确保数据已加载
+    if not STEEL_REBAR_HISTORY:
+        _load_steel_history()
+
     if year in STEEL_REBAR_HISTORY and quarter in STEEL_REBAR_HISTORY[year]:
         return STEEL_REBAR_HISTORY[year][quarter]
     return []
+
+
+# 启动时加载钢筋历史数据
+try:
+    _load_steel_history()
+except Exception:
+    pass  # 数据库可能不存在，忽略错误
