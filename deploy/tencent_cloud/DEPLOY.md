@@ -1,218 +1,257 @@
-# 腾讯云部署指南
+# TaskPlatform 腾讯云部署指南
+
+## 概述
+
+本文档介绍如何在腾讯云轻量应用服务器上部署 TaskPlatform。
 
 ## 快速部署
 
-### 一键部署脚本（推荐）
+### 1. 打包项目（本地执行）
 
 ```bash
-cd /root
-tar -xzvf task-platform.tar.gz
-chmod +x web/backend/deploy/tencent_cloud/deploy-docker.sh
-./web/backend/deploy/tencent_cloud/deploy-docker.sh
-```
+cd e:/E/任务/task-platform
 
-部署脚本会自动：
-1. 安装 Docker（如未安装）
-2. 构建镜像
-3. 启动容器
-4. **配置开机自启**
-
----
-
-## 详细步骤
-
-## 方式一：Docker 部署（推荐）
-
-### 1. 服务器安装 Docker
-
-```bash
-# 安装 Docker
-curl -fsSL https://get.docker.com | sh
-
-# 启动 Docker
-systemctl start docker
-systemctl enable docker
-```
-
-### 2. 打包项目
-
-本地执行：
-
-```bash
-cd e:\E\任务\task-platform
-
-# 打包（不含 node_modules）
+# 打包（不含 node_modules 和缓存）
 tar -czvf task-platform.tar.gz \
   --exclude='web/frontend/node_modules' \
+  --exclude='web/frontend/.next' \
   --exclude='web/backend/__pycache__' \
   --exclude='.git' \
   web/
 ```
 
-### 3. 上传到服务器
+### 2. 上传到服务器
 
 ```bash
 scp task-platform.tar.gz root@服务器IP:/root/
 ```
 
-### 4. 服务器执行
+### 3. 一键部署（服务器执行）
 
 ```bash
 cd /root
-
-# 解压
 tar -xzvf task-platform.tar.gz
-
-# 构建 Docker 镜像
-cd web/backend
-docker build -t task-platform:latest .
-
-# 启动容器（自动配置开机自启）
-docker run -d \
-    --name task-platform \
-    -p 8000:8000 \
-    --env-file web/backend/.env \
-    -v $(pwd)/services/data:/app/services/data \
-    -v $(pwd)/services/logs:/app/services/logs \
-    --restart unless-stopped \
-    task-platform:latest
-
-# 运行容器
-docker run -d \
-  --name task-platform \
-  -p 8000:8000 \
-  -e SUPABASE_URL=https://xxx.supabase.co \
-  -e SUPABASE_KEY=your-key \
-  -e AI_API_URL=https://api.openai.com/v1 \
-  -e AI_API_KEY=sk-your-key \
-  -v $(pwd)/services/data:/app/services/data \
-  -v $(pwd)/services/logs:/app/services/logs \
-  --restart unless-stopped \
-  task-platform:latest
-
-# 查看日志
-docker logs -f task-platform
-
-# 查看状态
-docker ps
+cd web/backend/deploy/tencent_cloud
+chmod +x deploy.sh backup.sh
+./deploy.sh
 ```
 
-### 5. 配置 Nginx 反向代理
+脚本会自动：
+1. 创建目录结构 (`/opt/taskplatform`)
+2. 安装系统依赖 (nginx, redis)
+3. 创建 Python 虚拟环境
+4. 安装 Python 依赖
+5. 配置 Nginx 反向代理
+6. 配置 systemd 服务
+7. 启动服务并检查状态
+
+---
+
+## 手动部署步骤
+
+### 1. 服务器环境准备
 
 ```bash
-# 安装 Nginx
-apt install nginx -y
+# 更新系统
+apt update && apt upgrade -y
 
-# 复制配置
-cp /root/web/backend/deploy/tencent_cloud/nginx.conf /etc/nginx/sites-available/task-platform
+# 安装基础软件
+apt install -y python3 python3-venv python3-pip nginx redis-server curl
+```
+
+### 2. 创建目录结构
+
+```bash
+mkdir -p /opt/taskplatform/{app,frontend/dist,venv,logs}
+```
+
+### 3. 部署后端
+
+```bash
+cd /opt/taskplatform/app
+
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate
+
+# 安装依赖
+pip install --upgrade pip
+pip install fastapi uvicorn[standard] python-dotenv pydantic
+
+# 复制项目文件
+# (从 tar 包解压或直接复制)
+
+# 创建环境变量
+cat > .env << 'EOF'
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-anon-key
+AI_API_URL=https://api.openai.com/v1
+AI_API_KEY=sk-your-key
+LOG_LEVEL=INFO
+EOF
+```
+
+### 4. 配置 Nginx
+
+```bash
+# 复制 Nginx 配置
+cp /opt/taskplatform/app/web/backend/deploy/tencent_cloud/nginx.conf \
+   /etc/nginx/sites-available/taskplatform
 
 # 启用站点
-ln -sf /etc/nginx/sites-available/task-platform /etc/nginx/sites-enabled/
+ln -sf /etc/nginx/sites-available/taskplatform /etc/nginx/sites-enabled/
 
 # 测试并重载
 nginx -t && systemctl reload nginx
 ```
 
----
-
-## 方式二：直接运行（无需 Docker）
-
-### 1. 服务器安装 Python 环境
-
-```bash
-# 安装 Python 3.11
-apt update
-apt install -y python3.11 python3.11-venv python3-pip
-
-# 创建虚拟环境
-mkdir -p /opt/task-platform
-cd /opt/task-platform
-python3.11 -m venv venv
-```
-
-### 2. 上传并安装
-
-```bash
-# 解压项目
-tar -xzvf /root/task-platform.tar.gz -C /opt/task-platform
-
-# 安装依赖
-cd /opt/task-platform/web/backend
-source /opt/task-platform/venv/bin/activate
-pip install -r requirements.txt
-
-# 创建 .env 文件
-cat > .env << 'EOF'
-SUPABASE_URL=https://xxx.supabase.co
-SUPABASE_KEY=your-supabase-key
-AI_API_URL=https://api.openai.com/v1
-AI_API_KEY=sk-your-key
-PORT=8000
-EOF
-```
-
-### 3. 使用 systemd 管理服务
+### 5. 配置 systemd 服务
 
 ```bash
 # 复制服务文件
-cp /opt/task-platform/web/backend/deploy/tencent_cloud/task-platform.service /etc/systemd/system/
+cp /opt/taskplatform/app/web/backend/deploy/tencent_cloud/task-platform.service \
+   /etc/systemd/system/taskplatform.service
 
-# 重载 systemd
+# 重载并启动
 systemctl daemon-reload
+systemctl enable taskplatform
+systemctl start taskplatform
+```
 
+### 6. 部署前端
+
+```bash
+# 构建前端
+cd /opt/taskplatform/app/web/frontend
+npm install
+npm run build
+
+# 复制到部署目录
+cp -r dist/* /opt/taskplatform/frontend/dist/
+```
+
+---
+
+## 验证部署
+
+### 健康检查
+
+```bash
+# 检查服务状态
+systemctl status taskplatform
+
+# 健康检查端点
+curl http://localhost:8001/health
+
+# Nginx 状态
+systemctl status nginx
+```
+
+### 访问测试
+
+- 访问地址: `http://服务器IP`
+- API 文档: `http://服务器IP/docs`
+- 健康检查: `http://服务器IP/health`
+
+### 日志查看
+
+```bash
+# systemd 日志
+journalctl -u taskplatform -f
+
+# Nginx 日志
+tail -f /var/log/nginx/taskplatform_access.log
+tail -f /var/log/nginx/taskplatform_error.log
+
+# 应用日志
+tail -f /opt/taskplatform/logs/stdout.log
+tail -f /opt/taskplatform/logs/stderr.log
+```
+
+---
+
+## 常用命令
+
+### 服务管理
+
+```bash
 # 启动服务
-systemctl start task-platform
-systemctl enable task-platform
+systemctl start taskplatform
 
-# 检查状态
-systemctl status task-platform
+# 停止服务
+systemctl stop taskplatform
+
+# 重启服务
+systemctl restart taskplatform
+
+# 查看状态
+systemctl status taskplatform
+
+# 重载配置
+systemctl reload taskplatform
+```
+
+### Nginx 管理
+
+```bash
+# 检查配置
+nginx -t
+
+# 重载配置
+systemctl reload nginx
+
+# 重启 Nginx
+systemctl restart nginx
+```
+
+### 日志管理
+
+```bash
+# 查看实时日志
+journalctl -u taskplatform -f
+
+# 查看最近 100 行
+journalctl -u taskplatform -n 100
+
+# 查看错误日志
+journalctl -u taskplatform -p err -n 50
 ```
 
 ---
 
-## 方式三：腾讯云容器部署
+## 定时备份配置
 
-### 1. 构建镜像
-
-腾讯云控制台 → 容器镜像服务 → 个人版
+### 创建定时任务
 
 ```bash
-# 登录腾讯云容器镜像
-docker login ccr.ccs.tencentyun.com -u your-username
+# 编辑 crontab
+crontab -e
 
-# 打标签
-docker tag task-platform:latest ccr.ccs.tencentyun.com/your-namespace/task-platform:v1
-
-# 推送
-docker push ccr.ccs.tencentyun.com/your-namespace/task-platform:v1
+# 添加每日凌晨 2 点执行备份
+0 2 * * * /opt/taskplatform/app/web/backend/deploy/tencent_cloud/backup.sh >> /opt/taskplatform/logs/backup.log 2>&1
 ```
 
-### 2. 创建容器实例
-
-腾讯云控制台 → 容器实例服务
-
-- 镜像：`ccr.ccs.tencentyun.com/your-namespace/task-platform:v1`
-- 端口映射：`8000:8000`
-- 环境变量：设置 SUPABASE_URL 等
-
----
-
-## 部署后检查
+### 手动执行备份
 
 ```bash
-# 健康检查
-curl http://localhost:8000/health
+# 运行备份脚本
+/opt/taskplatform/app/web/backend/deploy/tencent_cloud/backup.sh
 
-# 查看 API 文档
-# 浏览器访问 http://服务器IP:8000/docs
-
-# 查看日志
-# Docker 方式
-docker logs task-platform
-
-# systemd 方式
-journalctl -u task-platform -f
+# 查看备份文件
+ls -lh /opt/taskplatform/backups/
 ```
+
+### 备份内容
+
+- 所有 `.db` 数据库文件
+- `.env` 环境变量文件
+- `config.json` 配置文件
+- `services/data/*.json` 数据文件
+
+### 备份保留策略
+
+- 自动清理 7 天前的备份
+- 可在 `backup.sh` 中修改 `RETENTION_DAYS` 变量调整
 
 ---
 
@@ -220,27 +259,43 @@ journalctl -u task-platform -f
 
 | 问题 | 解决方法 |
 |------|----------|
-| 启动失败 | 检查 `.env` 环境变量配置 |
-| 端口被占用 | `lsof -i:8000` 查看占用进程 |
-| 数据库连接失败 | 检查 SUPABASE_URL 和 SUPABASE_KEY |
-| AI服务无法调用 | 检查 AI_API_URL 和 AI_API_KEY |
+| 服务启动失败 | `journalctl -u taskplatform -n 50` 查看日志 |
+| 端口被占用 | `lsof -i:8001` 查看占用进程 |
+| 数据库连接失败 | 检查 `SUPABASE_URL` 和 `SUPABASE_KEY` |
+| AI 服务无法调用 | 检查 `AI_API_URL` 和 `AI_API_KEY` |
+| Nginx 502 错误 | 检查后端服务是否运行 `systemctl status taskplatform` |
+| 前端 404 | 检查 `/opt/taskplatform/frontend/dist` 目录是否存在 |
+
+### 快速修复
+
+```bash
+# 重启所有服务
+systemctl restart taskplatform && systemctl reload nginx
+
+# 检查端口监听
+netstat -tlnp | grep -E '8001|80'
+
+# 检查防火墙
+ufw status
+```
 
 ---
 
-## 快速部署脚本
+## 目录结构
 
-服务器上执行：
-
-```bash
-cd /root
-tar -xzvf task-platform.tar.gz
-cd web/backend/deploy/tencent_cloud
-chmod +x deploy.sh
-./deploy.sh
 ```
-
-脚本会自动：
-1. 安装 Docker
-2. 构建镜像
-3. 运行容器
-4. 配置 Nginx
+/opt/taskplatform/
+├── app/                    # 应用代码
+│   ├── main.py            # FastAPI 入口
+│   ├── .env               # 环境变量
+│   └── web/
+│       ├── backend/       # 后端代码
+│       └── frontend/      # 前端代码
+├── frontend/dist/         # 前端构建产物
+├── venv/                  # Python 虚拟环境
+├── logs/                  # 日志目录
+│   ├── stdout.log
+│   └── stderr.log
+└── backups/               # 数据库备份
+    └── taskplatform_backup_YYYYMMDD_HHMMSS.tar.gz
+```

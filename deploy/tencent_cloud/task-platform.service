@@ -1,19 +1,29 @@
 [Unit]
-Description=TaskPlatform FastAPI Service
+Description=TaskPlatform Backend Service
+Documentation=https://github.com/olouha/task-platform
 After=network.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/task-platform/web/backend
-Environment="PATH=/opt/task-platform/venv/bin"
-EnvironmentFile=/opt/task-platform/web/backend/.env
-ExecStart=/opt/task-platform/venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
-ExecReload=/bin/kill -HUP $MAINPID
+WorkingDirectory=/opt/taskplatform/app
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/opt/taskplatform/venv/bin"
+
+# 启动命令
+ExecStart=/opt/taskplatform/venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8001 --workers 2
+
+# 重启策略
 Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
+RestartSec=5
+
+# 日志
+StandardOutput=append:/opt/taskplatform/logs/stdout.log
+StandardError=append:/opt/taskplatform/logs/stderr.log
+
+# 资源限制
+LimitNOFILE=65536
+MemoryMax=512M
 
 [Install]
 WantedBy=multi-user.target
