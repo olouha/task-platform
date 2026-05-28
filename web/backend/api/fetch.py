@@ -424,62 +424,62 @@ async def trigger_auto_fetch():
         }
 
 
-@router.get(“/manual-required”)
+@router.get("/manual-required")
 async def get_manual_required():
-    “””获取需要手动操作的日期列表”””
-    logger.info(“[get_manual_required] 查询需要手动操作的日期”)
+    """获取需要手动操作的日期列表"""
+    logger.info("[get_manual_required] 查询需要手动操作的日期")
     manager = get_status_manager()
     dates = manager.get_manual_required_dates(days=7)
-    logger.info(f”[get_manual_required] 返回 {len(dates)} 个日期”)
+    logger.info(f"[get_manual_required] 返回 {len(dates)} 个日期")
     return {
-        “dates”: dates,
-        “total”: len(dates)
+        "dates": dates,
+        "total": len(dates)
     }
 
 
-@router.post(“/clear-old”)
+@router.post("/clear-old")
 async def clear_old_records(days: int = 30):
-    “””清理旧记录”””
-    logger.info(f”[clear_old_records] 清理 {days} 天前的记录”)
+    """清理旧记录"""
+    logger.info(f"[clear_old_records] 清理 {days} 天前的记录")
     manager = get_status_manager()
     manager.clear_old_records(days)
-    logger.info(“[clear_old_records] 清理完成”)
-    return {“success”: True, “message”: f”已清理{days}天前的记录”}
+    logger.info("[clear_old_records] 清理完成")
+    return {"success": True, "message": f"已清理{days}天前的记录"}
 
 
-@router.get(“/export-cookie-guide”)
+@router.get("/export-cookie-guide")
 async def get_cookie_export_guide():
-    “””获取Cookie导出指南”””
-    logger.info(“[get_cookie_export_guide] 获取导出指南”)
+    """获取Cookie导出指南"""
+    logger.info("[get_cookie_export_guide] 获取导出指南")
     return {
-        “title”: “如何导出浏览器Cookie”,
-        “chrome_steps”: [
-            “1. 在已登录的网站页面按F12打开开发者工具”,
-            “2. 切换到 Application 标签页”,
-            “3. 左侧选择 Cookies”,
-            “4. 选中 .mysteel.com 的Cookie”,
-            “5. 右键 → Copy as cURL (bash)”,
-            “将复制的JSON数据发送到本接口”
+        "title": "如何导出浏览器Cookie",
+        "chrome_steps": [
+            "1. 在已登录的网站页面按F12打开开发者工具",
+            "2. 切换到 Application 标签页",
+            "3. 左侧选择 Cookies",
+            "4. 选中 .mysteel.com 的Cookie",
+            "5. 右键 → Copy as cURL (bash)",
+            "将复制的JSON数据发送到本接口"
         ],
-        “edge_steps”: [
-            “1. 在已登录的网站页面按F12打开开发者工具”,
-            “2. 切换到 Application 标签页”,
-            “3. 左侧选择 Cookies”,
-            “4. 点击”导出”按钮”,
-            “选择JSON格式并下载”,
-            “将文件内容发送到本接口”
+        "edge_steps": [
+            "1. 在已登录的网站页面按F12打开开发者工具",
+            "2. 切换到 Application 标签页",
+            "3. 左侧选择 Cookies",
+            '4. 点击"导出"按钮',
+            "选择JSON格式并下载",
+            "将文件内容发送到本接口"
         ],
-        “api_endpoint”: “POST /api/fetch/manual”
+        "api_endpoint": "POST /api/fetch/manual"
     }
 
 
-@router.get(“/excel-data”)
+@router.get("/excel-data")
 async def get_excel_data():
-    “””获取Excel文件（下载）”””
-    logger.info(“[get_excel_data] 获取Excel数据”)
+    """获取Excel文件（下载）"""
+    logger.info("[get_excel_data] 获取Excel数据")
     if not EXCEL_FILE.exists():
-        logger.warning(“[get_excel_data] Excel文件不存在”)
-        raise HTTPException(status_code=404, detail=”Excel文件不存在”)
+        logger.warning("[get_excel_data] Excel文件不存在")
+        raise HTTPException(status_code=404, detail="Excel文件不存在")
 
     wb = openpyxl.load_workbook(EXCEL_FILE)
     sheet_count = len(wb.sheetnames)
@@ -488,33 +488,33 @@ async def get_excel_data():
     manager = get_status_manager()
     today_records = manager.get_today_records()
 
-    logger.info(f”[get_excel_data] 返回 | sheets={sheet_count}, today_records={len(today_records)}”)
+    logger.info(f"[get_excel_data] 返回 | sheets={sheet_count}, today_records={len(today_records)}")
     return {
-        “file_exists”: True,
-        “total_sheets”: sheet_count,
-        “today_records”: [
+        "file_exists": True,
+        "total_sheets": sheet_count,
+        "today_records": [
             {
-                “period”: r.period,
-                “status”: r.status.value,
-                “count”: r.count,
-                “time”: r.timestamp
+                "period": r.period,
+                "status": r.status.value,
+                "count": r.count,
+                "time": r.timestamp
             }
             for r in today_records
         ],
-        “download_url”: “/api/fetch/download”
+        "download_url": "/api/fetch/download"
     }
 
 
-@router.get(“/download”)
+@router.get("/download")
 async def download_excel():
-    “””下载Excel文件”””
-    logger.info(“[download_excel] 下载Excel”)
+    """下载Excel文件"""
+    logger.info("[download_excel] 下载Excel")
     if not EXCEL_FILE.exists():
-        logger.warning(“[download_excel] Excel文件不存在”)
-        raise HTTPException(status_code=404, detail=”Excel文件不存在”)
+        logger.warning("[download_excel] Excel文件不存在")
+        raise HTTPException(status_code=404, detail="Excel文件不存在")
 
     from fastapi.responses import FileResponse
-    logger.info(“[download_excel] 开始下载”)
+    logger.info("[download_excel] 开始下载")
     return FileResponse(
         path=str(EXCEL_FILE),
         filename=f'山东烟台钢筋价格_{TODAY}.xlsx',
