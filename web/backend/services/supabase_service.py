@@ -527,6 +527,98 @@ class SupabaseService:
                 errors.append({'index': i, 'error': str(e)})
         return {'imported': imported, 'total': len(prices), 'errors': errors}
 
+    # ========== 造价参考价 ==========
+
+    def get_cost_reference_prices(
+        self,
+        category: str = None,
+        period: str = None,
+        spec: str = None,
+        steel_type: str = None,
+        min_grade: str = None,
+        max_grade: str = None,
+        limit: int = 500
+    ) -> List[Dict]:
+        """获取造价参考价列表"""
+        query = f'/cost_reference_prices?select=*&order=name.asc&limit={limit}'
+        if category:
+            query += f'&category=eq.{category}'
+        if period:
+            query += f'&period=eq.{period}'
+        if spec:
+            query += f'&spec=ilike.%25{spec}%25'
+        if min_grade:
+            query += f'&grade=gte.{min_grade}'
+        if max_grade:
+            query += f'&grade=lte.{max_grade}'
+        result = self._request('GET', query)
+        return result if result else []
+
+    def get_cost_reference_categories(self) -> List[Dict]:
+        """获取所有分类及统计"""
+        result = self._request('GET', '/cost_reference_prices?select=category,period&limit=10000')
+        if not result:
+            return []
+        cats: Dict[str, Dict] = {}
+        for r in result:
+            cat = r.get('category', '')
+            if cat not in cats:
+                cats[cat] = {'id': cat, 'name': f'{cat}价格', 'count': 0}
+            cats[cat]['count'] += 1
+        return list(cats.values())
+
+    def get_cost_reference_summary(self) -> Dict:
+        """获取造价参考价汇总"""
+        result = self._request('GET', '/cost_reference_prices?select=category,unit_price,pump_price,non_pump_price&limit=10000')
+        if not result:
+            return {}
+        steel_prices = [r.get('unit_price', 0) for r in result if r.get('category') == '钢筋' and r.get('unit_price')]
+        concrete_pump = [r.get('pump_price', 0) for r in result if r.get('category') == '混凝土' and r.get('pump_price')]
+        concrete_non = [r.get('non_pump_price', 0) for r in result if r.get('category') == '混凝土' and r.get('non_pump_price')]
+        mortar_prices = [r.get('unit_price', 0) for r in result if r.get('category') == '砂浆' and r.get('unit_price')]
+        return {
+            '钢筋': {'count': len(steel_prices), 'price_range': {'min': min(steel_prices) if steel_prices else 0, 'max': max(steel_prices) if steel_prices else 0}, 'unit': '元/吨'},
+            '混凝土': {'count': len(concrete_pump), 'price_range': {'min_pump': min(concrete_pump) if concrete_pump else 0, 'max_pump': max(concrete_pump) if concrete_pump else 0}, 'unit': '元/立方米'},
+            '砂浆': {'count': len(mortar_prices), 'price_range': {'min': min(mortar_prices) if mortar_prices else 0, 'max': max(mortar_prices) if mortar_prices else 0}, 'unit': '元/吨'},
+        }
+
+    def insert_cost_reference_prices(self, items: List[Dict]) -> Dict:
+        """批量插入造价参考价"""
+        imported = 0
+        errors = []
+        for i, item in enumerate(items):
+            data = {
+                'category': item.get('category', ''),
+                'code': item.get('code') or None,
+                'name': item.get('name', ''),
+                'spec': item.get('spec') or None,
+                'unit': item.get('unit', 't'),
+                'unit_price': item.get('unit_price') or item.get('pump_price') or 0,
+                'tax_rate': item.get('tax_rate', 13.0),
+                'pump_price': item.get('pump_price') or None,
+                'non_pump_price': item.get('non_pump_price') or None,
+                'source': item.get('source', '烟台工程建设标准造价管理'),
+                'period': item.get('period', '2024年第一季度'),
+                'region': item.get('region', '山东烟台'),
+                'notes': item.get('notes') or None,
+            }
+            try:
+                resp = self._request('POST', '/cost_reference_prices', json=data)
+                if resp:
+                    imported += 1
+                else:
+                    errors.append({'index': i, 'error': '插入失败'})
+            except Exception as e:
+                errors.append({'index': i, 'error': str(e)})
+        return {'imported': imported, 'total': len(items), 'errors': errors}
+
+    def get_cost_reference_price(self, item_id: str) -> Optional[Dict]:
+        """获取单条造价参考价"""
+        result = self._request('GET', f'/cost_reference_prices?id=eq.{item_id}&select=*')
+        if result and len(result) > 0:
+            return result[0]
+        return None
+
     # ========== 价格历史 ==========
 
     def create_price_record(self, record_data: Dict) -> Optional[Dict]:
