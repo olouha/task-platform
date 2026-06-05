@@ -396,6 +396,137 @@ class SupabaseService:
                 errors.append({"index": i, "error": str(e)})
         return {"imported": imported, "total": len(projects), "errors": errors}
 
+    # ========== 烟台钢筋价格 ==========
+
+    def get_rebar_prices(
+        self,
+        date: str = None,
+        start_date: str = None,
+        end_date: str = None,
+        material_name: str = None,
+        spec: str = None,
+        brand: str = None,
+        limit: int = 500
+    ) -> List[Dict]:
+        """获取钢筋价格列表"""
+        query = f'/rebar_prices?select=*&order=date.desc,fetch_time.desc&limit={limit}'
+        if date:
+            query += f'&date=eq.{date}'
+        if start_date:
+            query += f'&date=gte.{start_date}'
+        if end_date:
+            query += f'&date=lte.{end_date}'
+        if material_name:
+            query += f'&material_name=ilike.%25{material_name}%25'
+        if spec:
+            query += f'&spec=ilike.%25{spec}%25'
+        if brand:
+            query += f'&brand=ilike.%25{brand}%25'
+        result = self._request('GET', query)
+        return result if result else []
+
+    def get_rebar_latest(self, limit: int = 500) -> Dict:
+        """获取最新价格（按最新日期）"""
+        result = self._request('GET', f'/rebar_prices?select=*&order=date.desc,fetch_time.desc&limit={limit}')
+        if not result:
+            return {'success': True, 'count': 0, 'prices': []}
+        latest_date = result[0].get('date') if result else None
+        filtered = [r for r in result if r.get('date') == latest_date]
+        return {'success': True, 'count': len(filtered), 'prices': filtered}
+
+    def get_rebar_trend(
+        self,
+        material_name: str = None,
+        spec: str = None,
+        days: int = 365,
+        start_date: str = None,
+        end_date: str = None
+    ) -> Dict:
+        """获取价格趋势（日均价的 max/min/avg）"""
+        from datetime import datetime, timedelta
+        query = '/rebar_prices?select=date,material_name,spec,brand,price&order=date.asc'
+        if material_name:
+            query += f'&material_name=ilike.%25{material_name}%25'
+        if spec:
+            query += f'&spec=ilike.%25{spec}%25'
+        if start_date:
+            query += f'&date=gte.{start_date}'
+        elif end_date:
+            cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+            query += f'&date=gte.{cutoff}'
+        if end_date:
+            query += f'&date=lte.{end_date}'
+        result = self._request('GET', query)
+        if not result:
+            return {'success': True, 'count': 0, 'data': []}
+        # 按日期聚合
+        daily: Dict[str, Dict] = {}
+        for r in result:
+            d = r.get('date')
+            if d not in daily:
+                daily[d] = {'date': d, 'prices': []}
+            daily[d]['prices'].append(r.get('price', 0))
+        trend = []
+        for date_str, item in sorted(daily.items()):
+            prices = item['prices']
+            trend.append({
+                'date': date_str,
+                'avg_price': round(sum(prices) / len(prices), 2) if prices else 0,
+                'min_price': min(prices) if prices else 0,
+                'max_price': max(prices) if prices else 0,
+                'cnt': len(prices)
+            })
+        return {'success': True, 'count': len(trend), 'data': trend}
+
+    def get_rebar_stats(self) -> Dict:
+        """获取钢筋价格统计"""
+        result = self._request('GET', '/rebar_prices?select=date,material_name,spec,brand,price&limit=10000')
+        if not result:
+            return {'total_count': 0, 'dates_count': 0, 'date_range': {}, 'materials': {}, 'specs': {}}
+        dates = set(r.get('date') for r in result if r.get('date'))
+        materials: Dict[str, int] = {}
+        specs: Dict[str, int] = {}
+        for r in result:
+            mn = r.get('material_name')
+            if mn:
+                materials[mn] = materials.get(mn, 0) + 1
+            sp = r.get('spec')
+            if sp:
+                specs[sp] = specs.get(sp, 0) + 1
+        sorted_dates = sorted(dates)
+        return {
+            'total_count': len(result),
+            'dates_count': len(dates),
+            'date_range': {'start': sorted_dates[0] if sorted_dates else None, 'end': sorted_dates[-1] if sorted_dates else None},
+            'materials': dict(sorted(materials.items(), key=lambda x: -x[1])[:20]),
+            'specs': dict(sorted(specs.items(), key=lambda x: -x[1])[:20])
+        }
+
+    def insert_rebar_prices(self, prices: List[Dict]) -> Dict:
+        """批量插入钢筋价格数据"""
+        imported = 0
+        errors = []
+        for i, p in enumerate(prices):
+            data = {
+                'date': p.get('date', ''),
+                'fetch_time': p.get('fetch_time') or None,
+                'material_name': p.get('material_name', ''),
+                'spec': p.get('spec') or None,
+                'material_type': p.get('material_type') or None,
+                'brand': p.get('brand') or None,
+                'price': p.get('price', 0),
+                'region': p.get('region', '山东烟台'),
+            }
+            try:
+                resp = self._request('POST', '/rebar_prices', json=data)
+                if resp:
+                    imported += 1
+                else:
+                    errors.append({'index': i, 'error': '插入失败'})
+            except Exception as e:
+                errors.append({'index': i, 'error': str(e)})
+        return {'imported': imported, 'total': len(prices), 'errors': errors}
+
     # ========== 价格历史 ==========
 
     def create_price_record(self, record_data: Dict) -> Optional[Dict]:
