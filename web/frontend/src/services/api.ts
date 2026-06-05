@@ -828,6 +828,62 @@ export const indicatorReportApi = {
   },
 };
 
+// 烟台钢筋价格 API (Supabase)
+export const yantaiRebarApi = {
+  getStats: async () => {
+    const response = await fetch(`${config.apiUrl}/yantai-rebar/stats`);
+    return response.json();
+  },
+  getLatest: async (date?: string, limit = 500) => {
+    const url = date
+      ? `${config.apiUrl}/yantai-rebar/latest?date=${encodeURIComponent(date)}&limit=${limit}`
+      : `${config.apiUrl}/yantai-rebar/latest?limit=${limit}`;
+    const response = await fetch(url);
+    return response.json();
+  },
+  getByRange: async (start_date: string, end_date: string, material?: string, spec?: string) => {
+    const params = new URLSearchParams({ start_date, end_date });
+    if (material) params.append('material', material);
+    if (spec) params.append('spec', spec);
+    const response = await fetch(`${config.apiUrl}/yantai-rebar/range?${params}`);
+    return response.json();
+  },
+  getTrend: async (material?: string, spec?: string, days = 365, start_date?: string, end_date?: string) => {
+    const params = new URLSearchParams({ days: String(days) });
+    if (material) params.append('material', material);
+    if (spec) params.append('spec', spec);
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    const response = await fetch(`${config.apiUrl}/yantai-rebar/trend?${params}`);
+    return response.json();
+  },
+  getMaterials: async () => {
+    const response = await fetch(`${config.apiUrl}/yantai-rebar/materials`);
+    return response.json();
+  },
+  getSpecs: async (material?: string) => {
+    const url = material
+      ? `${config.apiUrl}/yantai-rebar/specs?material=${encodeURIComponent(material)}`
+      : `${config.apiUrl}/yantai-rebar/specs`;
+    const response = await fetch(url);
+    return response.json();
+  },
+  getDates: async (start_date?: string, end_date?: string) => {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    const url = `${config.apiUrl}/yantai-rebar/dates${params.toString() ? '?' + params : ''}`;
+    const response = await fetch(url);
+    return response.json();
+  },
+  search: async (keyword: string, date?: string, limit = 100) => {
+    const params = new URLSearchParams({ keyword, limit: String(limit) });
+    if (date) params.append('date', date);
+    const response = await fetch(`${config.apiUrl}/yantai-rebar/search?${params}`);
+    return response.json();
+  },
+};
+
 // 指标库项目管理 API
 export const indicatorDatabaseApi = {
   // 获取指标库列表
