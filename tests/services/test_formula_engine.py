@@ -9,9 +9,9 @@ import math
 from web.backend.services.formula_engine import (
     FormulaEngine,
     FormulaInput,
-    FormulaType,
     RiskType,
 )
+from web.backend.models.adjustment_rules import FormulaType as FormulaTypeEnum
 
 
 # ============================================================

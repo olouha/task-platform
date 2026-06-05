@@ -9,6 +9,20 @@ from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
 from web.backend.models.adjustment_rules import RiskType, RiskConfig
+from web.backend.models.adjustment_rules import FormulaType as FormulaTypeEnum
+
+
+# ============================================================
+# 公式类型字符串常量（与 FormulaType 枚举值对应）
+# ============================================================
+
+class FormulaType:
+    """公式类型字符串常量"""
+    STANDARD_THREE_STAGE = "standard_three_stage"           # 标准三段式
+    LONGHU_VAT_CONVERSION = "longhu_vat_conversion"         # 龙湖增值税率换算法
+    RATIO_ADJUSTMENT = "ratio_adjustment"                   # 豪森比例调差法
+    COST_INFO_ADJUSTMENT = "cost_info_adjustment"          # 造价信息调整法
+    NO_RISK = "no_risk"                                     # 无风险幅度（全额调差）
 
 logger = logging.getLogger(__name__)
 
@@ -26,19 +40,9 @@ class FormulaInput(BaseModel):
     period_avg_price: float = Field(..., ge=0, description="施工期均价（指导价）")
     risk_config: Optional[dict] = Field(default=None, description="风险幅度配置")
     tax_rate: float = Field(default=9.0, ge=0, le=100, description="税率%")
-
-
-# ============================================================
-# 公式类型枚举（映射到中文名称）
-# ============================================================
-
-class FormulaType:
-    """公式类型字符串常量"""
-    STANDARD_THREE_STAGE = "standard_three_stage"           # 标准三段式
-    LONGHU_VAT_CONVERSION = "longhu_vat_conversion"         # 龙湖增值税率换算法
-    RATIO_ADJUSTMENT = "ratio_adjustment"                   # 豪森比例调差法
-    COST_INFO_ADJUSTMENT = "cost_info_adjustment"          # 造价信息调整法
-    NO_RISK = "no_risk"                                     # 无风险幅度（全额调差）
+    # 龙湖模式专用字段：增值税进项税率和合同税率
+    vat_input_rate: float = Field(default=13.0, ge=0, le=100, description="采购发票增值税率%")
+    vat_output_rate: float = Field(default=9.0, ge=0, le=100, description="合同约定增值税率%")
 
 
 # ============================================================
@@ -184,8 +188,8 @@ class FormulaEngine:
         """
         logger.debug(f"[_longhu_vat_conversion] 计算龙湖公式 | material={input_data.material_name}")
 
-        VAT_INPUT = 13.0   # 采购发票税率
-        VAT_OUTPUT = 9.0   # 合同约定税率
+        vat_input = input_data.vat_input_rate   # 采购发票税率（默认13%）
+        vat_output = input_data.vat_output_rate # 合同约定税率（默认9%）
 
         # 解析风险幅度
         risk_value, risk_percentage = self._parse_risk_config(input_data.risk_config)
@@ -194,11 +198,11 @@ class FormulaEngine:
         if risk_percentage == RiskType.NONE or (risk_percentage == RiskType.PERCENTAGE and risk_value == 0):
             # 钢筋：0%风险幅度，全额调差
             price_diff = input_data.period_avg_price - input_data.base_price
-            adjustment = (input_data.quantity * price_diff) / (1 + VAT_INPUT / 100) * (1 + VAT_OUTPUT / 100)
+            adjustment = (input_data.quantity * price_diff) / (1 + vat_input / 100) * (1 + vat_output / 100)
             formula = (
                 f"龙湖增值税率换算法(钢筋0%全额调差)| "
                 f"调整金额 = [{input_data.quantity} × ({input_data.period_avg_price} - {input_data.base_price})]"
-                f" / (1+{VAT_INPUT}%) × (1+{VAT_OUTPUT}%)"
+                f" / (1+{vat_input}%) × (1+{vat_output}%)"
                 f" = {adjustment:.2f}元"
             )
             logger.info(f"[_longhu_vat_conversion] 钢筋全额调差 | adjustment={adjustment:.2f}")
@@ -210,24 +214,24 @@ class FormulaEngine:
             if input_data.period_avg_price > upper_limit:
                 # 涨幅超出
                 price_diff = input_data.period_avg_price - upper_limit
-                adjustment = (input_data.quantity * price_diff) / (1 + VAT_INPUT / 100) * (1 + VAT_OUTPUT / 100)
+                adjustment = (input_data.quantity * price_diff) / (1 + vat_input / 100) * (1 + vat_output / 100)
                 formula = (
                     f"龙湖增值税率换算法(混凝土涨幅)| "
                     f"上限={input_data.base_price}×(1+{risk_value}%)={upper_limit:.2f} | "
                     f"调整金额 = [{input_data.quantity} × ({input_data.period_avg_price} - {upper_limit:.2f})]"
-                    f" / (1+{VAT_INPUT}%) × (1+{VAT_OUTPUT}%)"
+                    f" / (1+{vat_input}%) × (1+{vat_output}%)"
                     f" = {adjustment:.2f}元"
                 )
                 logger.info(f"[_longhu_vat_conversion] 混凝土涨幅 | upper_limit={upper_limit:.2f} | adjustment={adjustment:.2f}")
             elif input_data.period_avg_price < lower_limit:
                 # 跌幅超出
                 price_diff = input_data.period_avg_price - lower_limit
-                adjustment = (input_data.quantity * price_diff) / (1 + VAT_INPUT / 100) * (1 + VAT_OUTPUT / 100)
+                adjustment = (input_data.quantity * price_diff) / (1 + vat_input / 100) * (1 + vat_output / 100)
                 formula = (
                     f"龙湖增值税率换算法(混凝土跌幅)| "
                     f"下限={input_data.base_price}×(1-{risk_value}%)={lower_limit:.2f} | "
                     f"调整金额 = [{input_data.quantity} × ({input_data.period_avg_price} - {lower_limit:.2f})]"
-                    f" / (1+{VAT_INPUT}%) × (1+{VAT_OUTPUT}%)"
+                    f" / (1+{vat_input}%) × (1+{vat_output}%)"
                     f" = {adjustment:.2f}元"
                 )
                 logger.info(f"[_longhu_vat_conversion] 混凝土跌幅 | lower_limit={lower_limit:.2f} | adjustment={adjustment:.2f}")
@@ -328,16 +332,60 @@ class FormulaEngine:
         """
         造价信息调整法
 
-        与标准三段式相同逻辑
+        与标准三段式相同逻辑，区别仅在于公式名称不同
         """
         logger.debug(f"[_cost_info_adjustment] 计算造价信息调整 | material={input_data.material_name}")
 
-        adjustment, formula = self._standard_three_stage(input_data)
+        # 解析风险幅度
+        risk_value, risk_percentage = self._parse_risk_config(input_data.risk_config)
 
-        # 替换公式名称
-        formula = formula.replace("标准三段式", "造价信息调整法")
+        if risk_percentage is None or risk_value == 0:
+            # 无风险幅度配置时，全额调差（0%风险幅度）
+            adjustment = input_data.quantity * (input_data.period_avg_price - input_data.base_price)
+            formula = (
+                f"造价信息调整法(无风险幅度全额调差)| "
+                f"调整金额 = {input_data.quantity} × ({input_data.period_avg_price} - {input_data.base_price})"
+                f" = {adjustment:.2f}元"
+            )
+            logger.info(f"[_cost_info_adjustment] 无风险幅度全额调差 | adjustment={adjustment:.2f}")
+            return adjustment, formula
 
-        logger.info(f"[_cost_info_adjustment] 造价信息调整计算完成 | adjustment={adjustment:.2f}")
+        # 计算上下限
+        upper_limit = input_data.base_price * (1 + risk_value / 100)
+        lower_limit = input_data.base_price * (1 - risk_value / 100)
+
+        price_diff = input_data.period_avg_price - input_data.base_price
+        adjustment = 0.0
+        formula = ""
+
+        if input_data.period_avg_price > upper_limit:
+            # 涨幅超出
+            adjustment = input_data.quantity * (input_data.period_avg_price - upper_limit)
+            formula = (
+                f"造价信息调整法(涨幅超出)| "
+                f"上限={input_data.base_price}×(1+{risk_value}%)={upper_limit:.2f} | "
+                f"调整金额 = {input_data.quantity} × ({input_data.period_avg_price} - {upper_limit:.2f})"
+                f" = {adjustment:.2f}元"
+            )
+            logger.info(f"[_cost_info_adjustment] 涨幅超出 | upper_limit={upper_limit:.2f} | adjustment={adjustment:.2f}")
+        elif input_data.period_avg_price < lower_limit:
+            # 跌幅超出
+            adjustment = input_data.quantity * (input_data.period_avg_price - lower_limit)
+            formula = (
+                f"造价信息调整法(跌幅超出)| "
+                f"下限={input_data.base_price}×(1-{risk_value}%)={lower_limit:.2f} | "
+                f"调整金额 = {input_data.quantity} × ({input_data.period_avg_price} - {lower_limit:.2f})"
+                f" = {adjustment:.2f}元"
+            )
+            logger.info(f"[_cost_info_adjustment] 跌幅超出 | lower_limit={lower_limit:.2f} | adjustment={adjustment:.2f}")
+        else:
+            # 风险幅度内，不调差
+            formula = (
+                f"造价信息调整法(风险幅度内)| "
+                f"施工期均价{input_data.period_avg_price}在[{lower_limit:.2f}, {upper_limit:.2f}]范围内，不调差"
+            )
+            logger.info(f"[_cost_info_adjustment] 风险幅度内不调差 | period_avg={input_data.period_avg_price}")
+
         return adjustment, formula
 
     # ============================================================
