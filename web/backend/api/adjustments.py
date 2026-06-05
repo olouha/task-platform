@@ -1,24 +1,23 @@
 """
 调差计算 API
-包含旧版和新版调差计算端点
+包含旧版和新版调差计算端点，支持 AdjustmentEngineV3
 """
 
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from pathlib import Path
 import logging
 
-from services.adjustment_calculator import AdjustmentCalculator
-from services.adjustment_engine import AdjustmentEngine, CalculationInput, PriceData, QuantityData
+from services.adjustment_engine import AdjustmentEngine, CalculationInput as OldCalculationInput, PriceData as OldPriceData, QuantityData as OldQuantityData
+from services.adjustment_engine_v3 import AdjustmentEngineV3, CalculationInput, PriceData as V3PriceData, QuantityData as V3QuantityData
 from services.supabase_service import SupabaseService
 from models.schemas import AdjustmentRecord, AdjustmentResult
 from models.adjustment_rules import AdjustmentRuleConfig, PRESET_RULES
 
 router = APIRouter(prefix="/adjustments", tags=["调差计算"])
 logger = logging.getLogger(__name__)
-calculator = AdjustmentCalculator()
 
 # 模拟数据存储
 _adjustment_records_db = {}
@@ -42,6 +41,7 @@ class CalculationResponse(BaseModel):
     success: bool
     data: Optional[Dict] = None
     error: Optional[str] = None
+    message: Optional[str] = None  # 提示信息（如：计算成功、数据警告等）
 
 
 # ============================================================
@@ -53,7 +53,7 @@ def get_supabase():
 
 
 # ============================================================
-# 新版调差计算 API（遵循AI可执行配置规范）
+# 新版调差计算 API（使用 AdjustmentEngineV3）
 # ============================================================
 
 @router.post("/calculate", response_model=CalculationResponse)
@@ -62,7 +62,7 @@ async def calculate_adjustment_v2(
     supabase: SupabaseService = Depends(get_supabase)
 ):
     """
-    按新规范执行调差计算
+    按新规范执行调差计算（使用 AdjustmentEngineV3）
 
     请求参数:
     - rule_id: 规则ID（从数据库加载）
@@ -91,24 +91,34 @@ async def calculate_adjustment_v2(
 
         config = AdjustmentRuleConfig(**config_dict)
 
+        # Step 2: 构建输入数据（使用 v3 数据类）
         input_data = CalculationInput(
             base_prices=request.base_prices,
             period_prices={
-                k: [PriceData(**p) for p in v]
+                k: [V3PriceData(**p) for p in v]
                 for k, v in request.period_prices.items()
             },
             quantities=[
-                QuantityData(**q) for q in request.quantities
+                V3QuantityData(**q) for q in request.quantities
             ]
         )
 
-        engine = AdjustmentEngine(config)
+        # Step 3: 使用 AdjustmentEngineV3 计算
+        engine = AdjustmentEngineV3(config)
         result = engine.calculate(input_data)
 
-        logger.info(f"[calculate_adjustment_v2] 计算成功 | total={result.total_adjustment}")
+        # Step 4: 检查价格数据警告
+        warning_msg = None
+        if result.价格校验:
+            invalid = result.价格校验.get('invalid_materials', 0)
+            if invalid > 0:
+                warning_msg = f"价格数据存在警告：{invalid} 个材料数据不完整，建议检查"
+
+        logger.info(f"[calculate_adjustment_v2] 计算成功 | total={result.调差总金额}")
         return CalculationResponse(
             success=True,
-            data=result.model_dump()
+            data=result.to_dict(),
+            message=warning_msg or "计算完成"
         )
 
     except HTTPException:
@@ -117,7 +127,8 @@ async def calculate_adjustment_v2(
         logger.error(f"[calculate_adjustment_v2] 计算失败 | {e}", exc_info=True)
         return CalculationResponse(
             success=False,
-            error=str(e)
+            error=str(e),
+            message="计算失败，请检查参数和数据"
         )
 
 
@@ -212,28 +223,6 @@ async def validate_adjustment_config(config: Dict):
     }
 
 
-@router.post("/calculate", response_model=List[AdjustmentResult])
-async def calculate_adjustment(
-    project_id: str,
-    phase_id: str = None,
-    materials: List[dict] = [],
-    price_history: dict = {}
-):
-    """计算调差"""
-    logger.info(f"[calculate_adjustment] 计算调差 | project_id={project_id}, materials={len(materials)}")
-    phases = [{'id': phase_id, 'phase_name': '阶段一', 'start_date': '2024-01-01', 'end_date': '2024-06-30'}]
-
-    result = calculator.calculate_project_adjustment(
-        project_id,
-        phases,
-        materials,
-        price_history
-    )
-
-    logger.info(f"[calculate_adjustment] 计算完成 | phases={len(result.get('phases', []))}")
-    return result.get('phases', [])
-
-
 @router.get("/records", response_model=List[AdjustmentRecord])
 async def list_adjustment_records(project_id: str = None, phase_id: str = None):
     """获取调差记录"""
@@ -305,7 +294,7 @@ async def get_project_adjustment_summary(project_id: str):
     result = {
         'project_id': project_id,
         'total_adjustment': round(total, 2),
-        'adjustment_text': calculator.number_to_chinese(total),
+        'adjustment_text': _number_to_chinese(total),
         'phases': list(phase_summary.values()),
         'materials': list(material_summary.values())
     }
@@ -327,7 +316,7 @@ async def export_adjustment_report(project_id: str):
     result = {
         'project_id': project_id,
         'total_adjustment': total,
-        'adjustment_text': calculator.number_to_chinese(total),
+        'adjustment_text': _number_to_chinese(total),
         'records': [
             {
                 'phase_name': r.phase_name,
@@ -350,7 +339,7 @@ async def export_adjustment_report(project_id: str):
 @router.post("/calculate-by-project/{project_id}")
 async def calculate_by_project(project_id: str):
     """
-    按项目执行调差计算（完整流程）
+    按项目执行调差计算（完整流程，使用 AdjustmentEngineV3）
 
     1. 获取项目数据和材料清单
     2. 获取预设规则配置
@@ -419,36 +408,45 @@ async def calculate_by_project(project_id: str):
         config_dict = _convert_preset_to_config(preset_config, rule_name)
         config = AdjustmentRuleConfig(**config_dict)
 
+        # 使用 v3 数据类
         input_data = CalculationInput(
             base_prices=base_prices,
             period_prices={
-                k: [PriceData(**p) for p in v]
+                k: [V3PriceData(**p) for p in v]
                 for k, v in period_prices.items()
             },
             quantities=[
-                QuantityData(**q) for q in quantities
+                V3QuantityData(**q) for q in quantities
             ]
         )
 
-        engine = AdjustmentEngine(config)
+        # 使用 AdjustmentEngineV3
+        engine = AdjustmentEngineV3(config)
         result = engine.calculate(input_data)
 
         for i, p in enumerate(projects):
             if p.get('id') == project_id:
                 projects[i]['status'] = 'calculated'
-                projects[i]['adjustment_result'] = result.model_dump(mode='json')
+                projects[i]['adjustment_result'] = result.to_dict()
                 projects[i]['updated_at'] = datetime.now().isoformat()
                 break
 
         from api.adjustment_project import save_projects
         save_projects(projects)
 
-        logger.info(f"[calculate_by_project] 计算完成 | total={result.total_adjustment}")
+        # 检查价格警告
+        warning_msg = None
+        if result.价格校验:
+            invalid = result.价格校验.get('invalid_materials', 0)
+            if invalid > 0:
+                warning_msg = f"注意：{invalid} 个材料价格数据不完整"
+
+        logger.info(f"[calculate_by_project] 计算完成 | total={result.调差总金额}")
         return {
             "success": True,
-            "data": result.model_dump(mode='json'),
+            "data": result.to_dict(),
             "rule_name": rule_name,
-            "message": "计算完成"
+            "message": warning_msg or "计算完成"
         }
 
     except HTTPException:
@@ -457,13 +455,17 @@ async def calculate_by_project(project_id: str):
         logger.error(f"[calculate_by_project] 计算失败 | {e}", exc_info=True)
         return {
             "success": False,
-            "error": str(e)
+            "error": str(e),
+            "message": "计算失败"
         }
 
 
+# ============================================================
+# 辅助函数
+# ============================================================
+
 def _convert_preset_to_config(preset: Dict, rule_name: str) -> Dict:
     """将预设规则转换为计算引擎配置格式"""
-    # 基础配置
     config = {
         '项目名称': rule_name,
         '使用规则版本': preset.get('使用规则版本', 'v2.0'),
@@ -529,3 +531,38 @@ def _convert_preset_to_config(preset: Dict, rule_name: str) -> Dict:
         config['合同税率'] = formula_config.get('合同税率', 9)
 
     return config
+
+
+def _number_to_chinese(num: float) -> str:
+    """数字转中文大写"""
+    if num == 0:
+        return '零元整'
+
+    num = round(abs(num), 2)
+    num_str = str(num)
+    integer = int(num)
+    decimal = num_str.split('.')[-1] if '.' in num_str else '00'
+
+    CN_NUM = '零壹贰叁肆伍陆柒捌玖'
+    CN_UNIT = '元拾佰仟万'
+
+    result = ''
+    if num < 0:
+        result = '负'
+
+    integer_str = str(integer)
+    for i, c in enumerate(integer_str):
+        digit = int(c)
+        unit = CN_UNIT[len(integer_str) - i - 1]
+        result += CN_NUM[digit] + unit
+
+    result = result.replace('零元', '元').replace('零零', '零')
+
+    if decimal != '00':
+        result += CN_NUM[int(decimal[0])] + '角'
+        if len(decimal) > 1:
+            result += CN_NUM[int(decimal[1])] + '分'
+    else:
+        result += '整'
+
+    return result

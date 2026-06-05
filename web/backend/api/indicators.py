@@ -4,7 +4,7 @@
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
 
 from models.schemas import IndicatorCategory, Indicator
@@ -210,12 +210,8 @@ async def evaluate_indicators(project_id: str = None, current_values: dict = Non
     """评估指标状态"""
     logger.info(f"[evaluate_indicators] 评估指标 | project_id={project_id}")
     try:
-        from services.adjustment_calculator import IndicatorService
-
         indicators = supabase.get_indicators(project_id=project_id)
-
-        service = IndicatorService()
-        results = service.evaluate_indicators(indicators, current_values or {})
+        results = _evaluate_indicators(indicators, current_values or {})
 
         stats = {
             'total': len(results),
@@ -230,3 +226,44 @@ async def evaluate_indicators(project_id: str = None, current_values: dict = Non
     except Exception as e:
         logger.error(f"[evaluate_indicators] 评估失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="评估失败")
+
+
+def _evaluate_indicators(indicators: List[Dict], current_values: Dict[str, float]) -> List[Dict]:
+    """评估指标状态（内联实现，原 IndicatorService.evaluate_indicators）"""
+    results = []
+
+    for indicator in indicators:
+        indicator_id = indicator.get('id')
+        current_value = current_values.get(indicator_id)
+        target_value = indicator.get('target_value')
+        warning_threshold = indicator.get('warning_threshold')
+        target_type = indicator.get('target_type', 'max')  # max, min, range
+
+        if current_value is None or target_value is None:
+            status = 'unknown'
+        elif target_type == 'max':
+            # 目标为最大值，不能超过
+            if current_value > target_value * (1 + warning_threshold / 100):
+                status = 'danger'
+            elif current_value > target_value:
+                status = 'warning'
+            else:
+                status = 'normal'
+        elif target_type == 'min':
+            # 目标为最小值，不能低于
+            if current_value < target_value * (1 - warning_threshold / 100):
+                status = 'danger'
+            elif current_value < target_value:
+                status = 'warning'
+            else:
+                status = 'normal'
+        else:
+            status = 'normal'
+
+        results.append({
+            **indicator,
+            'current_value': current_value,
+            'status': status
+        })
+
+    return results
