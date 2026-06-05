@@ -337,6 +337,65 @@ class SupabaseService:
         """删除指标"""
         return self._request('DELETE', f'/indicators?id=eq.{indicator_id}') is not None
 
+    # ========== 指标库项目 ==========
+
+    def get_indicator_projects(
+        self,
+        category: str = None,
+        location: str = None,
+        limit: int = 100
+    ) -> List[Dict]:
+        """获取指标库项目列表"""
+        query = f'/indicator_projects?select=*&limit={limit}&order=created_at.desc'
+        if category:
+            query += f'&category=eq.{category}'
+        if location:
+            query += f'&location=ilike.%25{location}%25'
+        result = self._request('GET', query)
+        return result if result else []
+
+    def get_indicator_project(self, project_id: str) -> Optional[Dict]:
+        """获取单个指标库项目"""
+        result = self._request('GET', f'/indicator_projects?id=eq.{project_id}&select=*')
+        if result and len(result) > 0:
+            return result[0]
+        return None
+
+    def create_indicator_project(self, project_data: Dict) -> Optional[Dict]:
+        """创建指标库项目"""
+        import uuid
+        from datetime import datetime
+        project_data['id'] = str(uuid.uuid4())
+        project_data['created_at'] = datetime.now().isoformat()
+        if self._request('POST', '/indicator_projects', json=project_data):
+            return project_data
+        return None
+
+    def update_indicator_project(self, project_id: str, update_data: Dict) -> bool:
+        """更新指标库项目"""
+        from datetime import datetime
+        update_data['updated_at'] = datetime.now().isoformat()
+        return self._request('PATCH', f'/indicator_projects?id=eq.{project_id}', json=update_data) is not None
+
+    def delete_indicator_project(self, project_id: str) -> bool:
+        """删除指标库项目"""
+        return self._request('DELETE', f'/indicator_projects?id=eq.{project_id}') is not None
+
+    def import_indicator_projects(self, projects: List[Dict]) -> Dict:
+        """批量导入指标库项目"""
+        imported = 0
+        errors = []
+        for i, project in enumerate(projects):
+            try:
+                result = self.create_indicator_project(project)
+                if result:
+                    imported += 1
+                else:
+                    errors.append({"index": i, "error": "插入失败"})
+            except Exception as e:
+                errors.append({"index": i, "error": str(e)})
+        return {"imported": imported, "total": len(projects), "errors": errors}
+
     # ========== 价格历史 ==========
 
     def create_price_record(self, record_data: Dict) -> Optional[Dict]:
