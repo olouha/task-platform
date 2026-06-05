@@ -185,7 +185,7 @@ export const adjustmentCalcApi = {
     end_date: string;
     base_date?: string;
   }) => {
-    const response = await fetch(`${config.apiUrl}/api/adjustments/prices/batch-get`, {
+    const response = await fetch(`${config.apiUrl}/adjustments/prices/batch-get`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -345,7 +345,8 @@ export const costReferenceApi = {
 };
 
 // 指标库管理 API
-export const indicatorDatabaseApi = {
+// 指标库（基础管理）API - 对应 /indicators/* 端点
+export const indicatorApi = {
   // 获取指标列表
   list: async (params?: { project_id?: string; category_id?: string }) => {
     const query = new URLSearchParams(params || {}).toString();
@@ -884,7 +885,7 @@ export const yantaiRebarApi = {
   },
 };
 
-// 指标库项目管理 API
+// 指标库项目管理 API - 对应 /indicator-report/database/* 端点
 export const indicatorDatabaseApi = {
   // 获取指标库列表
   list: async (params?: { category?: string; location?: string; limit?: number }) => {
@@ -960,4 +961,27 @@ export const indicatorDatabaseApi = {
     }
     return response.json();
   },
+};
+
+// 默认导出（兼容 `import api from '../services/api'`）
+export default {
+  config,
+  statsApi,
+  projectsApi,
+  adjustmentRulesApi,
+  adjustmentCalcApi,
+  schedulerApi,
+  fetchApi,
+  cronFetchApi,
+  costReferenceApi,
+  indicatorApi,
+  adjustmentProjectApi,
+  fileParserApi,
+  costHistoryApi,
+  adjustmentPricesApi,
+  dataManagerApi,
+  adjustmentTemplateApi,
+  indicatorReportApi,
+  yantaiRebarApi,
+  indicatorDatabaseApi,
 };

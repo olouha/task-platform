@@ -100,6 +100,21 @@ async def root():
     return {"message": "TaskPlatform API", "version": "1.0.0"}
 
 
+@app.get("/api/stats")
+async def get_stats():
+    """获取系统统计信息"""
+    from services.supabase_service import SupabaseService
+    supabase = SupabaseService()
+    stats = supabase.get_statistics()
+    return {
+        "projects": stats.get('total_projects', 0),
+        "materials": stats.get('total_materials', 0),
+        "priceHistory": stats.get('total_price_sources', 0),
+        "categories": stats.get('categories', []),
+        "timestamp": ""
+    }
+
+
 @app.get("/health")
 async def health_check():
     """健康检查"""
