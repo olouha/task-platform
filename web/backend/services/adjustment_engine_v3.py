@@ -343,15 +343,15 @@ class AdjustmentEngineV3:
             # 获取采集规则
             rule = self.config.施工期价格采集规则
             if isinstance(rule, str):
-               采集规则 = rule
+                acquisition_rule = rule
             elif isinstance(rule, dict):
                 # 多材料规则：按材料名获取
-                采集规则 = rule.get(material_name, "按月算术平均")
+                acquisition_rule = rule.get(material_name, "按月算术平均")
             else:
-                采集规则 = "按月算术平均"
+                acquisition_rule = "按月算术平均"
 
             # 计算均价
-            avg_price = self._calculate_average_price(prices, 采集规则)
+            avg_price = self._calculate_average_price(prices, acquisition_rule)
 
             # 价格取整
             if self.config.价格取整规则 == PriceRounding.INTEGER:
@@ -471,7 +471,7 @@ class AdjustmentEngineV3:
                 end = datetime.strptime(end_date, "%Y-%m-%d").date()
                 total_days = (end - start).days + 1
             except Exception as e:
-                logger.warning(f"[_validate_price_data] 日期解析失败 | start={start_date}, end={end_date}")
+                logger.warning(f"[_validate_price_data] 日期解析失败 | start={start_date}, end={end_date}", exc_info=True)
 
         # 校验每种材料的价格数据
         for material_name, prices in input_data.period_prices.items():
