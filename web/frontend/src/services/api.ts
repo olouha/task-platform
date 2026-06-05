@@ -827,3 +827,81 @@ export const indicatorReportApi = {
     return response.json();
   },
 };
+
+// 指标库项目管理 API
+export const indicatorDatabaseApi = {
+  // 获取指标库列表
+  list: async (params?: { category?: string; location?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.append('category', params.category);
+    if (params?.location) query.append('location', params.location);
+    if (params?.limit) query.append('limit', String(params.limit));
+    const queryStr = query.toString();
+    const response = await fetch(`${config.apiUrl}/indicator-report/database/list${queryStr ? '?' + queryStr : ''}`);
+    if (!response.ok) throw new Error('获取指标库列表失败');
+    return response.json();
+  },
+
+  // 获取单个项目
+  get: async (id: string) => {
+    const response = await fetch(`${config.apiUrl}/indicator-report/database/${id}`);
+    if (!response.ok) throw new Error('获取项目详情失败');
+    return response.json();
+  },
+
+  // 创建项目
+  create: async (data: Record<string, unknown>) => {
+    const response = await fetch(`${config.apiUrl}/indicator-report/database/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('创建项目失败');
+    return response.json();
+  },
+
+  // 更新项目
+  update: async (id: string, data: Record<string, unknown>) => {
+    const response = await fetch(`${config.apiUrl}/indicator-report/database/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('更新项目失败');
+    return response.json();
+  },
+
+  // 删除项目
+  delete: async (id: string) => {
+    const response = await fetch(`${config.apiUrl}/indicator-report/database/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('删除项目失败');
+    return response.json();
+  },
+
+  // 导入 Excel
+  import: async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${config.apiUrl}/indicator-report/import`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) throw new Error('导入失败');
+    return response.json();
+  },
+
+  // 导出（JSON 或 Excel）
+  export: async (format: 'json' | 'excel' = 'json', category?: string) => {
+    const query = new URLSearchParams();
+    query.append('format', format);
+    if (category) query.append('category', category);
+    const response = await fetch(`${config.apiUrl}/indicator-report/export?${query.toString()}`);
+    if (!response.ok) throw new Error('导出失败');
+    if (format === 'excel') {
+      return response.blob();
+    }
+    return response.json();
+  },
+};
