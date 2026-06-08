@@ -8,8 +8,8 @@ import logging
 from typing import Optional, Tuple
 
 from pydantic import BaseModel, Field
-from web.backend.models.adjustment_rules import RiskType, RiskConfig
-from web.backend.models.adjustment_rules import FormulaType as FormulaTypeEnum
+from models.adjustment_rules import RiskType, RiskConfig
+from models.adjustment_rules import FormulaType as FormulaTypeEnum
 
 
 # ============================================================

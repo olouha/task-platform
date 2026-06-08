@@ -1,6 +1,7 @@
 import { Table, Card, Button, Space, Tag, Tabs, Tree, Modal, Form, Input, Select, message } from 'antd'
 import { PlusOutlined, AppstoreOutlined, FolderOutlined } from '@ant-design/icons'
 import { useState } from 'react'
+import PageHeader from '../components/PageHeader'
 
 const mockCategories = [
   { id: '1', name: '钢筋类', icon: '🔩', color: '#16325C', count: 4 },
@@ -78,10 +79,10 @@ export default function Materials() {
   return (
     <div>
       {/* 页面标题 - 科技风格 */}
-      <div className="page-header">
-        <h2 className="page-title">材料管理</h2>
-        <p className="page-subtitle">管理工程材料分类与基准价格</p>
-      </div>
+      <PageHeader
+        title="材料管理"
+        subtitle="管理工程材料分类与基准价格"
+      />
 
       {/* 统计卡片 */}
       <div className="stats-grid" style={{ marginBottom: 24 }}>

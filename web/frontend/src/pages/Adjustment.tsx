@@ -1,9 +1,10 @@
 import { Table, Card, Button, Space, Tag, Row, Col, Modal, Descriptions, Tabs, Input, Select, Upload, List, message, Alert, Form, Popconfirm, Divider, Statistic, Collapse, DatePicker, Steps, Spin } from 'antd';
-import { CalculatorOutlined, PlusOutlined, FileOutlined, DeleteOutlined, InboxOutlined, SettingOutlined, PlaySquareOutlined, FolderOutlined, FileExcelOutlined, CheckCircleOutlined, WarningOutlined, CloudUploadOutlined, DatabaseOutlined, ThunderboltOutlined, UploadOutlined, EyeOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, PlusOutlined, FileOutlined, DeleteOutlined, InboxOutlined, SettingOutlined, PlaySquareOutlined, FolderOutlined, FileExcelOutlined, CheckCircleOutlined, WarningOutlined, CloudUploadOutlined, DatabaseOutlined, ThunderboltOutlined, UploadOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
-import { adjustmentProjectApi, adjustmentCalcApi, fileParserApi, adjustmentPricesApi, config } from '../services/api';
+import { adjustmentProjectApi, adjustmentCalcApi, fileParserApi, adjustmentPricesApi, adjustmentTemplateApi, config } from '../services/api';
 import type { UploadProps } from 'antd';
 import dayjs from 'dayjs';
+import PageHeader from '../components/PageHeader';
 
 const { TabPane } = Tabs;
 const { RangePicker } = DatePicker;
@@ -45,6 +46,14 @@ interface CalculationResult {
   明细: AdjustmentDetail[];
   使用规则版本: string;
   计算时间: string;
+  阶段汇总?: any[];
+  价格校验?: {
+    total_materials: number;
+    valid_materials: number;
+    invalid_materials: number;
+    average_completeness: number;
+    missing_dates?: Record<string, string[]>;
+  };
 }
 
 interface Project {
@@ -340,42 +349,47 @@ export default function Adjustment() {
     setWizardStep(1);
   };
 
-  const fetchPricesForMaterials = async () => {
+  // 批量获取所有材料价格（新接口）
+  const handleBatchFetchPrices = async () => {
     if (!constructionPeriod || !baseDate || materials.length === 0) {
       message.warning('请先设置施工时间段和基准日期');
       return;
     }
 
     setFetchingPrices(true);
-    const newPriceData: Record<string, any> = {};
     const startDate = constructionPeriod[0].format('YYYY-MM-DD');
     const endDate = constructionPeriod[1].format('YYYY-MM-DD');
 
     try {
-      // 批量获取价格
-      const materialNames = [...new Set(materials.map(m => m.name).filter(Boolean))].join(',');
+      const materialNames = [...new Set(materials.map(m => m.name).filter(Boolean))];
 
-      const res = await adjustmentPricesApi.getAdjustmentPrices({
-        material: materialNames.split(',')[0] || '钢筋', // 先测试第一个
-        base_date: baseDate,
-        period_start: startDate,
-        period_end: endDate,
-      });
+      const res = await fetch(`${config.apiUrl}/api/adjustments/prices/batch-get`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          materials: materialNames,
+          start_date: startDate,
+          end_date: endDate,
+          base_date: baseDate
+        })
+      }).then(r => r.json());
 
-      if (res.success && res.prices) {
-        newPriceData[materialNames.split(',')[0]] = res.prices;
-
-        // 更新材料基准价
-        const updatedMaterials = materials.map(m => ({
-          ...m,
-          base_price: m.base_price || res.prices.base || 4500,
-        }));
-        setMaterials(updatedMaterials);
+      if (res.success && res.data) {
+        const updated = materials.map(m => {
+          const priceData = res.data[m.name];
+          return {
+            ...m,
+            base_price: m.base_price || priceData?.base || 4500,
+          };
+        });
+        setMaterials(updated);
+        setPriceData(res.data);
+        message.success(`已获取 ${Object.keys(res.data).length} 种材料的价格`);
+        setWizardStep(3);
+      } else {
+        message.warning('未能获取价格数据，继续使用默认值');
+        setWizardStep(3);
       }
-
-      setPriceData(newPriceData);
-      message.success('价格获取完成');
-      setWizardStep(3);
     } catch (error) {
       console.error('获取价格失败:', error);
       message.error('获取价格失败，使用默认值');
@@ -506,10 +520,10 @@ export default function Adjustment() {
   return (
     <div>
       {/* 页面标题 */}
-      <div className="page-header">
-        <h2 className="page-title">工程材料调差计算</h2>
-        <p className="page-subtitle">上传工程量底稿 → 选择调差规则 → 设置施工时间 → 自动计算</p>
-      </div>
+      <PageHeader
+        title="工程材料调差计算"
+        subtitle="上传工程量底稿 → 选择调差规则 → 设置施工时间 → 自动计算"
+      />
 
       {/* 统计卡片 */}
       <div className="stats-grid" style={{ marginBottom: 24 }}>
@@ -556,6 +570,27 @@ export default function Adjustment() {
             onClick={() => setCreateModalOpen(true)}
           >
             新建项目
+          </Button>
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={async () => {
+              try {
+                const result = await adjustmentTemplateApi.generateTemplate({
+                  project_name: 'XX项目',
+                  rule_name: '标准调差规则',
+                  include_examples: true
+                });
+                if (result.success) {
+                  adjustmentTemplateApi.downloadTemplate(result.file_name);
+                  message.success('模板下载成功');
+                }
+              } catch (err) {
+                console.error('下载模板失败', err);
+                message.error('下载模板失败');
+              }
+            }}
+          >
+            下载模板
           </Button>
         </div>
         <div className="data-section-body">
@@ -827,11 +862,11 @@ export default function Adjustment() {
                   <Button onClick={() => setWizardStep(1)}>← 上一步</Button>
                   <Space>
                     <Button
-                      onClick={fetchPricesForMaterials}
+                      onClick={handleBatchFetchPrices}
                       loading={fetchingPrices}
                       icon={<DatabaseOutlined />}
                     >
-                      获取价格数据
+                      批量获取价格
                     </Button>
                     <Button
                       type="primary"
@@ -928,9 +963,9 @@ export default function Adjustment() {
       >
         {calculationResult && (
           <div>
-            {/* 总金额统计 */}
+            {/* 总金额统计 - 含税/不含税/税金分开显示 */}
             <Row gutter={16} style={{ marginBottom: 24 }}>
-              <Col span={8}>
+              <Col span={6}>
                 <Statistic
                   title="调差总金额（含税）"
                   value={calculationResult.调差总金额}
@@ -939,14 +974,33 @@ export default function Adjustment() {
                   valueStyle={{ color: calculationResult.调差总金额 >= 0 ? '#10B981' : '#FF4D4F' }}
                 />
               </Col>
-              <Col span={8}>
+              <Col span={6}>
                 <Statistic
-                  title="材料种数"
-                  value={calculationResult.明细?.length || 0}
-                  suffix="种"
+                  title="调差总金额（不含税）"
+                  value={(() => {
+                    const total = calculationResult.调差总金额;
+                    const taxRate = 1.09;
+                    return total / taxRate;
+                  })()}
+                  precision={2}
+                  prefix="¥"
+                  valueStyle={{ color: calculationResult.调差总金额 >= 0 ? '#4A86C8' : '#FF4D4F' }}
                 />
               </Col>
-              <Col span={8}>
+              <Col span={6}>
+                <Statistic
+                  title="税金（9%）"
+                  value={(() => {
+                    const total = calculationResult.调差总金额;
+                    const preTax = total / 1.09;
+                    return total - preTax;
+                  })()}
+                  precision={2}
+                  prefix="¥"
+                  valueStyle={{ color: '#722ed1' }}
+                />
+              </Col>
+              <Col span={6}>
                 <Statistic
                   title="使用规则版本"
                   value={calculationResult.使用规则版本}
@@ -1008,6 +1062,87 @@ export default function Adjustment() {
                 { title: '计算公式', dataIndex: '计算公式', key: '计算公式', width: 200, ellipsis: true },
               ]}
             />
+
+            {/* 阶段汇总（新增） */}
+            {calculationResult.阶段汇总 && calculationResult.阶段汇总.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <strong style={{ color: '#16325C' }}>按阶段汇总</strong>
+                <Table
+                  dataSource={calculationResult.阶段汇总.map((item: any, idx: number) => ({
+                    key: idx,
+                    ...item
+                  }))}
+                  rowKey="key"
+                  size="small"
+                  pagination={false}
+                  columns={[
+                    { title: '阶段名称', dataIndex: '阶段名称', key: '阶段名称', width: 150,
+                      render: (v: string) => <Tag color="blue">{v}</Tag> },
+                    { title: '材料种数', dataIndex: '材料种数', key: '材料种数', width: 100, align: 'center' },
+                    { title: '小计金额（不含税）', dataIndex: '小计金额（不含税）', key: '小计金额（不含税）', align: 'right',
+                      render: (v: number) => v?.toLocaleString() || '-' },
+                    { title: '含税小计', dataIndex: '含税小计', key: '含税小计', align: 'right',
+                      render: (v: number) => (
+                        <span style={{ color: '#10B981', fontWeight: 600 }}>
+                          ¥{v?.toLocaleString() || '-'}
+                        </span>
+                      )
+                    },
+                  ]}
+                />
+              </div>
+            )}
+
+            {/* 价格校验信息（新增） */}
+            {calculationResult.价格校验 && (
+              <div style={{ marginTop: 16, padding: 12, background: calculationResult.价格校验.invalid_materials > 0 ? '#FFF7E6' : '#E6F7FF', borderRadius: 8 }}>
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Statistic
+                      title="价格数据完整率"
+                      value={calculationResult.价格校验.average_completeness}
+                      suffix="%"
+                      precision={1}
+                      valueStyle={{ color: calculationResult.价格校验.average_completeness >= 80 ? '#52c41a' : '#faad14' }}
+                    />
+                  </Col>
+                  <Col span={8}>
+                    <Statistic
+                      title="有效材料数"
+                      value={calculationResult.价格校验.valid_materials}
+                      suffix={`/ ${calculationResult.价格校验.total_materials}`}
+                    />
+                  </Col>
+                  <Col span={8}>
+                    <Statistic
+                      title="问题材料数"
+                      value={calculationResult.价格校验.invalid_materials || 0}
+                      valueStyle={{ color: (calculationResult.价格校验.invalid_materials || 0) > 0 ? '#ff4d4f' : '#52c41a' }}
+                    />
+                  </Col>
+                </Row>
+                {/* 缺失日期详情 */}
+                {calculationResult.价格校验.missing_dates && Object.keys(calculationResult.价格校验.missing_dates).length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <Alert
+                      type="warning"
+                      message={`存在 ${Object.keys(calculationResult.价格校验.missing_dates).length} 种材料缺失价格数据`}
+                      description={
+                        <div style={{ maxHeight: 100, overflowY: 'auto' }}>
+                          {Object.entries(calculationResult.价格校验.missing_dates as Record<string, string[]>).map(([material, dates]) => (
+                            <div key={material} style={{ marginTop: 4 }}>
+                              <Tag color="orange">{material}</Tag>
+                              <span style={{ fontSize: 12, color: '#666' }}>缺失 {dates.length} 天: {dates.slice(0, 5).join(', ')}{dates.length > 5 ? '...' : ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                      }
+                      showIcon
+                    />
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* 按部位汇总 */}
             <div style={{ marginTop: 16 }}>
@@ -1095,10 +1230,80 @@ export default function Adjustment() {
         <div className="tech-divider" style={{ margin: '16px 0' }} />
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <span style={{ fontWeight: 600, color: '#16325C', fontSize: 14 }}>材料清单</span>
-          <Button icon={<PlusOutlined />} onClick={handleAddMaterial}>
-            添加材料
-          </Button>
+          <Space>
+            <span style={{ fontWeight: 600, color: '#16325C', fontSize: 14 }}>材料清单</span>
+            <Tag color="green">{materials.length} 种材料</Tag>
+          </Space>
+          <Space>
+            <Button
+              icon={<DatabaseOutlined />}
+              onClick={async () => {
+                try {
+                  const res = await adjustmentTemplateApi.getAutoMaterials({ material_type: '钢筋' });
+                  if (res.success && res.materials) {
+                    const newMaterials = res.materials.map((m: any, idx: number) => ({
+                      name: m.material_name,
+                      spec: m.spec,
+                      unit: 't',
+                      quantity: 0,
+                      bid_price: 0,
+                      base_price: m.latest_price || 0,
+                      phase: '',
+                      location: '',
+                    }));
+                    setMaterials(newMaterials);
+                    message.success(`已自动获取 ${newMaterials.length} 种材料`);
+                  } else {
+                    message.warning('暂无可用材料数据');
+                  }
+                } catch (err) {
+                  console.error('获取材料失败', err);
+                  message.error('获取材料失败');
+                }
+              }}
+              style={{ borderColor: '#10B981', color: '#10B981' }}
+            >
+              自动获取材料
+            </Button>
+            <Button
+              icon={<ThunderboltOutlined />}
+              onClick={async () => {
+                if (materials.length === 0) {
+                  message.warning('请先获取材料清单');
+                  return;
+                }
+                // 批量获取价格
+                const materialSpecs = materials.map(m => `${m.name}@${m.spec}`).join(',');
+                try {
+                  const res = await adjustmentTemplateApi.batchGetPeriodAverage({
+                    materials: materialSpecs,
+                    start_date: selectedProject?.construction_start || '2024-01-01',
+                    end_date: selectedProject?.construction_end || '2024-12-31',
+                  });
+                  if (res.success && res.results) {
+                    const updatedMaterials = materials.map(m => {
+                      const found = res.results.find((r: any) => r.material_name === m.name && (!m.spec || r.spec === m.spec));
+                      return {
+                        ...m,
+                        base_price: found?.avg_price || m.base_price || 0,
+                      };
+                    });
+                    setMaterials(updatedMaterials);
+                    message.success('价格已更新');
+                  }
+                } catch (err) {
+                  console.error('获取价格失败', err);
+                  message.error('获取价格失败');
+                }
+              }}
+              style={{ borderColor: '#4A86C8', color: '#4A86C8' }}
+            >
+              获取价格
+            </Button>
+            <Button icon={<PlusOutlined />} onClick={handleAddMaterial}>
+              添加
+            </Button>
+          </Space>
         </div>
 
         <Table

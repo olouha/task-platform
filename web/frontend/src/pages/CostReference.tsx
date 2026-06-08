@@ -3,6 +3,7 @@ import { DatabaseOutlined, UploadOutlined, ToolOutlined, BankOutlined, PlusOutli
 import { useState, useEffect } from 'react';
 import { costHistoryApi } from '../services/api';
 import type { UploadProps } from 'antd';
+import PageHeader from '../components/PageHeader';
 
 interface ConcreteItem {
   grade: string;
@@ -166,13 +167,10 @@ export default function CostReference() {
   return (
     <div style={{ padding: 24 }}>
       {/* 页面标题 */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 'bold', margin: 0 }}>
-          <DatabaseOutlined style={{ marginRight: 8 }} />
-          造价参考价
-        </h1>
-        <p style={{ color: '#666', marginTop: 8 }}>烟台工程建设标准造价管理 - 混凝土及钢筋信息价查询</p>
-      </div>
+      <PageHeader
+        title="造价参考价"
+        subtitle="烟台工程建设标准造价管理 - 混凝土及钢筋信息价查询"
+      />
 
       {/* 筛选器 */}
       <Card style={{ marginBottom: 24 }}>

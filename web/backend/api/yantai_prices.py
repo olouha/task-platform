@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_excel_file():
-    """获取可用的Excel文件路径"""
+    """获取可用的Excel文件路径 - 优先使用有价格数据的文件"""
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     candidates = [
+        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_完整版.xlsx"),  # 有价格数据 (127 sheets)
         os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_current.xlsx"),
-        os.path.join(base_dir, "services", "data", "山东烟台钢筋价格_完整版.xlsx"),
         os.path.join(base_dir, "services", "data", "山东烟台钢筋价格.xlsx"),
     ]
     for candidate in candidates:
@@ -385,8 +385,8 @@ async def get_latest_price(date: str = None, sheet: str = None):
     # 自动查找可用的Excel文件 - 按数据完整性排序
     excel_file = None
     candidates = [
-        "services/data/山东烟台钢筋价格_current.xlsx",  # 最新，包含更多数据
-        "services/data/山东烟台钢筋价格_完整版.xlsx",   # 完整历史
+        "services/data/山东烟台钢筋价格_完整版.xlsx",   # 有价格数据
+        "services/data/山东烟台钢筋价格_current.xlsx",
         "services/data/山东烟台钢筋价格.xlsx",
     ]
     for candidate in candidates:

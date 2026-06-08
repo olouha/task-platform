@@ -133,6 +133,44 @@ def save_to_excel_with_screenshot(prices, screenshot_b64, excel_file=None):
     print(f'Sheet: {sheet_name}')
     print(f'数据: {len(prices)}条, 图片: 1张')
 
+    # ========== 新增：同步保存到 SQLite 数据库 ==========
+    try:
+        from services.price.yantai_db_service import YantaiDBService
+
+        db_service = YantaiDBService()
+        # 为每条记录添加 fetch_time
+        db_prices = []
+        for price in prices:
+            if isinstance(price, dict):
+                db_prices.append({
+                    'date': today_str,
+                    'material_name': price.get('material_name', ''),
+                    'spec': price.get('spec', ''),
+                    'material_type': price.get('material_type', ''),
+                    'brand': price.get('brand', ''),
+                    'price': int(price.get('price', 0)),
+                    'region': price.get('region', '山东烟台'),
+                    'fetch_time': f'{fetch_time_str}'
+                })
+            else:
+                db_prices.append({
+                    'date': today_str,
+                    'material_name': price.material_name,
+                    'spec': price.spec,
+                    'material_type': price.material_type,
+                    'brand': price.brand,
+                    'price': int(price.price),
+                    'region': price.region,
+                    'fetch_time': f'{fetch_time_str}'
+                })
+
+        if db_prices:
+            result = db_service.insert_prices(db_prices)
+            print(f'SQLite同步完成: 插入={result["inserted"]}, 跳过={result["skipped"]}')
+    except Exception as e:
+        print(f'SQLite同步失败（不影响主流程）: {e}')
+    # ========== 同步结束 ==========
+
 
 def load_credentials():
     """从配置文件加载凭据"""
@@ -155,6 +193,9 @@ async def run_fetch():
     username, password = load_credentials()
     print(f'使用凭据: {username[:3]}***')
 
+    # 通知抓取开始
+    await ws_manager.notify_fetch_started()
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         context = await browser.new_context(viewport={'width': 1920, 'height': 3000}, locale='zh-CN')
@@ -163,6 +204,7 @@ async def run_fetch():
         try:
             # 1. 登录
             print('1. 登录...')
+            await ws_manager.notify_fetch_progress(1, 5, '正在登录...')
             await page.goto('https://passport.mysteel.com/', wait_until='domcontentloaded', timeout=60000)
             await page.wait_for_timeout(5000)
 
@@ -204,6 +246,7 @@ async def run_fetch():
 
             # 2. 访问价格页
             print('2. 访问价格页...')
+            await ws_manager.notify_fetch_progress(2, 5, '正在访问价格页...')
             url = 'https://jiancai.mysteel.com/m/26051410/25B3355C6617BD3C.html'
             await page.goto(url, wait_until='domcontentloaded', timeout=60000)
             await page.wait_for_timeout(10000)
@@ -217,11 +260,15 @@ async def run_fetch():
 
             # 3. 提取价格（支持分页）
             print('3. 提取价格...')
+            await ws_manager.notify_fetch_progress(3, 5, '正在提取价格...')
             prices = []
             page_num = 1
             max_pages = 10  # 最多抓取10页
 
             while page_num <= max_pages:
+                # 推送当前页进度
+                await ws_manager.notify_fetch_progress(page_num, max_pages, f'第{page_num}页')
+
                 # 提取当前页数据
                 data = await page.evaluate('''() => {
                     const tables = document.querySelectorAll('table');
@@ -307,6 +354,7 @@ async def run_fetch():
             today_str = datetime.now().strftime('%Y-%m-%d')
             if prices:
                 print('4. 保存到Excel...')
+                await ws_manager.notify_fetch_progress(4, 5, '正在保存数据...')
                 save_to_excel_with_screenshot(prices, screenshot_b64)
                 # 推送通知到前端
                 await ws_manager.notify_fetch_success(len(prices), today_str)

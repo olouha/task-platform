@@ -11,6 +11,83 @@ def _get_db_connection():
     return sqlite3.connect(DB_PATH)
 
 # ============================================================
+# 季度格式转换
+# ============================================================
+
+def _normalize_quarter(quarter: str) -> str:
+    """将完整格式转为简化格式，用于数据库查询"""
+    # 将 "2021年一季度" 转为 "一季度"
+    for suffix in ['一季度', '二季度', '三季度', '四季度']:
+        if suffix in quarter:
+            return suffix
+    return quarter
+
+
+def _expand_quarter(year: str, quarter: str) -> str:
+    """将简化格式转为完整格式，用于字典查询"""
+    # 如果 quarter 已是完整格式，直接返回
+    if '年' in quarter:
+        return quarter
+    # 将 "一季度" 转为 "2021年一季度"
+    return f"{year}年{quarter}"
+
+
+def _make_db_key(year: str, quarter: str) -> str:
+    """将前端传来的 quarter 转换为数据库中存储的实际格式"""
+    # 尝试查找匹配的 key
+    if year in STEEL_REBAR_HISTORY:
+        for key in STEEL_REBAR_HISTORY[year].keys():
+            # 检查是否匹配
+            if quarter in key or key in quarter:
+                return key
+    return quarter
+
+
+def _get_steel_prices_from_db(year: str, quarter: str) -> List[Dict]:
+    """从数据库获取指定时期的钢筋价格（支持两种格式）"""
+    conn = _get_db_connection()
+    c = conn.cursor()
+
+    # 尝试多种查询方式
+    queries = [
+        (year, quarter),  # 完整格式如 "2022年二季度"
+        (year, _normalize_quarter(quarter)),  # 简化格式如 "二季度"
+    ]
+    # 如果是简化格式也尝试完整格式
+    if '年' not in quarter:
+        for suffix in ['一季度', '二季度', '三季度', '四季度']:
+            if suffix in quarter:
+                queries.append((year, f"{year}年{quarter}"))
+                break
+
+    rows = []
+    for q in queries:
+        c.execute(
+            'SELECT year, quarter, grade, spec, price FROM rebar_prices WHERE year = ? AND quarter = ?',
+            list(q)
+        )
+        rows = c.fetchall()
+        if rows:
+            break
+
+    conn.close()
+
+    if not rows:
+        return []
+
+    result = []
+    for row in rows:
+        db_year, db_quarter, grade, spec, price = row
+        result.append({
+            "grade": grade,
+            "size": spec,
+            "price": price,
+            "spec": f"Φ{spec}"
+        })
+    return result
+
+
+# ============================================================
 # 混凝土价格历史数据
 # ============================================================
 
@@ -251,6 +328,15 @@ CONCRETE_HISTORY: Dict[str, Dict[str, List[Dict]]] = {
 }
 
 
+def _expand_quarter_to_key(year: str, quarter: str) -> str:
+    """将数据库中的 quarter 转换为完整的 key 格式"""
+    # 如果已经是完整格式（包含年份），直接返回
+    if f'{year}年' in quarter:
+        return quarter
+    # 将 "第一季度" 转为 "2022年二季度" 等
+    return f"{year}年{quarter}"
+
+
 def get_steel_rebar_history() -> Dict[str, Dict[str, List[Dict]]]:
     """从数据库加载钢筋历史数据"""
     if not DB_PATH.exists():
@@ -264,15 +350,17 @@ def get_steel_rebar_history() -> Dict[str, Dict[str, List[Dict]]]:
     rows = c.fetchall()
     conn.close()
 
-    # 转换为字典格式
+    # 转换为字典格式，使用完整格式作为 key
     history = {}
     for row in rows:
         year, quarter, grade, spec, price = row
         if year not in history:
             history[year] = {}
-        if quarter not in history[year]:
-            history[year][quarter] = []
-        history[year][quarter].append({
+        # 转换为完整格式 key
+        key = _expand_quarter_to_key(year, quarter)
+        if key not in history[year]:
+            history[year][key] = []
+        history[year][key].append({
             "grade": grade,
             "size": spec,
             "price": price,
@@ -297,32 +385,88 @@ def get_available_periods():
     periods = []
     for year in sorted(CONCRETE_HISTORY.keys()):
         for quarter in sorted(CONCRETE_HISTORY[year].keys()):
-            # quarter 已经是完整格式如 "2021年一季度"
+            # 统一转换为显示用的完整格式（中文数字）
+            display_label = _convert_quarter_to_display_label(year, quarter)
             periods.append({
                 "year": year,
-                "quarter": quarter,
-                "label": quarter,
+                "quarter": quarter,  # 原始 key 用于查询
+                "label": display_label,  # 显示用完整格式
                 "concrete_count": len(CONCRETE_HISTORY[year][quarter])
             })
     return sorted(periods, key=lambda x: (x["year"], x["quarter"]))
 
 
+def _convert_quarter_to_db_key(year: str, quarter: str) -> str:
+    """将前端传来的完整格式转为数据库中的 key（简化格式）"""
+    # 如果没有 '年'，说明已经是简化格式
+    if '年' not in quarter:
+        return quarter
+
+    # 从完整格式提取简化格式
+    # "2022年一季度" -> "第一季度"
+    mapping = {
+        '2022年一季度': '第一季度',
+        '2022年二季度': '第二季度',
+        '2022年三季度': '第三季度',
+        '2022年四季度': '第四季度',
+    }
+    # 通用提取：去掉年份前缀
+    for suffix in ['一季度', '二季度', '三季度', '四季度']:
+        if suffix in quarter:
+            return f'第{suffix}'
+    return quarter
+
+
+def _convert_quarter_to_display_label(year: str, quarter: str) -> str:
+    """将简化格式转为显示用的完整格式（中文数字）"""
+    if '年' in quarter:
+        return quarter  # 已经是完整格式
+    # "第一季度" -> "2022年一季度"
+    mapping = {
+        '第一季度': '一季度',
+        '第二季度': '二季度',
+        '第三季度': '三季度',
+        '第四季度': '四季度',
+    }
+    suffix = mapping.get(quarter, quarter)
+    return f"{year}年{suffix}"
+
+
 def get_concrete_prices(year: str, quarter: str) -> List[Dict]:
     """获取指定时期的混凝土价格"""
-    if year in CONCRETE_HISTORY and quarter in CONCRETE_HISTORY[year]:
-        return CONCRETE_HISTORY[year][quarter]
+    if year in CONCRETE_HISTORY:
+        # 首先尝试直接匹配
+        if quarter in CONCRETE_HISTORY[year]:
+            return CONCRETE_HISTORY[year][quarter]
+
+        # 尝试转换为数据库 key（简化格式）
+        db_key = _convert_quarter_to_db_key(year, quarter)
+        if db_key in CONCRETE_HISTORY[year]:
+            return CONCRETE_HISTORY[year][db_key]
     return []
 
 
 def get_steel_prices(year: str, quarter: str) -> List[Dict]:
     """获取指定时期的钢筋价格（从数据库）"""
-    # 确保数据已加载
-    if not STEEL_REBAR_HISTORY:
-        _load_steel_history()
+    # 首先尝试从预加载数据中获取
+    if year in STEEL_REBAR_HISTORY:
+        if quarter in STEEL_REBAR_HISTORY[year]:
+            return STEEL_REBAR_HISTORY[year][quarter]
 
-    if year in STEEL_REBAR_HISTORY and quarter in STEEL_REBAR_HISTORY[year]:
-        return STEEL_REBAR_HISTORY[year][quarter]
-    return []
+        # 尝试简化格式匹配
+        simplified = _normalize_quarter(quarter)
+        if simplified != quarter:
+            for key in STEEL_REBAR_HISTORY[year].keys():
+                if simplified in key or key == f"{year}年{simplified}":
+                    return STEEL_REBAR_HISTORY[year][key]
+
+        # 尝试在 key 中模糊匹配
+        for key in STEEL_REBAR_HISTORY[year].keys():
+            if quarter in key or key in quarter:
+                return STEEL_REBAR_HISTORY[year][key]
+
+    # 如果预加载数据中没有，直接从数据库查询
+    return _get_steel_prices_from_db(year, quarter)
 
 
 # 启动时加载钢筋历史数据

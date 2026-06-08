@@ -324,8 +324,9 @@ class YantaiScraper:
         # 导入WebSocket管理器
         try:
             from services.websocket_manager import ws_manager
+            self.logger.info("[YantaiScraper.fetch] ws_manager 已加载")
         except ImportError as e:
-            self.logger.error(f"[YantaiScraper.fetch] 导入ws_manager失败 | error={e}")
+            self.logger.warning(f"[YantaiScraper.fetch] ws_manager 导入失败，推送功能将不可用 | error={e}")
             ws_manager = None
 
         async with async_playwright() as p:

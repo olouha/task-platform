@@ -274,7 +274,7 @@ class YantaiRebarScraper:
                     for (const inp of inputs) {
                         const ph = inp.placeholder || '';
                         if (ph.includes('用户名')) inp.value = 'M6616592358';
-                        if (ph.includes('密码') && inp.type === 'password') inp.value = 'mysteel573005';
+                        if (ph.includes('密码') && inp.type === 'password') inp.value = 'panhui199261';
                     }
                 }''')
 

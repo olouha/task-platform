@@ -2,6 +2,7 @@ import { Card, Form, Input, Select, Switch, Button, Space, Divider, message, Tab
 import { SaveOutlined, SyncOutlined, SafetyCertificateOutlined, SettingOutlined, CloudOutlined, DatabaseOutlined, UserOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { config } from '../services/api'
+import PageHeader from '../components/PageHeader'
 
 // 科技数据卡片组件
 const TechStatCard = ({
@@ -87,10 +88,10 @@ export default function Settings() {
   return (
     <div>
       {/* 页面标题 - 科技风格 */}
-      <div className="page-header">
-        <h2 className="page-title">系统设置</h2>
-        <p className="page-subtitle">配置系统参数与账号信息</p>
-      </div>
+      <PageHeader
+        title="系统设置"
+        subtitle="配置系统参数与账号信息"
+      />
 
       {/* 统计卡片 */}
       <div className="stats-grid" style={{ marginBottom: 24 }}>
@@ -135,7 +136,7 @@ export default function Settings() {
                   <Card style={{ maxWidth: 600, border: '1px solid #E8EBF0' }}>
                     <Form layout="vertical" form={form}>
                       <Form.Item label="系统名称">
-                        <Input defaultValue="工程材料调差系统" />
+                        <Input defaultValue="Knights" />
                       </Form.Item>
                       <Form.Item label="时区">
                         <Select defaultValue="Asia/Shanghai">

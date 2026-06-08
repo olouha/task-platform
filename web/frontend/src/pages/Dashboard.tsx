@@ -14,6 +14,7 @@ import { Column } from '@ant-design/charts'
 import { useEffect, useState } from 'react'
 import { statsApi, config } from '../services/api'
 import * as XLSX from 'xlsx'
+import PageHeader from '../components/PageHeader'
 
 // 科技数据卡片组件 - 轻奢高科技风格
 const TechStatCard = ({
@@ -80,88 +81,90 @@ export default function Dashboard() {
   const [availableDates, setAvailableDates] = useState<string[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [comparisonDate, setComparisonDate] = useState<string | null>(null)
+  const [dataError, setDataError] = useState<string | null>(null)
 
+  // 初始化：获取统计数据和可用日期
   useEffect(() => {
-    statsApi.get().then(data => {
-      setStats(data)
-    }).catch(console.error)
+    const init = async () => {
+      try {
+        const [statsData, datesData] = await Promise.all([
+          statsApi.get(),
+          fetch(`${config.apiUrl}/api/yantai-db/dates`).then(r => r.json()).catch(() => ({ success: false, dates: [] }))
+        ])
 
-    fetchAvailableDates()
-  }, [])
+        setStats(statsData)
 
-  useEffect(() => {
-    if (selectedDate) {
-      fetchPricesByDate(selectedDate)
-    }
-  }, [selectedDate])
+        if (datesData.success && datesData.dates && datesData.dates.length > 0) {
+          const uniqueDates = datesData.dates
+          setAvailableDates(uniqueDates)
 
-  useEffect(() => {
-    if (comparisonDate && selectedDate) {
-      fetchComparisonPrices()
-    }
-  }, [comparisonDate])
-
-  const fetchAvailableDates = async () => {
-    try {
-      const response = await fetch(`${config.apiUrl}/api/price-sources/sheets`)
-      const data = await response.json()
-      if (data.success && data.sheets) {
-        // 支持多种sheet格式: YYYY-MM-DD, YYYY-MM-DD_PM, YYYY-MM-DD_PM_HHMMSS
-        const dateSheets = data.sheets.filter((s: string) => {
-          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return true
-          if (/^\d{4}-\d{2}-\d{2}_(AM|PM)$/.test(s)) return true
-          if (/^\d{4}-\d{2}-\d{2}_(AM|PM)_\d{6}$/.test(s)) return true
-          if (/^\d{4}-\d{2}-\d{2}_\d{6}$/.test(s)) return true
-          return false
-        })
-        // 提取纯日期部分并去重
-        const uniqueDates = [...new Set(dateSheets.map(s => s.substring(0, 10)))].sort().reverse()
-        setAvailableDates(uniqueDates)
-        if (uniqueDates.length > 0 && !selectedDate) {
-          setSelectedDate(uniqueDates[0])
-          if (uniqueDates.length > 1) {
-            setComparisonDate(uniqueDates[1])
+          // 自动选择最新日期和对比日期（API返回的日期已按最新排序）
+          if (uniqueDates.length > 0) {
+            const latestDate = uniqueDates[0]  //第一个是最新的
+            setSelectedDate(latestDate)
+            if (uniqueDates.length > 1) {
+              setComparisonDate(uniqueDates[1])  // 第二个是次新的
+            }
           }
         }
+      } catch (error) {
+        console.error('初始化失败:', error)
+        setDataError('加载数据失败，请检查后端服务是否运行')
       }
-    } catch (error) {
-      console.error('获取日期列表失败:', error)
     }
-  }
+    init()
+  }, [])
 
-  const fetchPricesByDate = async (date: string) => {
-    setPriceLoading(true)
-    try {
-      // 直接获取最新数据（API会自动返回最新的111条）
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest`)
-      const data = await response.json()
+  // 选择日期变化时获取价格数据
+  useEffect(() => {
+    if (!selectedDate) return
 
-      if (data.success && data.prices) {
-        setLatestPrices(data.prices)
-        setAllPrices(prev => ({ ...prev, [date]: data.prices }))
-      } else if (data.prices) {
-        setLatestPrices(data.prices)
-        setAllPrices(prev => ({ ...prev, [date]: data.prices }))
+    const fetchPrices = async () => {
+      setPriceLoading(true)
+      setDataError(null)
+      try {
+        const response = await fetch(`${config.apiUrl}/api/yantai-db/latest?date=${selectedDate}&limit=200`)
+        const data = await response.json()
+
+        let prices = []
+        if (data.success && data.prices) {
+          prices = data.prices
+        } else if (data.prices) {
+          prices = data.prices
+        }
+
+        if (prices.length === 0) {
+          setDataError(`日期 ${selectedDate} 暂无价格数据`)
+        }
+
+        setLatestPrices(prices)
+        setAllPrices(prev => ({ ...prev, [selectedDate]: prices }))
+      } catch (error) {
+        console.error('获取价格失败:', error)
+        setDataError('获取价格数据失败')
       }
-    } catch (error) {
-      console.error('获取价格失败:', error)
+      setPriceLoading(false)
     }
-    setPriceLoading(false)
-  }
+    fetchPrices()
+  }, [selectedDate])
 
-  const fetchComparisonPrices = async () => {
+  // 对比日期变化时获取对比数据
+  useEffect(() => {
     if (!comparisonDate || allPrices[comparisonDate]) return
 
-    try {
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/latest?date=${comparisonDate}`)
-      const data = await response.json()
-      if (data.prices) {
-        setAllPrices(prev => ({ ...prev, [comparisonDate]: data.prices }))
+    const fetchComparison = async () => {
+      try {
+        const response = await fetch(`${config.apiUrl}/api/yantai-db/latest?date=${comparisonDate}&limit=200`)
+        const data = await response.json()
+        if (data.prices) {
+          setAllPrices(prev => ({ ...prev, [comparisonDate]: data.prices }))
+        }
+      } catch (error) {
+        console.error('获取对比价格失败:', error)
       }
-    } catch (error) {
-      console.error('获取对比价格失败:', error)
     }
-  }
+    fetchComparison()
+  }, [comparisonDate])
 
   // 计算涨幅分析
   const calculatePriceChange = () => {
@@ -297,10 +300,10 @@ export default function Dashboard() {
   return (
     <div>
       {/* 页面标题 - 科技风格 */}
-      <div className="page-header">
-        <h2 className="page-title">数据仪表盘</h2>
-        <p className="page-subtitle">工程项目材料调差数据总览，实时监控价格动态</p>
-      </div>
+      <PageHeader
+        title="数据仪表盘"
+        subtitle="工程项目材料调差数据总览，实时监控价格动态"
+      />
 
       {/* 科技统计卡片 */}
       <div className="stats-grid">
@@ -370,6 +373,19 @@ export default function Dashboard() {
         </div>
 
         <div className="data-section-body">
+          {/* 错误提示 */}
+          {dataError && (
+            <Alert
+              message="数据加载异常"
+              description={dataError}
+              type="warning"
+              showIcon
+              closable
+              style={{ marginBottom: 16 }}
+              afterClose={() => setDataError(null)}
+            />
+          )}
+
           {priceLoading ? (
             <div style={{ textAlign: 'center', padding: 60 }}>数据加载中...</div>
           ) : latestPrices.length > 0 ? (

@@ -26,9 +26,9 @@ from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
 
-from web.backend.services.formula_engine import FormulaEngine, FormulaInput, FormulaType as FormulaTypeStr
-from web.backend.services.price_service import PriceService, PriceData as PSPriceData
-from web.backend.models.adjustment_rules import (
+from services.formula_engine import FormulaEngine, FormulaInput, FormulaType as FormulaTypeStr
+from services.price_service import PriceService, PriceData as PSPriceData
+from models.adjustment_rules import (
     AdjustmentRuleConfig,
     AdjustmentDetail as ModelAdjustmentDetail,
     CalculationResult as ModelCalculationResult,

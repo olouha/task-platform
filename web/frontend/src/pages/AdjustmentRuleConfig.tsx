@@ -2,6 +2,7 @@ import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Input, Select, me
 import { PlusOutlined, DeleteOutlined, SaveOutlined, SettingOutlined } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 import { adjustmentRulesApi } from '../services/api';
+import PageHeader from '../components/PageHeader';
 
 const { Panel } = Collapse;
 
@@ -116,10 +117,10 @@ export default function AdjustmentRuleConfig() {
   return (
     <div>
       {/* 页面标题 - 科技风格 */}
-      <div className="page-header">
-        <h2 className="page-title">调差规则配置</h2>
-        <p className="page-subtitle">配置调差计算规则，支持预设规则与应用</p>
-      </div>
+      <PageHeader
+        title="调差规则配置"
+        subtitle="配置调差计算规则，支持预设规则与应用"
+      />
 
       {/* 统计卡片 */}
       <div className="stats-grid" style={{ marginBottom: 24 }}>

@@ -1,0 +1,130 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - heading "工程调差系统" [level=1] [ref=e8]
+      - menu [ref=e9]:
+        - menuitem "dashboard 仪表盘" [ref=e10] [cursor=pointer]:
+          - img "dashboard" [ref=e11]:
+            - img [ref=e12]
+          - generic [ref=e14]: 仪表盘
+        - menuitem "project 项目管理" [ref=e15] [cursor=pointer]:
+          - img "project" [ref=e16]:
+            - img [ref=e17]
+          - generic [ref=e19]: 项目管理
+        - menuitem "appstore 材料管理" [ref=e20] [cursor=pointer]:
+          - img "appstore" [ref=e21]:
+            - img [ref=e22]
+          - generic [ref=e24]: 材料管理
+        - menuitem "dollar 价格监控" [ref=e25] [cursor=pointer]:
+          - img "dollar" [ref=e26]:
+            - img [ref=e27]
+          - generic [ref=e29]: 价格监控
+        - menuitem "calculator 调差计算" [ref=e30] [cursor=pointer]:
+          - img "calculator" [ref=e31]:
+            - img [ref=e32]
+          - generic [ref=e34]: 调差计算
+        - menuitem "calculator 造价参考价" [ref=e35] [cursor=pointer]:
+          - img "calculator" [ref=e36]:
+            - img [ref=e37]
+          - generic [ref=e39]: 造价参考价
+        - menuitem "setting 规则配置" [ref=e40] [cursor=pointer]:
+          - img "setting" [ref=e41]:
+            - img [ref=e42]
+          - generic [ref=e44]: 规则配置
+        - menuitem "line-chart 指标库" [ref=e45] [cursor=pointer]:
+          - img "line-chart" [ref=e46]:
+            - img [ref=e47]
+          - generic [ref=e49]: 指标库
+        - menuitem "setting 系统设置" [ref=e50] [cursor=pointer]:
+          - img "setting" [ref=e51]:
+            - img [ref=e52]
+          - generic [ref=e54]: 系统设置
+      - img "menu-fold" [ref=e56] [cursor=pointer]:
+        - img [ref=e57]
+  - generic [ref=e59]:
+    - banner [ref=e60]:
+      - generic [ref=e62]: 工程材料调差计算系统
+      - generic [ref=e63]:
+        - generic [ref=e66]: 数据已同步
+        - button "sync" [ref=e67]:
+          - img "sync" [ref=e68]:
+            - img [ref=e69]
+        - button "robot AI 助手" [ref=e72] [cursor=pointer]:
+          - img "robot" [ref=e74]:
+            - img [ref=e75]
+          - generic [ref=e77]: AI 助手
+        - generic [ref=e78]:
+          - button "bell" [ref=e79]:
+            - img "bell" [ref=e80]:
+              - img [ref=e81]
+          - superscript [ref=e83]:
+            - generic [ref=e85]: "3"
+        - generic [ref=e86] [cursor=pointer]:
+          - img "user" [ref=e88]:
+            - img [ref=e89]
+          - generic [ref=e91]: 管理员
+    - main [ref=e92]:
+      - generic [ref=e93]:
+        - generic [ref=e94]:
+          - heading "database 造价参考价" [level=1] [ref=e95]:
+            - img "database" [ref=e96]:
+              - img [ref=e97]
+            - text: 造价参考价
+          - paragraph [ref=e99]: 烟台工程建设标准造价管理 - 混凝土及钢筋信息价查询
+        - generic [ref=e102]:
+          - generic [ref=e103]: 选择时期：
+          - generic [ref=e105] [cursor=pointer]:
+            - generic [ref=e107]:
+              - combobox [ref=e109]
+              - generic: 选择年份
+            - generic:
+              - img:
+                - img
+          - generic [ref=e111] [cursor=pointer]:
+            - generic [ref=e113]:
+              - combobox [ref=e115]
+              - generic: 选择季度
+            - generic:
+              - img:
+                - img
+          - button "刷新数据" [ref=e117] [cursor=pointer]:
+            - generic [ref=e118]: 刷新数据
+        - generic [ref=e121]:
+          - tablist [ref=e122]:
+            - generic [ref=e124]:
+              - tab "bank 混凝土信息价" [selected] [ref=e126] [cursor=pointer]:
+                - generic [ref=e127]:
+                  - img "bank" [ref=e128]:
+                    - img [ref=e129]
+                  - text: 混凝土信息价
+              - tab "tool 钢筋信息价" [ref=e132] [cursor=pointer]:
+                - generic [ref=e133]:
+                  - img "tool" [ref=e134]:
+                    - img [ref=e135]
+                  - text: 钢筋信息价
+          - tabpanel "bank 混凝土信息价" [ref=e139]:
+            - generic [ref=e143]:
+              - table [ref=e146]:
+                - rowgroup [ref=e149]:
+                  - row "强度等级 烟台含税价(元/m³) 蓬莱含税价(元/m³)" [ref=e150]:
+                    - columnheader "强度等级" [ref=e151]
+                    - columnheader "烟台含税价(元/m³)" [ref=e152]
+                    - columnheader "蓬莱含税价(元/m³)" [ref=e153]
+                - rowgroup [ref=e154]:
+                  - row "请选择年份和季度" [ref=e155]:
+                    - cell "请选择年份和季度" [ref=e156]
+              - generic [ref=e158]: 数据来源：烟台工程建设标准造价管理 |
+        - generic [ref=e160]:
+          - generic [ref=e161]:
+            - button "plus 新增数据" [ref=e165] [cursor=pointer]:
+              - img "plus" [ref=e167]:
+                - img [ref=e168]
+              - generic [ref=e171]: 新增数据
+            - alert [ref=e173]:
+              - generic [ref=e175]: "当前查看:"
+          - alert [ref=e176]:
+            - img "info-circle" [ref=e177]:
+              - img [ref=e178]
+            - generic [ref=e180]:
+              - generic [ref=e181]: 数据说明
+              - generic [ref=e182]: 造价参考价数据来自烟台工程建设标准造价管理，包含混凝土和钢筋的信息价。如需添加新数据，请点击上方「新增数据」按钮。

@@ -55,10 +55,18 @@ def init_db() -> None:
                 brand TEXT,
                 price INTEGER NOT NULL,
                 region TEXT DEFAULT '山东烟台',
+                fetch_time TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(date, material_name, spec, brand, price)
             )
         ''')
+
+        # 检查并添加 fetch_time 字段（如果不存在）
+        cursor.execute("PRAGMA table_info(rebar_prices)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'fetch_time' not in columns:
+            cursor.execute('ALTER TABLE rebar_prices ADD COLUMN fetch_time TEXT')
+            logger.info("[init_db] 已添加 fetch_time 字段")
 
         # 创建索引
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_rebar_date ON rebar_prices(date)')
@@ -105,6 +113,7 @@ class YantaiDBService:
                 - brand: 品牌/钢厂
                 - price: 价格 (整数)
                 - region: 地区 (可选，默认 '山东烟台')
+                - fetch_time: 抓取时间 (可选，格式 HH:MM:SS)
 
         Returns:
             Dict[str, int]: 包含 inserted 和 skipped 的统计信息
@@ -126,8 +135,8 @@ class YantaiDBService:
                 try:
                     cursor.execute('''
                         INSERT INTO rebar_prices
-                        (date, material_name, spec, material_type, brand, price, region)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (date, material_name, spec, material_type, brand, price, region, fetch_time)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ''', (
                         price.get('date', ''),
                         price.get('material_name', ''),
@@ -135,7 +144,8 @@ class YantaiDBService:
                         price.get('material_type', ''),
                         price.get('brand', ''),
                         price.get('price', 0),
-                        price.get('region', '山东烟台')
+                        price.get('region', '山东烟台'),
+                        price.get('fetch_time', '')
                     ))
                     inserted += 1
                 except sqlite3.IntegrityError:
@@ -176,18 +186,18 @@ class YantaiDBService:
         try:
             if date:
                 cursor.execute('''
-                    SELECT date, material_name, spec, material_type, brand, price, region
+                    SELECT date, fetch_time, material_name, spec, material_type, brand, price, region
                     FROM rebar_prices
                     WHERE date = ?
-                    ORDER BY material_name, spec
+                    ORDER BY CASE WHEN fetch_time LIKE '09%' THEN 1 ELSE 2 END, material_name, spec
                     LIMIT ?
                 ''', (date, limit))
             else:
                 cursor.execute('''
-                    SELECT date, material_name, spec, material_type, brand, price, region
+                    SELECT date, fetch_time, material_name, spec, material_type, brand, price, region
                     FROM rebar_prices
                     WHERE date = (SELECT MAX(date) FROM rebar_prices)
-                    ORDER BY material_name, spec
+                    ORDER BY CASE WHEN fetch_time LIKE '09%' THEN 1 ELSE 2 END, material_name, spec
                     LIMIT ?
                 ''', (limit,))
 

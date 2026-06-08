@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 # 从 adjustment_rules 导入 HolidayHandling 枚举
-from web.backend.models.adjustment_rules import HolidayHandling
+from models.adjustment_rules import HolidayHandling
 
 logger = logging.getLogger(__name__)
 

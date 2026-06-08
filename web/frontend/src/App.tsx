@@ -11,6 +11,8 @@ import AdjustmentRuleConfig from './pages/AdjustmentRuleConfig'
 import Indicators from './pages/Indicators'
 import Settings from './pages/Settings'
 import CostReference from './pages/CostReference'
+import DataManager from './pages/DataManager'
+import IndicatorReport from './pages/IndicatorReport'
 
 const theme = {
   token: {
@@ -58,6 +60,8 @@ export default function App() {
               <Route path="/adjustments/rules" element={<AdjustmentRuleConfig />} />
               <Route path="/indicators" element={<Indicators />} />
               <Route path="/cost-reference" element={<CostReference />} />
+              <Route path="/data-manager" element={<DataManager />} />
+              <Route path="/indicator-report" element={<IndicatorReport />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </AppLayout>

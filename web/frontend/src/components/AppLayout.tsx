@@ -39,6 +39,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { key: '/cost-reference', icon: <CalculatorOutlined />, label: '造价参考价' },
     { key: '/adjustments/rules', icon: <SettingOutlined />, label: '规则配置' },
     { key: '/indicators', icon: <LineChartOutlined />, label: '指标库' },
+    { key: '/indicator-report', icon: <LineChartOutlined />, label: '指标分析报告' },
+    { key: '/data-manager', icon: <SyncOutlined />, label: '数据管理' },
     { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
   ]
 
@@ -58,28 +60,51 @@ export default function AppLayout({ children }: AppLayoutProps) {
         width={220}
         collapsedWidth={64}
       >
-        {/* Logo 区域 - 科技渐变 */}
+        {/* Logo 区域 - 白底圆角方形框内logo */}
         <div className="sidebar-logo">
           {collapsed ? (
             <div style={{
-              width: 40,
-              height: 40,
+              width: 44,
+              height: 44,
               borderRadius: 10,
-              background: 'linear-gradient(135deg, #4A86C8 0%, #16325C 100%)',
+              background: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white',
-              fontWeight: 700,
-              fontSize: 14,
-              letterSpacing: 1,
+              padding: 4,
               boxShadow: '0 4px 15px rgba(74, 134, 200, 0.4)',
-              border: '1px solid rgba(255,255,255,0.15)'
             }}>
-              TP
+              <img
+                src="/logo.jpg"
+                alt="Logo"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: 6,
+                  objectFit: 'cover',
+                }}
+              />
             </div>
           ) : (
-            <h1>工程调差系统</h1>
+            <div style={{
+              height: 44,
+              borderRadius: 8,
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 4,
+            }}>
+              <img
+                src="/logo.jpg"
+                alt="Logo"
+                style={{
+                  height: '100%',
+                  borderRadius: 6,
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
           )}
         </div>
 
@@ -107,25 +132,59 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <div className="header-title">
             {collapsed && (
               <div style={{
-                width: 40,
-                height: 40,
+                width: 44,
+                height: 44,
                 borderRadius: 10,
-                background: 'rgba(255,255,255,0.12)',
-                backdropFilter: 'blur(10px)',
+                background: '#fff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'white',
-                fontWeight: 700,
-                fontSize: 14,
+                padding: 4,
                 marginRight: 12,
-                border: '1px solid rgba(255,255,255,0.15)',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.15)'
               }}>
-                TP
+                <img
+                  src="/logo.jpg"
+                  alt="Logo"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 6,
+                    objectFit: 'cover',
+                  }}
+                />
               </div>
             )}
-            <span>工程材料调差计算系统</span>
+            <div style={{
+              height: 36,
+              borderRadius: 6,
+              background: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '0 10px',
+              marginRight: 10,
+            }}>
+              <img
+                src="/logo.jpg"
+                alt="Logo"
+                style={{
+                  height: 28,
+                  borderRadius: 4,
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
+            <span style={{
+              fontFamily: "'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
+              fontWeight: 700,
+              fontSize: 18,
+              letterSpacing: 1,
+              transform: 'skewX(-10deg)',
+              display: 'inline-block',
+            }}>
+              <span style={{ color: '#fff' }}>Knig</span>
+              <span style={{ color: '#E53935' }}>H</span>
+              <span style={{ color: '#fff' }}>ts</span>
+            </span>
           </div>
 
           <div className="header-actions">

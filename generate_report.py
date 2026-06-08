@@ -130,7 +130,7 @@ for r in range(7, ws_inst.max_row + 1):
         inst_rows.append({
             'name': str(item_name).replace('\n', ' ').strip()[:40],
             'prices': p,
-            'max': max_p, 'min': min_p, '_avg': avg_p, 'cv': cv,
+            'max': max_p, 'min': min_p, 'avg': avg_p, 'cv': cv,
             'diff_pct': diff_pct,
             'max_bidder': ['冠宏','浩耀','匠成','陆地'][p.index(max_p)],
             'min_bidder': ['冠宏','浩耀','匠成','陆地'][p.index(min_p)],

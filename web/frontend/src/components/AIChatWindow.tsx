@@ -94,7 +94,7 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
         <Tooltip title="AI 助手">
           <Button
             type="text"
-            icon={<RobotOutlined style={{ fontSize: 18 }} />}
+            icon={<img src="/ai-logo.jpg" alt="AI" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover' }} />}
             onClick={openChat}
             className="ai-assistant-btn"
           >
@@ -113,7 +113,7 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
           type="primary"
           shape="circle"
           size="large"
-          icon={<RobotOutlined />}
+          icon={<img src="/ai-logo.jpg" alt="AI" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover' }} />}
           className="ai-chat-fab"
           onClick={openChat}
         />
@@ -127,7 +127,7 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
       {/* 标题栏 */}
       <div className="ai-chat-header">
         <div className="ai-chat-header-left">
-          <RobotOutlined style={{ marginRight: 8 }} />
+          <img src="/ai-logo.jpg" alt="AI" style={{ width: 20, height: 20, borderRadius: 4, objectFit: 'cover', marginRight: 8 }} />
           <span>AI 助手</span>
           {conversationId && (
             <span className="ai-chat-session-indicator">新会话</span>
@@ -229,8 +229,8 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
       <div className="ai-chat-messages">
         {messages.length === 0 && (
           <div className="ai-chat-welcome">
-            <RobotOutlined style={{ fontSize: 48, color: '#4A86C8', marginBottom: 16 }} />
-            <h3>您好，我是 AI 助手</h3>
+            <img src="/ai-logo.jpg" alt="AI" style={{ width: 64, height: 64, borderRadius: 12, objectFit: 'cover', marginBottom: 16 }} />
+            <h3>你好，我是AI助手蝌仔</h3>
             <p>可以帮您解答工程调差相关的问题</p>
             <div className="ai-chat-suggestions">
               <Button size="small" onClick={() => setInput('调差是什么？')}>
@@ -249,7 +249,11 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
         {messages.map((msg, index) => (
           <div key={index} className={`message ${msg.role}`}>
             <div className="message-avatar">
-              {msg.role === 'user' ? '我' : '🤖'}
+              {msg.role === 'user' ? (
+                <span>我</span>
+              ) : (
+                <img src="/ai-logo.jpg" alt="AI" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} />
+              )}
             </div>
             <div className="message-content">
               <div className="message-text">{msg.content}</div>

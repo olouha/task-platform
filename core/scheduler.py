@@ -187,8 +187,16 @@ class Scheduler:
                 if not task.enabled:
                     continue
 
-                if task.next_run and now >= datetime.fromisoformat(task.next_run):
-                    self._execute_task(task_id)
+                if task.next_run:
+                    try:
+                        # 处理 ISO 格式带 Z 后缀的情况
+                        next_run_str = task.next_run.replace('Z', '+00:00')
+                        next_run_time = datetime.fromisoformat(next_run_str)
+                        if now >= next_run_time:
+                            self._execute_task(task_id)
+                    except (ValueError, TypeError) as e:
+                        self.logger.warning(f"解析下次运行时间失败: {task.next_run}, {e}")
+                        continue
 
             time.sleep(10)
 
@@ -226,9 +234,52 @@ class Scheduler:
         now = datetime.now()
         if task.task_type == 'interval' and task.interval_seconds > 0:
             task.next_run = (now + timedelta(seconds=task.interval_seconds)).isoformat()
-        elif task.task_type == 'cron':
-            # 简化：设置5分钟后再次检查
+        elif task.task_type == 'cron' and task.cron_expr:
+            # 解析 cron 表达式计算下次执行时间
+            try:
+                parts = task.cron_expr.split()
+                if len(parts) >= 5:
+                    minute, hour, day, month, day_of_week = parts[:5]
+                    # 使用 APScheduler 计算下次执行时间
+                    if HAS_APSCHEDULER:
+                        trigger = CronTrigger(
+                            minute=minute, hour=hour, day=day,
+                            month=month, day_of_week=day_of_week
+                        )
+                        # APScheduler 没有直接计算下次时间的方法，使用简单估算
+                        # 根据 cron 表达式推算下一个匹配的时间点
+                        next_time = self._calculate_cron_next_run(
+                            minute, hour, day, month, day_of_week
+                        )
+                        if next_time:
+                            task.next_run = next_time.isoformat()
+                        else:
+                            # 回退：设置5分钟后
+                            task.next_run = (now + timedelta(minutes=5)).isoformat()
+                    else:
+                        task.next_run = (now + timedelta(minutes=5)).isoformat()
+                else:
+                    task.next_run = (now + timedelta(minutes=5)).isoformat()
+            except Exception as e:
+                self.logger.warning(f"计算cron下次时间失败: {e}, 回退到5分钟后")
+                task.next_run = (now + timedelta(minutes=5)).isoformat()
+        else:
+            # 无效任务类型或无cron表达式，默认5分钟
             task.next_run = (now + timedelta(minutes=5)).isoformat()
+
+    def _calculate_cron_next_run(self, minute: str, hour: str, day: str, month: str, day_of_week: str):
+        """根据cron表达式计算下次执行时间"""
+        from dateutil.parser import parse as cron_parser
+        import croniter
+
+        try:
+            # 构建 cron 表达式
+            cron_expr = f"{minute} {hour} {day} {month} {day_of_week}"
+            now = datetime.now()
+            cron = croniter.croniter(cron_expr, now)
+            return cron.get_next(datetime)
+        except Exception:
+            return None
 
     def get_task_status(self, task_id: str) -> Optional[Dict]:
         """获取任务状态"""

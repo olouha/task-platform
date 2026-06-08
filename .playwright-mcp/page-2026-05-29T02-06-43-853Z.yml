@@ -1,0 +1,124 @@
+- generic [ref=e4]:
+  - complementary [ref=e5]:
+    - generic [ref=e6]:
+      - heading "工程调差系统" [level=1] [ref=e8]
+      - menu [ref=e9]:
+        - menuitem "dashboard 仪表盘" [ref=e10] [cursor=pointer]:
+          - img "dashboard" [ref=e11]:
+            - img [ref=e12]
+          - generic [ref=e14]: 仪表盘
+        - menuitem "project 项目管理" [ref=e15] [cursor=pointer]:
+          - img "project" [ref=e16]:
+            - img [ref=e17]
+          - generic [ref=e19]: 项目管理
+        - menuitem "appstore 材料管理" [ref=e20] [cursor=pointer]:
+          - img "appstore" [ref=e21]:
+            - img [ref=e22]
+          - generic [ref=e24]: 材料管理
+        - menuitem "dollar 价格监控" [ref=e25] [cursor=pointer]:
+          - img "dollar" [ref=e26]:
+            - img [ref=e27]
+          - generic [ref=e29]: 价格监控
+        - menuitem "calculator 调差计算" [ref=e30] [cursor=pointer]:
+          - img "calculator" [ref=e31]:
+            - img [ref=e32]
+          - generic [ref=e34]: 调差计算
+        - menuitem "calculator 造价参考价" [ref=e35] [cursor=pointer]:
+          - img "calculator" [ref=e36]:
+            - img [ref=e37]
+          - generic [ref=e39]: 造价参考价
+        - menuitem "setting 规则配置" [ref=e40] [cursor=pointer]:
+          - img "setting" [ref=e41]:
+            - img [ref=e42]
+          - generic [ref=e44]: 规则配置
+        - menuitem "line-chart 指标库" [ref=e45] [cursor=pointer]:
+          - img "line-chart" [ref=e46]:
+            - img [ref=e47]
+          - generic [ref=e49]: 指标库
+        - menuitem "setting 系统设置" [ref=e50] [cursor=pointer]:
+          - img "setting" [ref=e51]:
+            - img [ref=e52]
+          - generic [ref=e54]: 系统设置
+      - img "menu-fold" [ref=e56] [cursor=pointer]:
+        - img [ref=e57]
+  - generic [ref=e59]:
+    - banner [ref=e60]:
+      - generic [ref=e62]: 工程材料调差计算系统
+      - generic [ref=e63]:
+        - generic [ref=e66]: 数据已同步
+        - button "sync" [ref=e67]:
+          - img "sync" [ref=e68]:
+            - img [ref=e69]
+        - button "robot AI 助手" [ref=e72] [cursor=pointer]:
+          - img "robot" [ref=e74]:
+            - img [ref=e75]
+          - generic [ref=e77]: AI 助手
+        - generic [ref=e78]:
+          - button "bell" [ref=e79]:
+            - img "bell" [ref=e80]:
+              - img [ref=e81]
+          - superscript [ref=e83]:
+            - generic [ref=e85]: "3"
+        - generic [ref=e86] [cursor=pointer]:
+          - img "user" [ref=e88]:
+            - img [ref=e89]
+          - generic [ref=e91]: 管理员
+    - main [ref=e92]:
+      - generic [ref=e93]:
+        - generic [ref=e94]:
+          - heading "数据仪表盘" [level=2] [ref=e95]
+          - paragraph [ref=e96]: 工程项目材料调差数据总览，实时监控价格动态
+        - generic [ref=e97]:
+          - generic [ref=e98]:
+            - generic [ref=e100]:
+              - generic [ref=e101]: 项目总数
+              - img "project" [ref=e103]:
+                - img [ref=e104]
+            - generic [ref=e106]: "0"
+            - generic [ref=e107]: 个工程项目
+          - generic [ref=e108]:
+            - generic [ref=e110]:
+              - generic [ref=e111]: 材料种类
+              - img "dollar" [ref=e113]:
+                - img [ref=e114]
+            - generic [ref=e116]: "0"
+            - generic [ref=e117]: 种材料类型
+          - generic [ref=e118]:
+            - generic [ref=e120]:
+              - generic [ref=e121]: 价格记录
+              - img "sync" [ref=e123]:
+                - img [ref=e124]
+            - generic [ref=e126]: "0"
+            - generic [ref=e127]: 条实时数据
+          - generic [ref=e128]:
+            - generic [ref=e130]:
+              - generic [ref=e131]: 市场均价
+              - img "bar-chart" [ref=e133]:
+                - img [ref=e134]
+            - generic [ref=e136]: "0"
+            - generic [ref=e137]: 元/吨
+        - generic [ref=e138]:
+          - generic [ref=e139]:
+            - generic [ref=e140]:
+              - img "line-chart" [ref=e141]:
+                - img [ref=e142]
+              - generic [ref=e144]: 山东烟台钢筋价格监控
+            - generic [ref=e145]:
+              - generic [ref=e147] [cursor=pointer]:
+                - generic [ref=e149]:
+                  - combobox [ref=e151]
+                  - generic: 对比日期
+                - generic:
+                  - img:
+                    - img
+              - generic [ref=e153] [cursor=pointer]:
+                - combobox [ref=e157]
+                - generic:
+                  - img:
+                    - img
+              - button "download 导出数据" [disabled] [ref=e160]:
+                - generic:
+                  - img "download":
+                    - img
+                - generic: 导出数据
+          - generic [ref=e162]: 数据加载中...

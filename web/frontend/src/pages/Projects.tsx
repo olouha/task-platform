@@ -2,6 +2,7 @@ import { Table, Card, Button, Space, Tag, Modal, Form, Input, message } from 'an
 import { PlusOutlined, EditOutlined, DeleteOutlined, FolderOutlined, DollarOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { projectsApi, Project } from '../services/api'
+import PageHeader from '../components/PageHeader'
 
 const initialProjects: Project[] = []
 
@@ -101,10 +102,10 @@ export default function Projects() {
   return (
     <div>
       {/* 页面标题 - 科技风格 */}
-      <div className="page-header">
-        <h2 className="page-title">项目管理</h2>
-        <p className="page-subtitle">管理工程项目基本信息</p>
-      </div>
+      <PageHeader
+        title="项目管理"
+        subtitle="管理工程项目基本信息"
+      />
 
       {/* 统计卡片 */}
       <div className="stats-grid" style={{ marginBottom: 24 }}>

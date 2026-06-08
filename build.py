@@ -1,10 +1,14 @@
 """
 打包脚本 - 将程序打包为单个可执行文件
+跨平台支持: Windows / Linux / Mac
 """
 
 import os
+import shutil
 import subprocess
 import sys
+from pathlib import Path
+
 
 def build_exe():
     """构建可执行文件"""
@@ -22,8 +26,12 @@ def build_exe():
     # 清理之前的构建
     print("\n清理之前的构建...")
     for folder in ['build', 'dist']:
-        if os.path.exists(folder):
-            subprocess.run(['rmdir', '/s', '/q', folder], shell=True)
+        folder_path = Path(folder)
+        if folder_path.exists():
+            if sys.platform == 'win32':
+                subprocess.run(['cmd', '/c', 'rmdir', '/s', '/q', folder], shell=True, check=False)
+            else:
+                shutil.rmtree(folder, ignore_errors=True)
 
     # 构建命令
     cmd = [
@@ -31,7 +39,6 @@ def build_exe():
         "--name=TaskPlatform",
         "--onefile",  # 单文件
         "--windowed",  # 无控制台窗口
-        "--icon=NONE",
         "--add-data=config;config",  # 包含配置目录
         "main.py"
     ]

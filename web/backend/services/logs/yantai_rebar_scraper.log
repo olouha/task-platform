@@ -436,3 +436,40 @@ NotImplementedError
 2026-05-28 09:42:35,772 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
 2026-05-28 09:45:53,950 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
 2026-05-28 09:48:37,802 - INFO - No date specified, using latest sheet: 2026-05-16_PM_211954
+2026-05-29 08:00:24,613 - INFO - 已加载 28 个Cookie
+2026-05-29 08:00:24,860 - INFO - 已加载Cookie
+2026-05-29 08:00:35,701 - WARNING - 查找URL失败: Page.evaluate: Execution context was destroyed, most likely because of a navigation
+2026-05-29 08:00:35,710 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052910/25B3355C6617BD3C.html
+2026-05-29 08:00:46,618 - INFO - 截图已保存
+2026-05-30 08:00:20,241 - INFO - 已加载 14 个Cookie
+2026-05-30 08:00:20,274 - INFO - 已加载Cookie
+2026-05-30 08:00:32,290 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052910/27620CD7798DE9C3.html
+2026-05-30 08:00:47,492 - INFO - 截图已保存
+2026-05-31 08:00:10,425 - INFO - 已加载 44 个Cookie
+2026-05-31 08:00:10,468 - INFO - 已加载Cookie
+2026-05-31 08:00:28,899 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26052910/27620CD7798DE9C3.html
+2026-05-31 08:00:40,633 - INFO - 截图已保存
+2026-06-04 08:00:06,985 - INFO - 已加载 44 个Cookie
+2026-06-04 08:00:07,003 - INFO - 已加载Cookie
+2026-06-04 08:00:20,944 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060316/601D8158E073C291.html
+2026-06-04 08:00:32,623 - INFO - 截图已保存
+2026-06-06 09:56:06,024 - INFO - 已加载 44 个Cookie
+2026-06-06 09:56:06,050 - INFO - 已加载Cookie
+2026-06-06 09:56:20,402 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060510/3621ED7BA126DA24.html
+2026-06-06 09:56:32,497 - INFO - 截图已保存
+2026-06-06 09:58:25,596 - INFO - 已加载 44 个Cookie
+2026-06-06 09:58:25,616 - INFO - 已加载Cookie
+2026-06-06 09:58:37,103 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060510/3621ED7BA126DA24.html
+2026-06-06 09:58:49,068 - INFO - 截图已保存
+2026-06-06 10:00:54,348 - INFO - 已加载 44 个Cookie
+2026-06-06 10:00:54,371 - INFO - 已加载Cookie
+2026-06-06 10:01:05,832 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060510/3621ED7BA126DA24.html
+2026-06-06 10:01:17,467 - INFO - 截图已保存
+2026-06-06 10:01:31,286 - INFO - 已加载 44 个Cookie
+2026-06-06 10:01:31,308 - INFO - 已加载Cookie
+2026-06-06 10:01:42,794 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060510/3621ED7BA126DA24.html
+2026-06-06 10:01:54,981 - INFO - 截图已保存
+2026-06-06 10:02:26,704 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060510/3621ED7BA126DA24.html
+2026-06-06 10:02:38,761 - INFO - 截图已保存
+2026-06-06 10:07:12,587 - INFO - 打开价格页: https://jiancai.mysteel.com/m/26060510/3621ED7BA126DA24.html
+2026-06-06 10:07:24,504 - INFO - 截图已保存

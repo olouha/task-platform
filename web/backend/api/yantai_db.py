@@ -380,8 +380,18 @@ async def get_available_dates(
     - "2026-05-27 PM" 表示下午数据
     """
     try:
+        # 调试：打印数据库路径
+        import os
+        db_path = os.path.abspath(DB_FILE)
+        logger.info(f"[get_available_dates] 数据库路径: {db_path},存在: {os.path.exists(db_path)}")
+
         conn = get_db_connection()
         c = conn.cursor()
+
+        # 先测试简单查询
+        c.execute('SELECT COUNT(*) FROM rebar_prices')
+        count = c.fetchone()[0]
+        logger.info(f"[get_available_dates] 数据总数: {count}")
 
         # 获取每个日期的上午/下午数据分布，按日期降序排列（最新在前）
         # fetch_time 存储格式: "09:00"(AM), "AM", "PM", 或其他时间
@@ -519,11 +529,31 @@ class RebarPriceRecord(BaseModel):
 
 @rebar_router.get("/stats")
 async def get_rebar_stats(supabase: SupabaseService = Depends(get_supabase)):
-    """获取数据库统计信息"""
+    """获取数据库统计信息（Supabase优先，SQLite回退）"""
     _rebar_logger.info("[get_rebar_stats] 查询统计")
-    result = supabase.get_rebar_stats()
-    _rebar_logger.info(f"[get_rebar_stats] 完成 | total={result.get('total_count')}")
-    return result
+    if supabase.url:
+        result = supabase.get_rebar_stats()
+        if result.get('total_count', 0) > 0:
+            _rebar_logger.info(f"[get_rebar_stats] Supabase | total={result.get('total_count')}")
+            return result
+
+    # SQLite 回退
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM rebar_prices')
+    total = c.fetchone()[0]
+    c.execute('SELECT COUNT(DISTINCT date) FROM rebar_prices')
+    dates = c.fetchone()[0]
+    c.execute('SELECT MIN(date), MAX(date) FROM rebar_prices')
+    range_row = c.fetchone()
+    conn.close()
+    _rebar_logger.info(f"[get_rebar_stats] SQLite | total={total}")
+    return {
+        'success': True,
+        'total_count': total,
+        'dates_count': dates,
+        'date_range': {'start': range_row[0], 'end': range_row[1]}
+    }
 
 
 @rebar_router.get("/latest")
@@ -532,11 +562,54 @@ async def get_rebar_latest(
     limit: int = Query(500, description="返回数量"),
     supabase: SupabaseService = Depends(get_supabase)
 ):
-    """获取最新价格数据"""
+    """获取最新价格数据（Supabase优先，SQLite回退）"""
     _rebar_logger.info(f"[get_rebar_latest] 查询 | date={date} | limit={limit}")
-    result = supabase.get_rebar_latest(limit=limit)
-    _rebar_logger.info(f"[get_rebar_latest] 完成 | count={result.get('count')}")
-    return result
+
+    if supabase.url:
+        result = supabase.get_rebar_latest(limit=limit)
+        if result.get('count', 0) > 0:
+            _rebar_logger.info(f"[get_rebar_latest] Supabase | count={result.get('count')}")
+            return result
+
+    # SQLite 回退
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    if date:
+        # 解析日期（可能包含时间段）
+        date_only = date.split(' ')[0]
+        if '下午' in date:
+            c.execute('''SELECT date, fetch_time, material_name, spec, material_type, brand, price, region
+                         FROM rebar_prices WHERE date = ? AND fetch_time = 'PM' ORDER BY price LIMIT ?''',
+                      (date_only, limit))
+        else:
+            c.execute('''SELECT date, fetch_time, material_name, spec, material_type, brand, price, region
+                         FROM rebar_prices WHERE date = ? ORDER BY price LIMIT ?''',
+                      (date_only, limit))
+    else:
+        # 获取最新日期
+        c.execute('''SELECT date, fetch_time, material_name, spec, material_type, brand, price, region
+                     FROM rebar_prices WHERE date = (SELECT MAX(date) FROM rebar_prices) LIMIT ?''',
+                  (limit,))
+
+    rows = c.fetchall()
+    conn.close()
+
+    prices = []
+    for row in rows:
+        prices.append({
+            'date': row['date'],
+            'fetch_time': row['fetch_time'],
+            'material_name': row['material_name'],
+            'spec': row['spec'],
+            'material_type': row['material_type'],
+            'brand': row['brand'],
+            'price': row['price'],
+            'region': row['region']
+        })
+
+    _rebar_logger.info(f"[get_rebar_latest] SQLite | count={len(prices)}")
+    return {'success': True, 'count': len(prices), 'prices': prices}
 
 
 @rebar_router.get("/range")
@@ -547,27 +620,58 @@ async def get_rebar_by_range(
     spec: str = Query(None, description="规格筛选"),
     supabase: SupabaseService = Depends(get_supabase)
 ):
-    """获取日期范围内的价格数据"""
+    """获取日期范围内的价格数据（Supabase优先，SQLite回退）"""
     _rebar_logger.info(f"[get_rebar_by_range] 查询 | start={start_date} | end={end_date}")
-    prices = supabase.get_rebar_prices(
-        start_date=start_date, end_date=end_date,
-        material_name=material, spec=spec, limit=5000
-    )
+
+    if supabase.url:
+        prices = supabase.get_rebar_prices(
+            start_date=start_date, end_date=end_date,
+            material_name=material, spec=spec, limit=5000
+        )
+        if prices:
+            dates_data: Dict[str, List[Dict]] = {}
+            for p in prices:
+                d = p.get('date', '')
+                if d not in dates_data:
+                    dates_data[d] = []
+                dates_data[d].append(p)
+            _rebar_logger.info(f"[get_rebar_by_range] Supabase | total={len(prices)}")
+            return {'success': True, 'start_date': start_date, 'end_date': end_date,
+                    'total_count': len(prices), 'dates_count': len(dates_data), 'data': dates_data}
+
+    # SQLite 回退
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    sql = '''SELECT date, fetch_time, material_name, spec, material_type, brand, price, region
+             FROM rebar_prices WHERE date BETWEEN ? AND ?'''
+    params = [start_date, end_date]
+    if material:
+        sql += ' AND material_name = ?'
+        params.append(material)
+    if spec:
+        sql += ' AND spec = ?'
+        params.append(spec)
+    sql += ' ORDER BY date, price'
+
+    c.execute(sql, params)
+    rows = c.fetchall()
+    conn.close()
+
     dates_data: Dict[str, List[Dict]] = {}
-    for p in prices:
-        d = p.get('date', '')
+    for row in rows:
+        d = row['date']
         if d not in dates_data:
             dates_data[d] = []
-        dates_data[d].append(p)
-    _rebar_logger.info(f"[get_rebar_by_range] 完成 | total={len(prices)} | dates={len(dates_data)}")
-    return {
-        'success': True,
-        'start_date': start_date,
-        'end_date': end_date,
-        'total_count': len(prices),
-        'dates_count': len(dates_data),
-        'data': dates_data
-    }
+        dates_data[d].append({
+            'date': d, 'fetch_time': row['fetch_time'], 'material_name': row['material_name'],
+            'spec': row['spec'], 'material_type': row['material_type'], 'brand': row['brand'],
+            'price': row['price'], 'region': row['region']
+        })
+
+    _rebar_logger.info(f"[get_rebar_by_range] SQLite | total={len(rows)}")
+    return {'success': True, 'start_date': start_date, 'end_date': end_date,
+            'total_count': len(rows), 'dates_count': len(dates_data), 'data': dates_data}
 
 
 @rebar_router.get("/trend")
@@ -579,24 +683,102 @@ async def get_rebar_trend(
     end_date: str = Query(None, description="结束日期"),
     supabase: SupabaseService = Depends(get_supabase)
 ):
-    """获取价格趋势数据"""
+    """获取价格趋势数据（Supabase优先，SQLite回退）"""
+    from datetime import datetime, timedelta
     _rebar_logger.info(f"[get_rebar_trend] 查询 | material={material} | days={days}")
-    result = supabase.get_rebar_trend(
-        material_name=material, spec=spec,
-        days=days, start_date=start_date, end_date=end_date
-    )
-    _rebar_logger.info(f"[get_rebar_trend] 完成 | count={result.get('count')}")
-    return result
+
+    if supabase.url:
+        result = supabase.get_rebar_trend(
+            material_name=material, spec=spec,
+            days=days, start_date=start_date, end_date=end_date
+        )
+        if result.get('count', 0) > 0:
+            return result
+
+    # 计算日期范围
+    if not end_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+    if not start_date:
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    sql = '''SELECT date, AVG(price) as avg_price, MIN(price) as min_price, MAX(price) as max_price, COUNT(*) as cnt
+             FROM rebar_prices WHERE date BETWEEN ? AND ?'''
+    params = [start_date, end_date]
+    if material:
+        sql += ' AND material_name = ?'
+        params.append(material)
+    if spec:
+        sql += ' AND spec = ?'
+        params.append(spec)
+    sql += ' GROUP BY date ORDER BY date'
+
+    c.execute(sql, params)
+    rows = c.fetchall()
+    conn.close()
+
+    trend_data = [{'date': row['date'], 'avg_price': row['avg_price'], 'min_price': row['min_price'],
+                   'max_price': row['max_price'], 'count': row['cnt']} for row in rows]
+
+    _rebar_logger.info(f"[get_rebar_trend] SQLite | count={len(trend_data)}")
+    return {'success': True, 'count': len(trend_data), 'data': trend_data}
 
 
 @rebar_router.get("/materials")
 async def get_rebar_materials(supabase: SupabaseService = Depends(get_supabase)):
-    """获取所有品名"""
+    """获取所有品名（Supabase优先，SQLite回退）"""
     _rebar_logger.info("[get_rebar_materials] 查询品名")
-    stats = supabase.get_rebar_stats()
-    materials = [{'name': k, 'count': v} for k, v in stats.get('materials', {}).items()]
-    _rebar_logger.info(f"[get_rebar_materials] 完成 | count={len(materials)}")
+
+    if supabase.url:
+        stats = supabase.get_rebar_stats()
+        materials = [{'name': k, 'count': v} for k, v in stats.get('materials', {}).items()]
+        if materials:
+            return {'success': True, 'materials': materials}
+
+    # SQLite 回退
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('SELECT material_name, COUNT(*) as cnt FROM rebar_prices GROUP BY material_name ORDER BY cnt DESC')
+    rows = c.fetchall()
+    conn.close()
+
+    materials = [{'name': row['material_name'], 'count': row['cnt']} for row in rows]
+    _rebar_logger.info(f"[get_rebar_materials] SQLite | count={len(materials)}")
     return {'success': True, 'materials': materials}
+
+
+@rebar_router.get("/specs")
+async def get_rebar_specs(
+    material: str = Query(None, description="品名"),
+    supabase: SupabaseService = Depends(get_supabase)
+):
+    """获取所有规格（Supabase优先，SQLite回退）"""
+    _rebar_logger.info(f"[get_rebar_specs] 查询规格 | material={material}")
+
+    if supabase.url:
+        stats = supabase.get_rebar_stats()
+        specs = [{'spec': k, 'count': v} for k, v in stats.get('specs', {}).items()]
+        if specs:
+            return {'success': True, 'specs': specs}
+
+    # SQLite 回退
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    if material:
+        c.execute('SELECT spec, COUNT(*) as cnt FROM rebar_prices WHERE material_name = ? GROUP BY spec ORDER BY cnt DESC',
+                  (material,))
+    else:
+        c.execute('SELECT spec, COUNT(*) as cnt FROM rebar_prices GROUP BY spec ORDER BY cnt DESC')
+
+    rows = c.fetchall()
+    conn.close()
+
+    specs = [{'spec': row['spec'], 'count': row['cnt']} for row in rows]
+    _rebar_logger.info(f"[get_rebar_specs] SQLite | count={len(specs)}")
+    return {'success': True, 'specs': specs}
 
 
 @rebar_router.get("/specs")
@@ -618,28 +800,80 @@ async def get_rebar_dates(
     end_date: str = Query(None),
     supabase: SupabaseService = Depends(get_supabase)
 ):
-    """获取所有可用日期"""
+    """获取所有可用日期（Supabase优先，SQLite回退）"""
     _rebar_logger.info("[get_rebar_dates] 查询可用日期")
-    prices = supabase.get_rebar_prices(start_date=start_date, end_date=end_date, limit=10000)
-    date_periods = []
-    for p in prices:
-        d = p.get('date', '')
-        ft = p.get('fetch_time', '')
-        if ft in ('09:00', 'AM'):
-            date_periods.append(f"{d} 上午")
-        elif ft == 'PM':
-            date_periods.append(f"{d} 下午（较晚）")
+
+    # 尝试 Supabase
+    if supabase.url:
+        prices = supabase.get_rebar_prices(start_date=start_date, end_date=end_date, limit=10000)
+        if prices:
+            date_periods = []
+            for p in prices:
+                d = p.get('date', '')
+                ft = p.get('fetch_time', '')
+                if ft in ('09:00', 'AM'):
+                    date_periods.append(f"{d} 上午")
+                elif ft == 'PM':
+                    date_periods.append(f"{d} 下午（较晚）")
+                else:
+                    date_periods.append(d)
+            unique = []
+            seen = set()
+            for dp in reversed(date_periods):
+                if dp not in seen:
+                    seen.add(dp)
+                    unique.append(dp)
+            unique.reverse()
+            _rebar_logger.info(f"[get_rebar_dates] Supabase返回 | count={len(unique)}")
+            return {'success': True, 'count': len(unique), 'dates': unique}
+
+    # 回退到本地 SQLite
+    _rebar_logger.info("[get_rebar_dates] 使用本地SQLite")
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    c.execute('SELECT COUNT(*) FROM rebar_prices')
+    _rebar_logger.info(f"[get_rebar_dates] SQLite总数: {c.fetchone()[0]}")
+
+    if start_date and end_date:
+        c.execute('''SELECT date, SUM(CASE WHEN fetch_time = "09:00" OR fetch_time = "AM" THEN 1 ELSE 0 END) as am_count,
+                      SUM(CASE WHEN fetch_time = "PM" THEN 1 ELSE 0 END) as pm_count
+                      FROM rebar_prices WHERE date BETWEEN ? AND ? GROUP BY date ORDER BY date DESC''',
+                  (start_date, end_date))
+    elif start_date:
+        c.execute('''SELECT date, SUM(CASE WHEN fetch_time = "09:00" OR fetch_time = "AM" THEN 1 ELSE 0 END) as am_count,
+                      SUM(CASE WHEN fetch_time = "PM" THEN 1 ELSE 0 END) as pm_count
+                      FROM rebar_prices WHERE date >= ? GROUP BY date ORDER BY date DESC''', (start_date,))
+    elif end_date:
+        c.execute('''SELECT date, SUM(CASE WHEN fetch_time = "09:00" OR fetch_time = "AM" THEN 1 ELSE 0 END) as am_count,
+                      SUM(CASE WHEN fetch_time = "PM" THEN 1 ELSE 0 END) as pm_count
+                      FROM rebar_prices WHERE date <= ? GROUP BY date ORDER BY date DESC''', (end_date,))
+    else:
+        c.execute('''SELECT date, SUM(CASE WHEN fetch_time = "09:00" OR fetch_time = "AM" THEN 1 ELSE 0 END) as am_count,
+                      SUM(CASE WHEN fetch_time = "PM" THEN 1 ELSE 0 END) as pm_count
+                      FROM rebar_prices GROUP BY date ORDER BY date''')
+
+    rows = c.fetchall()
+    conn.close()
+
+    dates = []
+    for row in rows:
+        date_str = row['date']
+        am_count = row['am_count']
+        pm_count = row['pm_count']
+        if am_count > 0 and pm_count > 0:
+            dates.append(f"{date_str} 上午")
+            dates.append(f"{date_str} 下午（较晚）")
+        elif am_count > 0:
+            dates.append(f"{date_str} 上午")
+        elif pm_count > 0:
+            dates.append(f"{date_str} 下午（较晚）")
         else:
-            date_periods.append(d)
-    unique = []
-    seen = set()
-    for dp in reversed(date_periods):
-        if dp not in seen:
-            seen.add(dp)
-            unique.append(dp)
-    unique.reverse()
-    _rebar_logger.info(f"[get_rebar_dates] 完成 | count={len(unique)}")
-    return {'success': True, 'count': len(unique), 'dates': unique}
+            dates.append(date_str)
+
+    dates.reverse()
+    _rebar_logger.info(f"[get_rebar_dates] SQLite完成 | count={len(dates)}")
+    return {'success': True, 'count': len(dates), 'dates': dates}
 
 
 @rebar_router.post("/prices")

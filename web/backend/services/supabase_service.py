@@ -41,7 +41,7 @@ class SupabaseService:
         }
         self.timeout = 30
 
-        logger.info(f"[SupabaseService] 初始化 | url={self.url[:30]}... if self.url else 'None'")
+        logger.info(f"[SupabaseService] 初始化 | url={self.url[:30] + '...' if self.url else 'None'}")
 
     def _request(self, method: str, endpoint: str, **kwargs) -> Optional[Any]:
         """发送请求"""

@@ -495,3 +495,127 @@ async def delete_document(document_id: str):
     except Exception as e:
         logger.error(f"删除文档失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== 工具调用 API ==========
+
+from services.tool_executor import ToolExecutor
+from services.ai_tools import get_tools_definitions
+
+tool_executor = ToolExecutor()
+
+
+@router.post("/chat/tools")
+async def chat_with_tools(
+    request: ChatRequest,
+    user_id: Optional[str] = Header(None)
+):
+    """
+    支持工具调用的AI对话
+
+    AI助手可以调用以下工具：
+    - query_price_by_date: 按日期查询价格
+    - query_price_range: 查询日期范围价格
+    - query_price_trend: 查询价格趋势
+    - search_materials: 搜索材料
+    - get_latest_prices: 获取最新价格
+    - compare_prices: 价格对比
+
+    示例：
+    - "查2024年5月15日的螺纹钢价格"
+    - "最近一周的价格趋势"
+    - "昨天HRB400E Φ16多少钱"
+    """
+    try:
+        logger.info(f"[chat_with_tools] 收到请求 | messages={len(request.messages)}")
+
+        # 获取工具定义
+        tools = get_tools_definitions()
+
+        # 调用带工具的对话
+        result = await ai_service.chat_with_tools(
+            messages=[msg.dict() for msg in request.messages],
+            tools=tools,
+            temperature=request.temperature or 0.7,
+            max_tokens=request.max_tokens or 2000,
+            tool_executor=tool_executor
+        )
+
+        # 保存对话记录
+        if user_id:
+            _save_message(user_id, request.messages, result)
+
+        logger.info(f"[chat_with_tools] 返回结果")
+        return result
+
+    except Exception as e:
+        logger.error(f"[chat_with_tools] 请求失败 | {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/chat/tools/stream")
+async def chat_with_tools_stream(
+    request: ChatRequest,
+    user_id: Optional[str] = Header(None)
+):
+    """
+    流式工具调用对话
+
+    AI助手会实时返回思考过程和工具调用结果
+    """
+    logger.info(f"[chat_with_tools_stream] 收到请求 | messages={len(request.messages)}")
+
+    # 获取工具定义
+    tools = get_tools_definitions()
+
+    async def generate():
+        full_content = []
+        try:
+            async for chunk in ai_service.chat_with_tools_stream(
+                messages=[msg.dict() for msg in request.messages],
+                tools=tools,
+                temperature=request.temperature or 0.7,
+                max_tokens=request.max_tokens or 2000,
+                tool_executor=tool_executor
+            ):
+                full_content.append(chunk)
+                yield f"data: {json.dumps({'choices': [{'delta': {'content': chunk}}]})}\n\n"
+
+            yield "data: [DONE]\n\n"
+
+        except Exception as e:
+            logger.error(f"[chat_with_tools_stream] 生成失败 | {e}", exc_info=True)
+            error = {"error": {"message": str(e), "type": "api_error"}}
+            yield f"data: {json.dumps(error)}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Request-Id": user_id or ""
+        }
+    )
+
+
+@router.get("/tools")
+async def list_tools():
+    """
+    获取可用的工具列表
+
+    返回所有AI助手可以调用的工具定义
+    """
+    tools = get_tools_definitions()
+    return {
+        "success": True,
+        "count": len(tools),
+        "tools": [
+            {
+                "name": tool.get("function", {}).get("name"),
+                "description": tool.get("function", {}).get("description"),
+                "parameters": tool.get("function", {}).get("parameters", {}).get("properties", {})
+            }
+            for tool in tools
+        ]
+    }
