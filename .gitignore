@@ -58,3 +58,11 @@ logs/
 *.db-journal
 *.bak2
 *.xlsx.bak*
+
+# 数据文件和临时文件
+web/backend/services/data/*.db*
+web/backend/services/data/*.txt
+web/backend/services/data/*.html
+web/backend/services/data/screenshots/
+web/backend/data/*.db
+excel_detailed_output.txt
