@@ -49,3 +49,12 @@ logs/
 .env
 .env.local
 .env.*.local
+
+# 大型压缩包和数据库
+*.tar.gz
+*.zip
+*.db
+*.db.backup
+*.db-journal
+*.bak2
+*.xlsx.bak*
