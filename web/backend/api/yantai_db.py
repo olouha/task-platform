@@ -531,11 +531,14 @@ class RebarPriceRecord(BaseModel):
 async def get_rebar_stats(supabase: SupabaseService = Depends(get_supabase)):
     """获取数据库统计信息（Supabase优先，SQLite回退）"""
     _rebar_logger.info("[get_rebar_stats] 查询统计")
-    if supabase.url:
-        result = supabase.get_rebar_stats()
-        if result.get('total_count', 0) > 0:
-            _rebar_logger.info(f"[get_rebar_stats] Supabase | total={result.get('total_count')}")
-            return result
+    try:
+        if supabase.url:
+            result = supabase.get_rebar_stats()
+            if result.get('total_count', 0) > 0:
+                _rebar_logger.info(f"[get_rebar_stats] Supabase | total={result.get('total_count')}")
+                return result
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_stats] Supabase查询失败，回退SQLite | {e}")
 
     # SQLite 回退
     conn = get_db_connection()
@@ -565,11 +568,14 @@ async def get_rebar_latest(
     """获取最新价格数据（Supabase优先，SQLite回退）"""
     _rebar_logger.info(f"[get_rebar_latest] 查询 | date={date} | limit={limit}")
 
-    if supabase.url:
-        result = supabase.get_rebar_latest(limit=limit)
-        if result.get('count', 0) > 0:
-            _rebar_logger.info(f"[get_rebar_latest] Supabase | count={result.get('count')}")
-            return result
+    try:
+        if supabase.url:
+            result = supabase.get_rebar_latest(limit=limit)
+            if result.get('count', 0) > 0:
+                _rebar_logger.info(f"[get_rebar_latest] Supabase | count={result.get('count')}")
+                return result
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_latest] Supabase查询失败，回退SQLite | {e}")
 
     # SQLite 回退
     conn = get_db_connection()
@@ -623,21 +629,24 @@ async def get_rebar_by_range(
     """获取日期范围内的价格数据（Supabase优先，SQLite回退）"""
     _rebar_logger.info(f"[get_rebar_by_range] 查询 | start={start_date} | end={end_date}")
 
-    if supabase.url:
-        prices = supabase.get_rebar_prices(
-            start_date=start_date, end_date=end_date,
-            material_name=material, spec=spec, limit=5000
-        )
-        if prices:
-            dates_data: Dict[str, List[Dict]] = {}
-            for p in prices:
-                d = p.get('date', '')
-                if d not in dates_data:
-                    dates_data[d] = []
-                dates_data[d].append(p)
-            _rebar_logger.info(f"[get_rebar_by_range] Supabase | total={len(prices)}")
-            return {'success': True, 'start_date': start_date, 'end_date': end_date,
-                    'total_count': len(prices), 'dates_count': len(dates_data), 'data': dates_data}
+    try:
+        if supabase.url:
+            prices = supabase.get_rebar_prices(
+                start_date=start_date, end_date=end_date,
+                material_name=material, spec=spec, limit=5000
+            )
+            if prices:
+                dates_data: Dict[str, List[Dict]] = {}
+                for p in prices:
+                    d = p.get('date', '')
+                    if d not in dates_data:
+                        dates_data[d] = []
+                    dates_data[d].append(p)
+                _rebar_logger.info(f"[get_rebar_by_range] Supabase | total={len(prices)}")
+                return {'success': True, 'start_date': start_date, 'end_date': end_date,
+                        'total_count': len(prices), 'dates_count': len(dates_data), 'data': dates_data}
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_by_range] Supabase查询失败，回退SQLite | {e}")
 
     # SQLite 回退
     conn = get_db_connection()
@@ -687,13 +696,16 @@ async def get_rebar_trend(
     from datetime import datetime, timedelta
     _rebar_logger.info(f"[get_rebar_trend] 查询 | material={material} | days={days}")
 
-    if supabase.url:
-        result = supabase.get_rebar_trend(
-            material_name=material, spec=spec,
-            days=days, start_date=start_date, end_date=end_date
-        )
-        if result.get('count', 0) > 0:
-            return result
+    try:
+        if supabase.url:
+            result = supabase.get_rebar_trend(
+                material_name=material, spec=spec,
+                days=days, start_date=start_date, end_date=end_date
+            )
+            if result.get('count', 0) > 0:
+                return result
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_trend] Supabase查询失败，回退SQLite | {e}")
 
     # 计算日期范围
     if not end_date:
@@ -731,11 +743,14 @@ async def get_rebar_materials(supabase: SupabaseService = Depends(get_supabase))
     """获取所有品名（Supabase优先，SQLite回退）"""
     _rebar_logger.info("[get_rebar_materials] 查询品名")
 
-    if supabase.url:
-        stats = supabase.get_rebar_stats()
-        materials = [{'name': k, 'count': v} for k, v in stats.get('materials', {}).items()]
-        if materials:
-            return {'success': True, 'materials': materials}
+    try:
+        if supabase.url:
+            stats = supabase.get_rebar_stats()
+            materials = [{'name': k, 'count': v} for k, v in stats.get('materials', {}).items()]
+            if materials:
+                return {'success': True, 'materials': materials}
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_materials] Supabase查询失败，回退SQLite | {e}")
 
     # SQLite 回退
     conn = get_db_connection()
@@ -757,11 +772,14 @@ async def get_rebar_specs(
     """获取所有规格（Supabase优先，SQLite回退）"""
     _rebar_logger.info(f"[get_rebar_specs] 查询规格 | material={material}")
 
-    if supabase.url:
-        stats = supabase.get_rebar_stats()
-        specs = [{'spec': k, 'count': v} for k, v in stats.get('specs', {}).items()]
-        if specs:
-            return {'success': True, 'specs': specs}
+    try:
+        if supabase.url:
+            stats = supabase.get_rebar_stats()
+            specs = [{'spec': k, 'count': v} for k, v in stats.get('specs', {}).items()]
+            if specs:
+                return {'success': True, 'specs': specs}
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_specs] Supabase查询失败，回退SQLite | {e}")
 
     # SQLite 回退
     conn = get_db_connection()
@@ -804,28 +822,31 @@ async def get_rebar_dates(
     _rebar_logger.info("[get_rebar_dates] 查询可用日期")
 
     # 尝试 Supabase
-    if supabase.url:
-        prices = supabase.get_rebar_prices(start_date=start_date, end_date=end_date, limit=10000)
-        if prices:
-            date_periods = []
-            for p in prices:
-                d = p.get('date', '')
-                ft = p.get('fetch_time', '')
-                if ft in ('09:00', 'AM'):
-                    date_periods.append(f"{d} 上午")
-                elif ft == 'PM':
-                    date_periods.append(f"{d} 下午（较晚）")
-                else:
-                    date_periods.append(d)
-            unique = []
-            seen = set()
-            for dp in reversed(date_periods):
-                if dp not in seen:
-                    seen.add(dp)
-                    unique.append(dp)
-            unique.reverse()
-            _rebar_logger.info(f"[get_rebar_dates] Supabase返回 | count={len(unique)}")
-            return {'success': True, 'count': len(unique), 'dates': unique}
+    try:
+        if supabase.url:
+            prices = supabase.get_rebar_prices(start_date=start_date, end_date=end_date, limit=10000)
+            if prices:
+                date_periods = []
+                for p in prices:
+                    d = p.get('date', '')
+                    ft = p.get('fetch_time', '')
+                    if ft in ('09:00', 'AM'):
+                        date_periods.append(f"{d} 上午")
+                    elif ft == 'PM':
+                        date_periods.append(f"{d} 下午（较晚）")
+                    else:
+                        date_periods.append(d)
+                unique = []
+                seen = set()
+                for dp in reversed(date_periods):
+                    if dp not in seen:
+                        seen.add(dp)
+                        unique.append(dp)
+                unique.reverse()
+                _rebar_logger.info(f"[get_rebar_dates] Supabase返回 | count={len(unique)}")
+                return {'success': True, 'count': len(unique), 'dates': unique}
+    except Exception as e:
+        _rebar_logger.warning(f"[get_rebar_dates] Supabase查询失败，回退SQLite | {e}")
 
     # 回退到本地 SQLite
     _rebar_logger.info("[get_rebar_dates] 使用本地SQLite")
