@@ -264,8 +264,7 @@ export default function DataManager() {
                 content: `将删除 ${stats?.duplicates || 0} 条重复记录，此操作不可恢复！`,
                 okText: '确认清洗',
                 okType: 'danger',
-                onOk: handleClean,
-                loading: loading
+                onOk: handleClean
               })
             }}
             loading={loading}

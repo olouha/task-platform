@@ -279,7 +279,7 @@ export default function IndicatorReport() {
       key: 'deviation',
       width: 80,
       render: (val: number) => (
-        <Text type={Math.abs(val) <= 15 ? 'secondary' : val > 0 ? 'danger' : 'processing'}>
+        <Text type={Math.abs(val) <= 15 ? 'secondary' : val > 0 ? 'danger' : 'warning'}>
           {val > 0 ? '+' : ''}{val.toFixed(1)}%
         </Text>
       ),
@@ -506,7 +506,7 @@ export default function IndicatorReport() {
                       min={100}
                       style={{ width: '100%' }}
                       formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={(value) => value!.replace(/,/g, '')}
+                      parser={(value) => value!.replace(/,/g, '') as any}
                     />
                   </Form.Item>
                 </Col>

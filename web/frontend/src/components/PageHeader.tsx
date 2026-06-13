@@ -16,18 +16,15 @@ const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle }) => {
         <h2 className="page-title">{title}</h2>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
-      <span style={{
-        fontFamily: "'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
-        fontWeight: 700,
-        fontSize: 40,
-        letterSpacing: 2,
-        transform: 'skewX(-8deg)',
-        display: 'inline-block',
-      }}>
-        <span style={{ color: '#1a3a6b' }}>Knig</span>
-        <span style={{ color: '#1a3a6b' }}>H</span>
-        <span style={{ color: '#1a3a6b' }}>ts</span>
-      </span>
+      <img
+        src="/knigHts_logo.png"
+        alt="KnigHts"
+        style={{
+          height: 40,
+          display: 'inline-block',
+          verticalAlign: 'middle',
+        }}
+      />
     </div>
   )
 }

@@ -173,18 +173,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 }}
               />
             </div>
-            <span style={{
-              fontFamily: "'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif",
-              fontWeight: 700,
-              fontSize: 18,
-              letterSpacing: 1,
-              transform: 'skewX(-10deg)',
-              display: 'inline-block',
-            }}>
-              <span style={{ color: '#fff' }}>Knig</span>
-              <span style={{ color: '#E53935' }}>H</span>
-              <span style={{ color: '#fff' }}>ts</span>
-            </span>
+            <img
+              src="/knigHts_logo_small.png"
+              alt="KnigHts"
+              style={{
+                height: 18,
+                display: 'inline-block',
+                verticalAlign: 'middle',
+                filter: 'brightness(0) invert(1)',
+              }}
+            />
           </div>
 
           <div className="header-actions">

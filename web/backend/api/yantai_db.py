@@ -799,19 +799,6 @@ async def get_rebar_specs(
     return {'success': True, 'specs': specs}
 
 
-@rebar_router.get("/specs")
-async def get_rebar_specs(
-    material: str = Query(None, description="品名筛选"),
-    supabase: SupabaseService = Depends(get_supabase)
-):
-    """获取所有规格"""
-    _rebar_logger.info(f"[get_rebar_specs] 查询 | material={material}")
-    stats = supabase.get_rebar_stats()
-    specs = [{'spec': k, 'count': v} for k, v in stats.get('specs', {}).items()]
-    _rebar_logger.info(f"[get_rebar_specs] 完成 | count={len(specs)}")
-    return {'success': True, 'specs': specs}
-
-
 @rebar_router.get("/dates")
 async def get_rebar_dates(
     start_date: str = Query(None),
@@ -933,3 +920,232 @@ async def search_rebar_prices(
     ]
     _rebar_logger.info(f"[search_rebar_prices] 完成 | found={len(filtered)}")
     return {'success': True, 'count': len(filtered), 'prices': filtered}
+
+
+@rebar_router.get("/report/summary")
+async def get_rebar_report_summary(
+    start_date: str = Query(None, description="开始日期 YYYY-MM-DD"),
+    end_date: str = Query(None, description="结束日期 YYYY-MM-DD"),
+    material_type: str = Query(None, description="品名筛选")
+):
+    """
+    获取价格报告摘要数据
+
+    - start_date: 开始日期（默认最近30天）
+    - end_date: 结束日期（默认今天）
+    - material_type: 品名筛选
+    """
+    _rebar_logger.info(f"[get_rebar_report_summary] 查询 | start={start_date} | end={end_date} | type={material_type}")
+
+    from datetime import datetime, timedelta
+
+    # 默认日期范围：最近30天
+    if not end_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+    if not start_date:
+        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    # 构建查询
+    sql = '''SELECT material_name, spec, brand, price FROM rebar_prices WHERE date BETWEEN ? AND ?'''
+    params = [start_date, end_date]
+
+    if material_type:
+        sql += ' AND material_name = ?'
+        params.append(material_type)
+
+    c.execute(sql, params)
+    rows = c.fetchall()
+    conn.close()
+
+    if not rows:
+        _rebar_logger.warning(f"[get_rebar_report_summary] 无数据 | start={start_date} | end={end_date}")
+        return {'success': False, 'error': '指定日期范围内暂无数据'}
+
+    # 转换为列表
+    prices = [{'material_name': r['material_name'], 'spec': r['spec'], 'brand': r['brand'], 'price': r['price']} for r in rows]
+    price_values = [p['price'] for p in prices if p['price'] > 0]
+
+    if not price_values:
+        return {'success': False, 'error': '数据中无有效价格'}
+
+    # 计算统计
+    avg_price = sum(price_values) / len(price_values)
+    min_price = min(price_values)
+    max_price = max(price_values)
+    variance = sum((p - avg_price) ** 2 for p in price_values) / len(price_values)
+    std_deviation = variance ** 0.5
+
+    # 按品名分组
+    material_stats: Dict[str, Dict] = {}
+    for p in prices:
+        name = p['material_name']
+        if name not in material_stats:
+            material_stats[name] = {'count': 0, 'prices': []}
+        material_stats[name]['count'] += 1
+        if p['price'] > 0:
+            material_stats[name]['prices'].append(p['price'])
+
+    material_summary = []
+    for name, info in material_stats.items():
+        if info['prices']:
+            material_summary.append({
+                'name': name,
+                'count': info['count'],
+                'avg_price': round(sum(info['prices']) / len(info['prices'])),
+                'min_price': min(info['prices']),
+                'max_price': max(info['prices'])
+            })
+    material_summary.sort(key=lambda x: x['count'], reverse=True)
+
+    # 按品牌分组
+    brand_stats: Dict[str, Dict] = {}
+    for p in prices:
+        brand = p['brand']
+        if brand not in brand_stats:
+            brand_stats[brand] = {'count': 0, 'prices': []}
+        brand_stats[brand]['count'] += 1
+        if p['price'] > 0:
+            brand_stats[brand]['prices'].append(p['price'])
+
+    brand_summary = []
+    for name, info in brand_stats.items():
+        if info['prices']:
+            brand_summary.append({
+                'name': name,
+                'count': info['count'],
+                'avg_price': round(sum(info['prices']) / len(info['prices'])),
+                'min_price': min(info['prices']),
+                'max_price': max(info['prices'])
+            })
+    brand_summary.sort(key=lambda x: x['avg_price'], reverse=True)
+
+    # 按规格分组
+    spec_stats: Dict[str, Dict] = {}
+    for p in prices:
+        spec = p['spec']
+        if spec not in spec_stats:
+            spec_stats[spec] = {'count': 0, 'prices': []}
+        spec_stats[spec]['count'] += 1
+        if p['price'] > 0:
+            spec_stats[spec]['prices'].append(p['price'])
+
+    spec_summary = []
+    for name, info in spec_stats.items():
+        if info['prices']:
+            spec_summary.append({
+                'spec': name,
+                'count': info['count'],
+                'avg_price': round(sum(info['prices']) / len(info['prices'])),
+                'min_price': min(info['prices']),
+                'max_price': max(info['prices'])
+            })
+    # 按规格数字排序
+    spec_summary.sort(key=lambda x: int(''.join(filter(str.isdigit, x['spec'])) or '0'))
+
+    # 获取日期列表
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('SELECT DISTINCT date FROM rebar_prices WHERE date BETWEEN ? AND ? ORDER BY date', [start_date, end_date])
+    dates = [row['date'] for row in c.fetchall()]
+    conn.close()
+
+    _rebar_logger.info(f"[get_rebar_report_summary] 完成 | prices={len(prices)} | brands={len(brand_summary)} | specs={len(spec_summary)}")
+
+    return {
+        'success': True,
+        'data': {
+            'total_count': len(prices),
+            'dates_count': len(dates),
+            'date_range': {'start': start_date, 'end': end_date},
+            'price_stats': {
+                'avg_price': round(avg_price),
+                'min_price': min_price,
+                'max_price': max_price,
+                'std_deviation': round(std_deviation),
+                'price_range': max_price - min_price
+            },
+            'material_summary': material_summary,
+            'brand_summary': brand_summary[:10],
+            'spec_summary': spec_summary
+        }
+    }
+
+
+@rebar_router.get("/report/influencing-factors")
+async def get_rebar_influencing_factors():
+    """
+    获取价格影响因素数据
+
+    基于最近7天和30天的价格变化分析市场趋势
+    """
+    from datetime import datetime, timedelta
+
+    _rebar_logger.info("[get_rebar_influencing_factors] 获取影响因素分析")
+
+    # 获取最近30天的数据
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    # 最近7天均价
+    c.execute('SELECT price FROM rebar_prices WHERE date >= ? AND price > 0', [week_ago])
+    prices_7d = [r['price'] for r in c.fetchall()]
+    avg_7d = round(sum(prices_7d) / len(prices_7d)) if prices_7d else 0
+
+    # 最近30天均价
+    c.execute('SELECT price FROM rebar_prices WHERE date >= ? AND price > 0', [start_date])
+    prices_30d = [r['price'] for r in c.fetchall()]
+    avg_30d = round(sum(prices_30d) / len(prices_30d)) if prices_30d else 0
+
+    # 计算波动性
+    if prices_30d:
+        avg = sum(prices_30d) / len(prices_30d)
+        variance = sum((p - avg) ** 2 for p in prices_30d) / len(prices_30d)
+        volatility = round((variance ** 0.5) / avg * 100, 2)
+    else:
+        volatility = 0
+
+    conn.close()
+
+    # 判断趋势
+    if avg_7d > avg_30d:
+        trend = '上涨'
+        change_rate = round((avg_7d - avg_30d) / avg_30d * 100, 2) if avg_30d > 0 else 0
+    elif avg_7d < avg_30d:
+        trend = '下跌'
+        change_rate = round((avg_7d - avg_30d) / avg_30d * 100, 2) if avg_30d > 0 else 0
+    else:
+        trend = '平稳'
+        change_rate = 0
+
+    # 成本支撑评估
+    cost_support = '较强' if volatility < 3 else '一般' if volatility < 6 else '较弱'
+
+    _rebar_logger.info(f"[get_rebar_influencing_factors] 完成 | trend={trend} | change={change_rate}% | volatility={volatility}%")
+
+    return {
+        'success': True,
+        'data': {
+            'period_comparison': {
+                'avg_7d': avg_7d,
+                'avg_30d': avg_30d,
+                'change_rate': change_rate,
+                'trend': trend
+            },
+            'supply_analysis': {
+                'market_volatility': volatility,
+                'cost_support': cost_support,
+                'assessment': f'近期市场价格{trend}，成本支撑{cost_support}'
+            },
+            'demand_estimate': {
+                'active_days': len(set([week_ago, end_date])),
+                'data_freshness': '正常' if prices_7d else '偏低'
+            }
+        }
+    }

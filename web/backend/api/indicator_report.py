@@ -2,7 +2,7 @@
 指标库 - 分析报告 API
 基于历史指标数据生成项目分析报告
 按照《指标库编写流程》规范实现
-数据存储在 Supabase indicator_projects 表
+数据存储在本地SQLite indicator_projects 表
 """
 
 import logging
@@ -13,15 +13,15 @@ from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Depends
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
-from services.supabase_service import SupabaseService
+from services.local_indicator_service import LocalIndicatorService
 from services.indicator_service import IndicatorService, CORRECTION_FACTORS
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["指标库分析报告"])
 
 
-def get_supabase():
-    return SupabaseService()
+def get_indicator_service():
+    return LocalIndicatorService()
 
 
 # ============================================================
@@ -41,7 +41,7 @@ class GenerateReportRequest(BaseModel):
 @router.post("/generate")
 async def generate_report(
     request: GenerateReportRequest,
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """
     生成分析报告
@@ -52,8 +52,8 @@ async def generate_report(
     logger.info(f"[generate_report] 生成分析报告 | 项目: {request.project.get('name')}, 业态: {request.project.get('category')}")
 
     try:
-        # 从 Supabase 获取指标库
-        database_flat = supabase.get_indicator_projects(limit=500)
+        # 从本地数据库获取指标库
+        database_flat = indicator_service.get_indicator_projects(limit=500)
         database = [IndicatorService._to_legacy_format(p) for p in database_flat]
 
         # 查找匹配的指标
@@ -109,7 +109,7 @@ async def match_indicators(
     location: str = Query(..., description="项目地区"),
     structure: str = Query(..., description="结构形式"),
     height: float = Query(..., description="檐高(m)"),
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """快速匹配指标"""
     logger.info(f"[match_indicators] 匹配指标 | 业态={category}, 地区={location}, 层高={height}")
@@ -121,7 +121,7 @@ async def match_indicators(
         "height": height
     }
 
-    database_flat = supabase.get_indicator_projects(limit=500, category=category)
+    database_flat = indicator_service.get_indicator_projects(limit=500, category=category)
     database = [IndicatorService._to_legacy_format(p) for p in database_flat]
     matched = IndicatorService.find_matched_indicators(target, database)
 
@@ -156,11 +156,11 @@ async def get_correction_factors():
 # ============================================================
 
 @router.get("/database/summary")
-async def get_database_summary(supabase: SupabaseService = Depends(get_supabase)):
+async def get_database_summary(indicator_service: LocalIndicatorService = Depends(get_indicator_service)):
     """获取指标库汇总信息"""
     logger.info("[get_database_summary] 获取指标库汇总")
 
-    database = supabase.get_indicator_projects(limit=1000)
+    database = indicator_service.get_indicator_projects(limit=1000)
 
     # 按业态分组统计
     by_category = {}
@@ -215,12 +215,12 @@ async def list_database_projects(
     category: Optional[str] = Query(None, description="按业态筛选"),
     location: Optional[str] = Query(None, description="按地区筛选"),
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """获取指标库项目列表"""
     logger.info(f"[list_database_projects] 查询项目 | category={category}, location={location}")
 
-    projects = supabase.get_indicator_projects(category=category, location=location, limit=limit)
+    projects = indicator_service.get_indicator_projects(category=category, location=location, limit=limit)
 
     return {
         "total": len(projects),
@@ -228,15 +228,132 @@ async def list_database_projects(
     }
 
 
+@router.get("/database/init-sample")
+async def init_sample_data(indicator_service: LocalIndicatorService = Depends(get_indicator_service)):
+    """初始化示例数据（仅当数据库为空时）"""
+    logger.info("[init_sample_data] 初始化示例数据")
+
+    # 检查是否已有数据
+    existing = indicator_service.get_indicator_projects(limit=1)
+    if existing:
+        logger.info("[init_sample_data] 数据库已有数据，跳过初始化")
+        return {"success": True, "message": "数据库已有数据", "count": len(existing)}
+
+    # 示例数据
+    sample_projects = [
+        {
+            "name": "烟台市住宅项目A区",
+            "category": "住宅",
+            "location": "山东",
+            "structure": "剪力墙结构",
+            "floor_above": 18,
+            "floor_below": 1,
+            "area_total": 25000,
+            "height": 54,
+            "unit_cost": 2350,
+            "unit_structure": 1200,
+            "unit_installation": 450,
+            "unit_decoration": 400,
+            "unit_measure": 300,
+            "steel": 48,
+            "concrete": 0.42,
+            "source": "sample"
+        },
+        {
+            "name": "烟台商业综合体项目",
+            "category": "商业",
+            "location": "山东",
+            "structure": "框架结构",
+            "floor_above": 12,
+            "floor_below": 2,
+            "area_total": 45000,
+            "height": 48,
+            "unit_cost": 3200,
+            "unit_structure": 1800,
+            "unit_installation": 600,
+            "unit_decoration": 500,
+            "unit_measure": 300,
+            "steel": 55,
+            "concrete": 0.48,
+            "source": "sample"
+        },
+        {
+            "name": "烟台市办公写字楼",
+            "category": "办公",
+            "location": "山东",
+            "structure": "框架核心筒结构",
+            "floor_above": 25,
+            "floor_below": 3,
+            "area_total": 60000,
+            "height": 100,
+            "unit_cost": 3800,
+            "unit_structure": 2100,
+            "unit_installation": 700,
+            "unit_decoration": 600,
+            "unit_measure": 400,
+            "steel": 65,
+            "concrete": 0.52,
+            "source": "sample"
+        },
+        {
+            "name": "烟台住宅项目B区",
+            "category": "住宅",
+            "location": "山东",
+            "structure": "框架结构",
+            "floor_above": 11,
+            "floor_below": 0,
+            "area_total": 18000,
+            "height": 33,
+            "unit_cost": 2100,
+            "unit_structure": 1050,
+            "unit_installation": 420,
+            "unit_decoration": 380,
+            "unit_measure": 250,
+            "steel": 42,
+            "concrete": 0.38,
+            "source": "sample"
+        },
+        {
+            "name": "烟台工业区厂房项目",
+            "category": "工业",
+            "location": "山东",
+            "structure": "钢结构",
+            "floor_above": 3,
+            "floor_below": 0,
+            "area_total": 12000,
+            "height": 12,
+            "unit_cost": 1800,
+            "unit_structure": 900,
+            "unit_installation": 350,
+            "unit_decoration": 200,
+            "unit_measure": 350,
+            "steel": 35,
+            "concrete": 0.25,
+            "source": "sample"
+        }
+    ]
+
+    result = indicator_service.import_indicator_projects(sample_projects)
+
+    logger.info(f"[init_sample_data] 初始化完成 | 成功={result['imported']}, 总数={result['total']}")
+
+    return {
+        "success": True,
+        "imported": result["imported"],
+        "total": result["total"],
+        "message": "示例数据初始化完成"
+    }
+
+
 @router.get("/database/{project_id}")
 async def get_database_project(
     project_id: str,
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """获取指标库单个项目"""
     logger.info(f"[get_database_project] 获取项目 | id={project_id}")
 
-    project = supabase.get_indicator_project(project_id)
+    project = indicator_service.get_indicator_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
@@ -246,12 +363,12 @@ async def get_database_project(
 @router.post("/database/")
 async def create_database_project(
     project: Dict,
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """创建指标库项目"""
     logger.info(f"[create_database_project] 创建项目 | name={project.get('name')}")
 
-    result = supabase.create_indicator_project(project)
+    result = indicator_service.create_indicator_project(project)
     if result:
         logger.info(f"[create_database_project] 创建成功 | id={result.get('id')}")
         return result
@@ -263,14 +380,14 @@ async def create_database_project(
 async def update_database_project(
     project_id: str,
     project: Dict,
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """更新指标库项目"""
     logger.info(f"[update_database_project] 更新项目 | id={project_id}")
 
-    success = supabase.update_indicator_project(project_id, project)
+    success = indicator_service.update_indicator_project(project_id, project)
     if success:
-        updated = supabase.get_indicator_project(project_id)
+        updated = indicator_service.get_indicator_project(project_id)
         logger.info(f"[update_database_project] 更新成功 | id={project_id}")
         return updated
     else:
@@ -280,12 +397,12 @@ async def update_database_project(
 @router.delete("/database/{project_id}")
 async def delete_database_project(
     project_id: str,
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """删除指标库项目"""
     logger.info(f"[delete_database_project] 删除项目 | id={project_id}")
 
-    success = supabase.delete_indicator_project(project_id)
+    success = indicator_service.delete_indicator_project(project_id)
     if success:
         logger.info(f"[delete_database_project] 删除成功 | id={project_id}")
     else:
@@ -298,7 +415,7 @@ async def delete_database_project(
 async def check_quality(
     project: Dict,
     indicators: Dict,
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """质量审核"""
     logger.info(f"[check_quality] 质量审核 | 项目: {project.get('name')}")
@@ -355,7 +472,7 @@ async def get_reference_ranges():
 @router.post("/import")
 async def import_indicator(
     file: UploadFile = File(...),
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """
     导入指标数据
@@ -394,7 +511,7 @@ async def import_indicator(
             return {"success": False, "message": "Excel文件中没有找到有效数据"}
 
         # 批量导入
-        result = supabase.import_indicator_projects(projects)
+        result = indicator_service.import_indicator_projects(projects)
 
         logger.info(f"[import_indicator] 导入完成 | 成功={result['imported']}, 总数={result['total']}")
 
@@ -417,7 +534,7 @@ async def import_indicator(
 async def export_database(
     format: str = Query("json", description="导出格式: json/excel"),
     category: Optional[str] = Query(None, description="按业态筛选"),
-    supabase: SupabaseService = Depends(get_supabase)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """
     导出指标库数据
@@ -426,7 +543,7 @@ async def export_database(
     """
     logger.info(f"[export_database] 导出指标库 | format={format}, category={category}")
 
-    projects = supabase.get_indicator_projects(category=category, limit=1000)
+    projects = indicator_service.get_indicator_projects(category=category, limit=1000)
 
     if format == "json":
         return {

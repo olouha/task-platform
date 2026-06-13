@@ -12,10 +12,12 @@ import logging
 
 from services.ai_service import AIService
 from services.rag_service import RAGService
+from services.local_qa_service import LocalQAService
 
 router = APIRouter(prefix="/ai", tags=["AI对话"])
 ai_service = AIService()
 rag_service = RAGService()
+local_qa = LocalQAService()  # 本地问答服务
 
 logger = logging.getLogger(__name__)
 
@@ -63,35 +65,46 @@ async def chat_completions(
     user_id: Optional[str] = Header(None)
 ):
     """
-    普通 AI 对话（不带知识库检索）
+    普通 AI 对话
 
-    请求体:
-    {
-        "messages": [
-            {"role": "user", "content": "你好"},
-            {"role": "assistant", "content": "你好，有什么可以帮您？"}
-        ]
-    }
+    如果未配置外部AI服务，将使用本地知识库问答
     """
     try:
-        # 构建消息列表
-        messages = [msg.dict() for msg in request.messages]
+        # 检查是否配置了AI服务
+        import os
+        has_ai = bool(os.environ.get("AI_API_URL") and os.environ.get("AI_API_KEY"))
 
-        # 调用 AI 服务
-        result = await ai_service.chat(
-            messages=messages,
-            temperature=request.temperature or 0.7,
-            max_tokens=request.max_tokens or 2000
-        )
+        if has_ai:
+            # 使用外部AI服务
+            messages = [msg.dict() for msg in request.messages]
+            result = await ai_service.chat(
+                messages=messages,
+                temperature=request.temperature or 0.7,
+                max_tokens=request.max_tokens or 2000
+            )
 
-        # 保存对话记录（如果已登录）
-        if user_id:
-            _save_message(user_id, messages, result)
+            # 保存对话记录（如果已登录）
+            if user_id:
+                _save_message(user_id, messages, result)
 
-        return result
+            return result
+        else:
+            # 使用本地问答服务
+            logger.info("[chat_completions] 使用本地问答服务")
+            result = await local_qa.chat(
+                messages=[msg.dict() for msg in request.messages],
+                temperature=request.temperature or 0.7,
+                max_tokens=request.max_tokens or 2000
+            )
+
+            # 保存对话记录
+            if user_id:
+                _save_message(user_id, [msg.dict() for msg in request.messages], result)
+
+            return result
 
     except Exception as e:
-        logger.error(f"AI 对话失败: {e}")
+        logger.error(f"AI 对话失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -103,8 +116,36 @@ async def chat_completions_stream(
     """
     流式 AI 对话（SSE）
 
-    请求体同 /chat/completions
+    如果未配置外部AI服务，将使用本地问答（非流式返回）
     """
+    import os
+    has_ai = bool(os.environ.get("AI_API_URL") and os.environ.get("AI_API_KEY"))
+
+    if not has_ai:
+        # 本地模式：一次性返回结果
+        result = await local_qa.chat(
+            messages=[msg.dict() for msg in request.messages],
+            temperature=request.temperature or 0.7,
+            max_tokens=request.max_tokens or 2000
+        )
+
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        async def generate_local():
+            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate_local(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Request-Id": user_id or ""
+            }
+        )
+
+    # 外部AI模式：流式返回
     async def generate():
         try:
             messages = [msg.dict() for msg in request.messages]
@@ -142,9 +183,28 @@ async def chat_with_rag(
     """
     AI 对话（带 RAG 知识库检索增强）
 
-    自动从知识库检索相关内容，注入到 system prompt
+    如果未配置外部AI服务，将使用本地知识库问答
     """
     try:
+        import os
+        has_ai = bool(os.environ.get("AI_API_URL") and os.environ.get("AI_API_KEY"))
+
+        if not has_ai:
+            # 本地模式：使用本地问答服务
+            logger.info("[chat_with_rag] 使用本地问答服务")
+            result = await local_qa.chat(
+                messages=[msg.dict() for msg in request.messages],
+                temperature=request.temperature or 0.7,
+                max_tokens=request.max_tokens or 2000
+            )
+
+            # 保存对话记录
+            if user_id:
+                _save_message(user_id, request.messages, result)
+
+            return result
+
+        # 外部AI模式：使用 RAG 检索增强
         # 1. 获取用户问题
         user_query = ""
         for msg in reversed(request.messages):
@@ -197,7 +257,7 @@ async def chat_with_rag(
         return result
 
     except Exception as e:
-        logger.error(f"RAG 对话失败: {e}")
+        logger.error(f"RAG 对话失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -208,7 +268,37 @@ async def chat_with_rag_stream(
 ):
     """
     流式 RAG 对话
+
+    如果未配置外部AI服务，将使用本地问答服务（非流式返回）
     """
+    import os
+    has_ai = bool(os.environ.get("AI_API_URL") and os.environ.get("AI_API_KEY"))
+
+    if not has_ai:
+        # 本地模式：一次性返回结果
+        result = await local_qa.chat(
+            messages=[msg.dict() for msg in request.messages],
+            temperature=request.temperature or 0.7,
+            max_tokens=request.max_tokens or 2000
+        )
+
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        async def generate_local():
+            yield f"data: {json.dumps({'choices': [{'delta': {'content': content}}]})}\n\n"
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate_local(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Request-Id": user_id or ""
+            }
+        )
+
+    # 外部AI模式：流式返回
     user_query = ""
     for msg in reversed(request.messages):
         if msg.role == "user":
@@ -513,26 +603,45 @@ async def chat_with_tools(
     """
     支持工具调用的AI对话
 
-    AI助手可以调用以下工具：
+    如果未配置外部AI服务，将使用本地问答服务（支持工具调用）
+
+    可用工具：
     - query_price_by_date: 按日期查询价格
     - query_price_range: 查询日期范围价格
     - query_price_trend: 查询价格趋势
     - search_materials: 搜索材料
     - get_latest_prices: 获取最新价格
     - compare_prices: 价格对比
-
-    示例：
-    - "查2024年5月15日的螺纹钢价格"
-    - "最近一周的价格趋势"
-    - "昨天HRB400E Φ16多少钱"
     """
     try:
         logger.info(f"[chat_with_tools] 收到请求 | messages={len(request.messages)}")
 
-        # 获取工具定义
+        import os
+        has_ai = bool(os.environ.get("AI_API_URL") and os.environ.get("AI_API_KEY"))
+
+        if not has_ai:
+            # 本地模式：使用本地问答服务
+            logger.info("[chat_with_tools] 使用本地问答服务")
+            result = await local_qa.chat(
+                messages=[msg.dict() for msg in request.messages],
+                temperature=request.temperature or 0.7,
+                max_tokens=request.max_tokens or 2000
+            )
+
+            # 保存对话记录
+            if user_id:
+                _save_message(user_id, request.messages, result)
+
+            logger.info(f"[chat_with_tools] 返回结果")
+            return result
+
+        # 外部AI模式：使用工具调用
+        from services.tool_executor import ToolExecutor
+        from services.ai_tools import get_tools_definitions
+
+        tool_executor = ToolExecutor()
         tools = get_tools_definitions()
 
-        # 调用带工具的对话
         result = await ai_service.chat_with_tools(
             messages=[msg.dict() for msg in request.messages],
             tools=tools,

@@ -802,7 +802,12 @@ export const indicatorReportApi = {
     structure: string;
     height: number;
   }) => {
-    const query = new URLSearchParams(params).toString();
+    const query = new URLSearchParams({
+      category: params.category,
+      location: params.location,
+      structure: params.structure,
+      height: params.height.toString()
+    }).toString();
     const response = await fetch(`${config.apiUrl}/indicator-report/match?${query}`);
     return response.json();
   },
@@ -881,6 +886,21 @@ export const yantaiRebarApi = {
     const params = new URLSearchParams({ keyword, limit: String(limit) });
     if (date) params.append('date', date);
     const response = await fetch(`${config.apiUrl}/yantai-rebar/search?${params}`);
+    return response.json();
+  },
+  // 报告摘要API
+  getReportSummary: async (start_date?: string, end_date?: string, material_type?: string) => {
+    const params = new URLSearchParams();
+    if (start_date) params.append('start_date', start_date);
+    if (end_date) params.append('end_date', end_date);
+    if (material_type) params.append('material_type', material_type);
+    const url = `${config.apiUrl}/yantai-rebar/report/summary${params.toString() ? '?' + params : ''}`;
+    const response = await fetch(url);
+    return response.json();
+  },
+  // 价格影响因素API
+  getInfluencingFactors: async () => {
+    const response = await fetch(`${config.apiUrl}/yantai-rebar/report/influencing-factors`);
     return response.json();
   },
 };

@@ -1,4 +1,4 @@
-import { Row, Col, Card, Statistic, Table, Tag, Space, Alert, Button, Select, Tooltip } from 'antd'
+import { Row, Col, Card, Statistic, Table, Tag, Space, Alert, Button, Select, Tooltip, Divider, Tabs } from 'antd'
 import {
   ProjectOutlined,
   DollarOutlined,
@@ -9,12 +9,16 @@ import {
   BarChartOutlined,
   RiseOutlined,
   FallOutlined,
+  AreaChartOutlined,
+  BuildOutlined,
+  CalendarOutlined
 } from '@ant-design/icons'
 import { Column } from '@ant-design/charts'
 import { useEffect, useState } from 'react'
-import { statsApi, config } from '../services/api'
+import { statsApi, config, yantaiRebarApi } from '../services/api'
 import * as XLSX from 'xlsx'
 import PageHeader from '../components/PageHeader'
+import { AreaChart, Area, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, BarChart, Bar, ResponsiveContainer, Line } from 'recharts'
 
 // 科技数据卡片组件 - 轻奢高科技风格
 const TechStatCard = ({
@@ -83,6 +87,15 @@ export default function Dashboard() {
   const [comparisonDate, setComparisonDate] = useState<string | null>(null)
   const [dataError, setDataError] = useState<string | null>(null)
 
+  // 新增：价格趋势数据
+  const [trendData, setTrendData] = useState<any[]>([])
+  const [trendLoading, setTrendLoading] = useState(false)
+  const [trendDays, setTrendDays] = useState(30)
+
+  // 新增：造价参考价数据
+  const [costData, setCostData] = useState<any[]>([])
+  const [costLoading, setCostLoading] = useState(false)
+
   // 初始化：获取统计数据和可用日期
   useEffect(() => {
     const init = async () => {
@@ -107,6 +120,12 @@ export default function Dashboard() {
             }
           }
         }
+
+        // 获取价格趋势数据
+        fetchTrendData(trendDays)
+
+        // 获取造价参考价数据
+        fetchCostData()
       } catch (error) {
         console.error('初始化失败:', error)
         setDataError('加载数据失败，请检查后端服务是否运行')
@@ -114,6 +133,86 @@ export default function Dashboard() {
     }
     init()
   }, [])
+
+  // 获取价格趋势数据
+  const fetchTrendData = async (days: number = 30) => {
+    setTrendLoading(true)
+    try {
+      const response = await yantaiRebarApi.getTrend(undefined, undefined, days)
+      if (response.success && response.data) {
+        setTrendData(response.data)
+      }
+    } catch (error) {
+      console.error('获取趋势数据失败:', error)
+    } finally {
+      setTrendLoading(false)
+    }
+  }
+
+  // 获取造价参考价数据
+  const fetchCostData = async () => {
+    setCostLoading(true)
+    try {
+      // 先获取可用时期列表
+      const response = await fetch(`${config.apiUrl}/api/cost-history/periods`).then(r => r.json())
+      if (response && response.length > 0) {
+        // 获取最新时期 - 按时间排序取最后一个
+        const sortedPeriods = response.sort((a: any, b: any) => {
+          const yearA = parseInt(a.year)
+          const yearB = parseInt(b.year)
+          if (yearA !== yearB) return yearA - yearB
+          return a.quarter.localeCompare(b.quarter)
+        })
+        const latestPeriod = sortedPeriods[sortedPeriods.length - 1]
+
+        // 获取混凝土数据
+        const concreteResponse = await fetch(
+          `${config.apiUrl}/api/cost-history/concrete/by-period?year=${latestPeriod.year}&quarter=${encodeURIComponent(latestPeriod.quarter)}`
+        ).then(r => r.json()).catch(() => null)
+
+        // 获取钢筋数据
+        const steelResponse = await fetch(
+          `${config.apiUrl}/api/cost-history/steel/by-period?year=${latestPeriod.year}&quarter=${encodeURIComponent(latestPeriod.quarter)}`
+        ).then(r => r.json()).catch(() => null)
+
+        // 合并数据
+        const items: any[] = []
+        if (concreteResponse && concreteResponse.items) {
+          concreteResponse.items.forEach((item: any) => {
+            items.push({
+              category: '混凝土',
+              name: item.grade,
+              spec: item.spec || '-',
+              pump_price: item.pump_price,
+              non_pump_price: item.non_pump_price,
+              unit: 'm³',
+              period: `${latestPeriod.year}年${latestPeriod.quarter.replace(/^\d{4}年/, '')}`
+            })
+          })
+        }
+        if (steelResponse && steelResponse.items) {
+          steelResponse.items.forEach((item: any) => {
+            items.push({
+              category: '钢筋',
+              name: item.name,
+              spec: item.spec || '-',
+              unit_price: item.price,
+              unit: '吨',
+              period: `${latestPeriod.year}年${latestPeriod.quarter.replace(/^\d{4}年/, '')}`
+            })
+          })
+        }
+
+        if (items.length > 0) {
+          setCostData(items)
+        }
+      }
+    } catch (error) {
+      console.error('获取造价数据失败:', error)
+    } finally {
+      setCostLoading(false)
+    }
+  }
 
   // 选择日期变化时获取价格数据
   useEffect(() => {
@@ -221,13 +320,13 @@ export default function Dashboard() {
     return acc
   }, {} as Record<string, { total: number; count: number; avgPrice: number }>)
 
-  const trendData = Object.entries(priceByType).map(([type, data]) => ({
+  const priceByTypeData = Object.entries(priceByType).map(([type, data]) => ({
     type,
     avgPrice: Math.round(data.avgPrice)
   }))
 
   const trendConfig = {
-    data: trendData,
+    data: priceByTypeData,
     xField: 'type',
     yField: 'avgPrice',
     label: { position: 'top' as const },
@@ -506,6 +605,155 @@ export default function Dashboard() {
               message="暂无钢筋价格数据"
               description="请确保后端服务已启动并已抓取价格数据"
               type="warning"
+              showIcon
+            />
+          )}
+        </div>
+      </div>
+
+      {/* 价格趋势图表区块 */}
+      <div className="data-section" style={{ marginTop: 24 }}>
+        <div className="data-section-header">
+          <div className="data-section-title">
+            <AreaChartOutlined />
+            <span>价格趋势分析</span>
+          </div>
+          <Space>
+            <Select
+              value={trendDays}
+              onChange={(v) => {
+                setTrendDays(v)
+                fetchTrendData(v)
+              }}
+              style={{ width: 120 }}
+            >
+              <Select.Option value={7}>最近7天</Select.Option>
+              <Select.Option value={30}>最近30天</Select.Option>
+              <Select.Option value={90}>最近90天</Select.Option>
+              <Select.Option value={180}>最近半年</Select.Option>
+              <Select.Option value={365}>最近一年</Select.Option>
+            </Select>
+          </Space>
+        </div>
+        <div className="data-section-body">
+          {trendLoading ? (
+            <div style={{ textAlign: 'center', padding: 60 }}>加载趋势数据中...</div>
+          ) : trendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={trendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="date" />
+                <YAxis />
+                <RechartsTooltip />
+                <Legend />
+                <Area type="monotone" dataKey="avg_price" stroke="#4A86C8" strokeWidth={2} fill="#4A86C8" fillOpacity={0.2} name="平均价" />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <Alert
+              message="暂无趋势数据"
+              description="请确保后端服务已启动并有历史数据"
+              type="info"
+              showIcon
+            />
+          )}
+        </div>
+      </div>
+
+      {/* 造价参考价区块 */}
+      <div className="data-section" style={{ marginTop: 24 }}>
+        <div className="data-section-header">
+          <div className="data-section-title">
+            <BuildOutlined />
+            <span>造价参考价概览</span>
+          </div>
+        </div>
+        <div className="data-section-body">
+          {costLoading ? (
+            <div style={{ textAlign: 'center', padding: 60 }}>加载造价数据中...</div>
+          ) : costData.length > 0 ? (
+            <>
+              {/* 按分类统计 */}
+              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                {(() => {
+                  const categoryStats = costData.reduce((acc: Record<string, { count: number; prices: number[] }>, item: any) => {
+                    const cat = item.category || '其他'
+                    if (!acc[cat]) acc[cat] = { count: 0, prices: [] }
+                    acc[cat].count++
+                    const price = item.unit_price || item.pump_price || item.non_pump_price || 0
+                    if (price > 0) acc[cat].prices.push(price)
+                    return acc
+                  }, {} as Record<string, { count: number; prices: number[] }>)
+
+                  return Object.entries(categoryStats).map(([cat, data]) => {
+                    const avgPrice = data.prices.length > 0
+                      ? Math.round(data.prices.reduce((a: number, b: number) => a + b, 0) / data.prices.length)
+                      : 0
+                    return (
+                      <Col span={6} key={cat}>
+                        <div className="tech-card" style={{ padding: 16 }}>
+                          <div className="card-accent-line" />
+                          <div className="tech-card-title">{cat}</div>
+                          <div className="tech-card-value" style={{
+                            fontSize: 24,
+                            background: 'linear-gradient(135deg, #4A86C8 0%, #1a4080 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent'
+                          }}>
+                            {data.count}
+                          </div>
+                          <div className="tech-card-sub">
+                            均价: ¥{avgPrice}
+                          </div>
+                        </div>
+                      </Col>
+                    )
+                  })
+                })()}
+              </Row>
+
+              {/* 造价数据表格 */}
+              <Table
+                dataSource={costData.map((d, i) => ({ ...d, key: i }))}
+                rowKey="key"
+                pagination={{ pageSize: 10, showSizeChanger: true, showTotal: (total: number) => `共 ${total} 条` }}
+                size="small"
+                scroll={{ x: 900 }}
+                columns={[
+                  { title: '分类', dataIndex: 'category', width: 100 },
+                  { title: '名称', dataIndex: 'name', width: 150 },
+                  { title: '规格', dataIndex: 'spec', width: 100 },
+                  {
+                    title: '单价',
+                    dataIndex: 'unit_price',
+                    width: 100,
+                    render: (v: number) => v ? `¥${v}` : '-',
+                    align: 'right'
+                  },
+                  {
+                    title: '泵送价',
+                    dataIndex: 'pump_price',
+                    width: 100,
+                    render: (v: number) => v ? `¥${v}` : '-',
+                    align: 'right'
+                  },
+                  {
+                    title: '非泵送价',
+                    dataIndex: 'non_pump_price',
+                    width: 100,
+                    render: (v: number) => v ? `¥${v}` : '-',
+                    align: 'right'
+                  },
+                  { title: '单位', dataIndex: 'unit', width: 60 },
+                  { title: '时期', dataIndex: 'period', width: 120 }
+                ]}
+              />
+            </>
+          ) : (
+            <Alert
+              message="暂无造价参考价数据"
+              description="请确保后端服务已启动并已导入造价数据"
+              type="info"
               showIcon
             />
           )}

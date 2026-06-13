@@ -1,0 +1,152 @@
+"""
+修复版：批量抓取烟台价格数据
+使用更正确的匹配逻辑
+"""
+import asyncio
+import json
+import re
+import sqlite3
+from pathlib import Path
+from playwright.async_api import async_playwright
+
+DATA_DIR = Path('data')
+COOKIE_FILE = DATA_DIR / 'mysteel_cookies.json'
+DB_FILE = DATA_DIR / 'yantai_rebar.db'
+
+
+def save_prices(date_str, rows, fetch_time):
+    """保存价格数据"""
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    inserted = 0
+
+    for row in rows:
+        if len(row) >= 5:
+            name = str(row[0]).strip()
+            spec = str(row[1]).strip()
+
+            # 更宽松的匹配
+            name_match = any(kw in name for kw in ['高线', '螺纹', '盘螺', '圆钢', '线材', '建材'])
+            spec_match = spec.startswith('Φ') or spec.startswith('#') or spec.startswith('HPB') or spec.startswith('HRB')
+
+            if name_match and spec_match:
+                # 提取价格（从第5列开始查找）
+                for cell in row[4:]:
+                    match = re.search(r'\d{4}', str(cell))
+                    if match:
+                        price = int(match.group())
+                        if 3000 < price < 10000:
+                            try:
+                                c.execute('''INSERT INTO rebar_prices
+                                    (date, material_name, spec, material_type, brand, price, region, fetch_time)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                                    (date_str, name, spec, '', '', price, '山东烟台', fetch_time))
+                                if c.rowcount > 0:
+                                    inserted += 1
+                            except:
+                                pass
+                            break
+
+    conn.commit()
+    conn.close()
+    return inserted
+
+
+async def fetch_url(url, date_str, fetch_time):
+    """抓取单个URL"""
+    with open(COOKIE_FILE, 'r', encoding='utf-8') as f:
+        cookies = json.load(f)
+
+    playwright = await async_playwright().start()
+    browser = await playwright.chromium.launch(headless=False)
+    context = await browser.new_context()
+    await context.add_cookies(cookies)
+    page = await context.new_page()
+
+    try:
+        await page.goto(url, wait_until='domcontentloaded', timeout=45000)
+        await asyncio.sleep(5)
+
+        rows = await page.evaluate('''() => {
+            const tables = document.querySelectorAll('table');
+            let results = [];
+            tables.forEach(t => {
+                t.querySelectorAll('tr').forEach(row => {
+                    let cells = Array.from(row.querySelectorAll('td')).map(c => c.textContent.trim());
+                    if (cells.length >= 5) results.push(cells);
+                });
+            });
+            return results;
+        }''')
+
+        inserted = save_prices(date_str, rows, fetch_time)
+
+    finally:
+        await browser.close()
+        await playwright.stop()
+
+    return inserted
+
+
+async def main():
+    # 读取链接
+    links_file = Path('links_2024-07-01_2024-07-31.json')
+
+    if not links_file.exists():
+        print(f"找不到文件: {links_file}")
+        return
+
+    with open(links_file, 'r', encoding='utf-8') as f:
+        links = json.load(f)
+
+    print(f"读取到 {len(links)} 个链接")
+
+    # 按日期去重
+    seen = {}
+    for link in links:
+        date = link['date']
+        seen[date] = link
+
+    unique = list(seen.values())
+    print(f"去重后 {len(unique)} 个日期")
+
+    # 批量抓取
+    success = 0
+    total_new = 0
+
+    for i, link in enumerate(unique):
+        url = link['url']
+        date = link['date']
+        match = re.search(r'/(\d{8})/', url)
+        fetch_time = f"{match.group(1)[6:8]}:00:00" if match else "10:00:00"
+
+        print(f"[{i+1}/{len(unique)}] {date}...", end=' ', flush=True)
+
+        try:
+            inserted = await fetch_url(url, date, fetch_time)
+            if inserted > 0:
+                print(f"+{inserted}条")
+                success += 1
+                total_new += inserted
+            else:
+                print("已有数据")
+        except Exception as e:
+            print(f"错误: {e}")
+
+        await asyncio.sleep(2)
+
+    print(f"\n完成! 成功: {success}/{len(unique)}, 新增: {total_new}条")
+
+    # 数据库状态
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute('SELECT COUNT(*) FROM rebar_prices')
+    total = c.fetchone()[0]
+    c.execute('SELECT COUNT(DISTINCT date) FROM rebar_prices')
+    dates = c.fetchone()[0]
+    conn.close()
+    print(f"数据库: {total}条, {dates}天")
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

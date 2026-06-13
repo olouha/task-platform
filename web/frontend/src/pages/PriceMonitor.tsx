@@ -1,19 +1,20 @@
-import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Select, message, Spin, Alert, Badge, Tooltip, DatePicker, Empty } from 'antd'
-import { SyncOutlined, ReloadOutlined, FilterOutlined, CalendarOutlined, DownloadOutlined, ClockCircleOutlined, RiseOutlined, FallOutlined, LineChartOutlined, DatabaseOutlined, DollarOutlined, SafetyCertificateOutlined, ClearOutlined } from '@ant-design/icons'
+import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Select, message, Spin, Alert, Badge, Tooltip, DatePicker, Empty, Divider } from 'antd'
+import { SyncOutlined, ReloadOutlined, FilterOutlined, CalendarOutlined, DownloadOutlined, ClockCircleOutlined, RiseOutlined, FallOutlined, LineChartOutlined, DatabaseOutlined, DollarOutlined, SafetyCertificateOutlined, ClearOutlined, FileTextOutlined } from '@ant-design/icons'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { YantaiPrice, fetchApi, config, yantaiRebarApi } from '../services/api'
 import * as XLSX from 'xlsx'
 import dayjs from 'dayjs'
-import { Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Area, ComposedChart, Brush } from 'recharts'
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, Area, ComposedChart, Brush, BarChart, Bar } from 'recharts'
 import PageHeader from '../components/PageHeader'
+import PriceAnalysisReport from '../components/PriceAnalysisReport'
 
 const { RangePicker } = DatePicker
 
 // 科技数据卡片组件
 const TechCard = ({
-  title, value, suffix, icon, highlight = false
+  title, value, suffix, icon, highlight = false, sub
 }: {
-  title: string; value: string | number; suffix?: string; icon: React.ReactNode; highlight?: boolean;
+  title: string; value: string | number; suffix?: string; icon: React.ReactNode; highlight?: boolean; sub?: string;
 }) => (
   <div className={highlight ? 'tech-card highlight' : 'tech-card'}>
     <div className="card-accent-line" />
@@ -25,6 +26,7 @@ const TechCard = ({
       {typeof value === 'number' ? value.toLocaleString() : value}
     </div>
     {suffix && <div className="tech-card-sub" style={{ fontSize: 14, color: '#666' }}>{suffix}</div>}
+    {sub && <div className="tech-card-sub" style={{ fontSize: 12, color: '#999' }}>{sub}</div>}
   </div>
 )
 
@@ -710,13 +712,27 @@ export default function PriceMonitor() {
         </div>
       </div>
 
-      {/* 涨幅分析 */}
+      {/* 价格涨幅分析 */}
       {!isRangeMode && priceChanges.length > 0 && comparisonDate && (
         <div className="data-section" style={{ marginBottom: 24 }}>
           <div className="data-section-header"><div className="data-section-title">{priceChanges[0]?.change > 0 ? <RiseOutlined style={{ color: '#EF4444' }} /> : <FallOutlined style={{ color: '#10B981' }} />}<span>价格涨幅分析</span><Tag color={priceChanges[0]?.change > 0 ? 'red' : 'green'}>{formatDisplayDate(selectedDate)}</Tag><span style={{ color: '#999' }}>对比</span><Tag color="blue">{formatDisplayDate(comparisonDate)}</Tag></div></div>
           <div className="data-section-body"><Table dataSource={priceChanges} rowKey="key" pagination={{ pageSize: 10 }} size="small" columns={changeColumns} /></div>
         </div>
       )}
+
+      {/* 分析报告区块 */}
+      <div className="data-section" style={{ marginBottom: 24 }}>
+        <div className="data-section-header">
+          <div className="data-section-title"><FileTextOutlined /><span>分析报告</span></div>
+        </div>
+        <div className="data-section-body">
+          <PriceAnalysisReport
+            data={filteredPrices}
+            trendData={trendData}
+            comparisonData={comparisonDate ? allPrices[comparisonDate] : undefined}
+          />
+        </div>
+      </div>
 
       {/* 价格明细 */}
       <div className="data-section">

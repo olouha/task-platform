@@ -5,10 +5,13 @@ FastAPI 应用入口
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import logging
 import asyncio
+import os
 
-from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, adjustment_prices_batch, building_schedule, building_adjustment, cost_history, yantai_db, data_manager, adjustment_template, indicator_report
+from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, yantai_prices, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, adjustment_prices_batch, building_schedule, building_adjustment, cost_history, yantai_db, data_manager, adjustment_template, indicator_report, fetch_history
 from api import ai_chat, ai_self_review
 from api.yantai_db import rebar_router as yantai_rebar_router
 from services.websocket_manager import ws_manager
@@ -22,11 +25,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 获取前端目录路径
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_DIST = os.path.join(BASE_DIR, "frontend", "dist")
+
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="TaskPlatform API",
     description="工程调差计算系统 API",
     version="1.0.0"
 )
+
+# 挂载静态文件
+if os.path.exists(FRONTEND_DIST):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
+    app.mount("/ai-logo.jpg", StaticFiles(directory=FRONTEND_DIST), name="ai-logo")
+    app.mount("/design-logo.png", StaticFiles(directory=FRONTEND_DIST), name="design-logo")
+    app.mount("/logo-title.png", StaticFiles(directory=FRONTEND_DIST), name="logo-title")
+    app.mount("/logo.jpg", StaticFiles(directory=FRONTEND_DIST), name="logo")
+    logger.info(f"[startup] 前端静态文件已挂载 | path={FRONTEND_DIST}")
+else:
+    logger.warning(f"[startup] 前端dist目录不存在 | path={FRONTEND_DIST}")
 
 # CORS 配置（生产环境应限制来源）
 app.add_middleware(
@@ -91,12 +111,16 @@ app.include_router(cost_history.router, prefix="/api/cost-history", tags=["造�
 app.include_router(data_manager.router, prefix="/api/data-manager", tags=["数据管理"])
 app.include_router(adjustment_template.router, prefix="/api/adjustment-template", tags=["调差模板"])
 app.include_router(indicator_report.router, prefix="/api/indicator-report", tags=["指标库分析报告"])
+app.include_router(fetch_history.router, prefix="/api/fetch-history", tags=["历史数据抓取"])
 
 
 @app.get("/")
 async def root():
-    """根路径"""
+    """根路径 - 返回前端页面"""
     logger.info("[root] 根路径访问")
+    index_path = os.path.join(FRONTEND_DIST, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
     return {"message": "TaskPlatform API", "version": "1.0.0"}
 
 
@@ -124,6 +148,34 @@ async def health_check():
     return {
         "status": "healthy",
         "rate_limit": limiter_stats
+    }
+
+
+@app.post("/api/admin/init-knowledge-base")
+async def init_knowledge_base():
+    """初始化知识库数据（管理员功能）"""
+    from scripts.init_knowledge_base import init_knowledge_base as init_kb
+    logger.info("[init_knowledge_base] 执行知识库初始化")
+    result = init_kb()
+    return result
+
+
+@app.get("/api/knowledge-base/stats")
+async def get_knowledge_base_stats():
+    """获取知识库统计信息"""
+    from services.supabase_service import SupabaseService
+    supabase = SupabaseService()
+    docs = supabase.list_kb_documents(limit=1000)
+
+    # 按分类统计
+    categories: Dict[str, int] = {}
+    for doc in docs:
+        cat = doc.get('category', '未分类')
+        categories[cat] = categories.get(cat, 0) + 1
+
+    return {
+        "total": len(docs),
+        "categories": categories
     }
 
 
