@@ -72,6 +72,25 @@ class ExcelParserService:
         "备注": "remarks",
     }
 
+    # 新模板列映射（简化版单Sheet）
+    SIMPLE_COLUMN_MAPPING = {
+        "项目名称": "name",
+        "业态": "category",
+        "项目所在地": "location",
+        "结构形式": "structure",
+        "交付形式": "delivery_form",
+        "层数（地上/下）": "floor_info",
+        "总面积（m2）": "area_total",
+        "檐高（m）": "height",
+        "平米造价（元/m2）": "unit_cost",
+        "总造价（元）": "total_cost",
+        "地上建筑面积（m2）": "area_above",
+        "地下建筑面积（m2）": "area_below",
+        "开工时间": "start_date",
+        "竣工时间": "end_date",
+        "备注": "remarks",
+    }
+
     def __init__(self, file_path: str):
         """
         初始化Excel解析服务
@@ -94,6 +113,10 @@ class ExcelParserService:
         """
         解析Excel文件
 
+        支持两种格式：
+        1. 新格式：单Sheet "指标库数据"
+        2. 旧格式：双Sheet "汇总" + "明细"
+
         Returns:
             包含projects列表和metadata的字典
         """
@@ -108,38 +131,34 @@ class ExcelParserService:
             )
             logger.info(f"[ExcelParserService] 工作簿加载成功 | sheets={self.workbook.sheetnames}")
 
-            # 检查必要的sheet
-            if "汇总" not in self.workbook.sheetnames:
-                raise ValueError("Excel文件缺少'汇总'sheet")
-            if "明细" not in self.workbook.sheetnames:
-                raise ValueError("Excel文件缺少'明细'sheet")
+            # 检测并解析文件格式
+            if "指标库数据" in self.workbook.sheetnames:
+                # 新格式：单Sheet
+                logger.info("[ExcelParserService] 使用新格式解析（单Sheet）")
+                projects = self._parse_simple_sheet()
+            elif "汇总" in self.workbook.sheetnames and "明细" in self.workbook.sheetnames:
+                # 旧格式：双Sheet
+                logger.info("[ExcelParserService] 使用旧格式解析（汇总+明细）")
+                summary_data = self._parse_summary_sheet()
+                detail_data = self._parse_detail_sheet()
+                projects = self._merge_data(summary_data, detail_data)
+            else:
+                raise ValueError("Excel文件格式不正确，需要包含'指标库数据'或'汇总'+'明细'Sheet")
 
-            # 解析汇总sheet
-            summary_data = self._parse_summary_sheet()
-            logger.info(f"[ExcelParserService] 汇总sheet解析完成 | rows={len(summary_data)}")
-
-            # 解析明细sheet
-            detail_data = self._parse_detail_sheet()
-            logger.info(f"[ExcelParserService] 明细sheet解析完成 | rows={len(detail_data)}")
-
-            # 合并数据
-            merged_data = self._merge_data(summary_data, detail_data)
-            logger.info(f"[ExcelParserService] 数据合并完成 | rows={len(merged_data)}")
+            logger.info(f"[ExcelParserService] 解析完成 | rows={len(projects)}")
 
             # 构建返回结果
             result = {
                 "success": True,
-                "projects": merged_data,
+                "projects": projects,
                 "metadata": {
                     "source_file": self.file_path.name,
                     "entry_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "total_projects": len(merged_data),
-                    "summary_rows": len(summary_data),
-                    "detail_rows": len(detail_data),
+                    "total_projects": len(projects),
                 }
             }
 
-            logger.info(f"[ExcelParserService] 解析完成 | total_projects={len(merged_data)}")
+            logger.info(f"[ExcelParserService] 解析完成 | total_projects={len(projects)}")
             return result
 
         except Exception as e:
@@ -157,6 +176,85 @@ class ExcelParserService:
         finally:
             if self.workbook:
                 self.workbook.close()
+
+    def _parse_simple_sheet(self) -> List[Dict[str, Any]]:
+        """
+        解析新格式单Sheet
+
+        Returns:
+            项目数据列表
+        """
+        logger.info("[ExcelParserService] 解析单Sheet模板")
+
+        ws = self.workbook["指标库数据"]
+        rows = list(ws.iter_rows(values_only=True))
+
+        if len(rows) < 2:
+            logger.warning("[ExcelParserService] 数据行数不足")
+            return []
+
+        # 获取表头（第一行）
+        header_row = rows[0]
+        headers = [str(cell) if cell else "" for cell in header_row]
+        logger.debug(f"[ExcelParserService] 表头 | headers={headers}")
+
+        # 解析数据行
+        projects = []
+        for row_idx, row in enumerate(rows[1:], start=2):
+            if self._is_empty_row(row):
+                continue
+
+            row_data = self._parse_simple_row(row, headers)
+            if row_data:
+                row_data["_row_index"] = row_idx
+                projects.append(row_data)
+
+        logger.info(f"[ExcelParserService] 单Sheet解析完成 | count={len(projects)}")
+        return projects
+
+    def _parse_simple_row(self, row: Tuple, headers: List[str]) -> Optional[Dict[str, Any]]:
+        """
+        解析单Sheet的数据行
+
+        Args:
+            row: 行数据元组
+            headers: 表头列表
+
+        Returns:
+            解析后的行数据字典
+        """
+        row_data = {}
+        has_valid_data = False
+
+        for col_idx, cell_value in enumerate(row):
+            if col_idx >= len(headers):
+                break
+
+            header = headers[col_idx]
+            if header not in self.SIMPLE_COLUMN_MAPPING:
+                continue
+
+            field_name = self.SIMPLE_COLUMN_MAPPING[header]
+            value = self._clean_cell_value(cell_value)
+            row_data[field_name] = value
+
+            # 检查是否有有效数据
+            if field_name in ("name", "category", "location") and value is not None:
+                has_valid_data = True
+
+        # 如果没有有效数据，返回None
+        if not has_valid_data:
+            return None
+
+        # 解析楼层信息
+        floor_info = row_data.get("floor_info")
+        if floor_info:
+            floor_above, floor_below = self._parse_floor_info(str(floor_info))
+            row_data["floor_above"] = floor_above
+            row_data["floor_below"] = floor_below
+            row_data.pop("floor_info", None)
+
+        return row_data
 
     def _parse_summary_sheet(self) -> List[Dict[str, Any]]:
         """
@@ -192,7 +290,7 @@ class ExcelParserService:
 
         return data_rows
 
-    def _parse_summary_row(self, row: Tuple) -> Dict[str, Any]:
+    def _parse_summary_row(self, row: Tuple) -> Optional[Dict[str, Any]]:
         """
         解析汇总sheet的单行数据
 
@@ -200,9 +298,10 @@ class ExcelParserService:
             row: 行数据元组
 
         Returns:
-            解析后的行数据字典
+            解析后的行数据字典，如果无有效数据则返回None
         """
         row_data = {}
+        has_valid_data = False
 
         for col_idx, cell_value in enumerate(row):
             if col_idx >= len(self.summary_headers):
@@ -215,6 +314,14 @@ class ExcelParserService:
             field_name = self.SUMMARY_COLUMN_MAPPING[header]
             value = self._clean_cell_value(cell_value)
             row_data[field_name] = value
+
+            # 检查是否有有效数据（name, category, location 至少有一个有值）
+            if field_name in ("name", "category", "location") and value is not None:
+                has_valid_data = True
+
+        # 如果没有有效数据，返回None
+        if not has_valid_data:
+            return None
 
         return row_data
 
@@ -375,7 +482,7 @@ class ExcelParserService:
         解析楼层信息字符串
 
         Args:
-            floor_info: 楼层信息字符串，格式如 "地上30/地下3"
+            floor_info: 楼层信息字符串，格式如 "地上30/地下3" 或 "18/2"
 
         Returns:
             (地上楼层数, 地下楼层数) 元组
@@ -384,13 +491,27 @@ class ExcelParserService:
         floor_below = None
 
         try:
-            # 匹配地上楼层
+            # 先尝试 "地上X/地下Y" 格式
             above_match = re.search(r"地上\s*(\d+)", floor_info)
             if above_match:
                 floor_above = int(above_match.group(1))
 
-            # 匹配地下楼层
             below_match = re.search(r"地下\s*(\d+)", floor_info)
+            if below_match:
+                floor_below = int(below_match.group(1))
+
+            # 如果上面没匹配到，尝试 "X/Y" 格式（斜杠分隔）
+            if floor_above is None and floor_below is None:
+                parts = floor_info.split('/')
+                if len(parts) == 2:
+                    try:
+                        floor_above = int(parts[0].strip())
+                    except ValueError:
+                        pass
+                    try:
+                        floor_below = int(parts[1].strip())
+                    except ValueError:
+                        pass
             if below_match:
                 floor_below = int(below_match.group(1))
         except Exception as e:
@@ -435,15 +556,38 @@ class ExcelParserService:
 
     def _is_empty_row(self, row: Tuple) -> bool:
         """
-        检查行是否为空
+        检查行是否为空或仅为说明行
 
         Args:
             row: 行数据元组
 
         Returns:
-            是否为空行
+            是否为空行或说明行
         """
-        return all(cell is None or str(cell).strip() == "" for cell in row)
+        # 检查是否全是空值
+        if all(cell is None or str(cell).strip() == "" for cell in row):
+            return True
+
+        # 检查第一个单元格是否为说明性文字
+        first_cell = row[0] if row else None
+        if first_cell is not None:
+            first_str = str(first_cell).strip()
+            # 跳过说明行（包含特定关键词的行）
+            skip_keywords = ["填写说明", "说明：", "备注：", "注：", "注意：", "样例："]
+            if any(kw in first_str for kw in skip_keywords):
+                return True
+            # 跳过纯数字序号之外的文字行（包含冒号和说明性文字）
+            if first_str and not first_str.isdigit() and not first_str.replace('.', '').isdigit():
+                # 如果第一列是文字且不是纯数字，可能是说明行
+                # 但排除正常的项目名称（通常长度较短，不以冒号结尾）
+                if first_str.endswith('：') or first_str.endswith(':'):
+                    return True
+                # 检查是否以数字开头+点的序号格式（说明行）
+                import re
+                if re.match(r'^\d+[.、:：]', first_str):
+                    return True
+
+        return False
 
     @staticmethod
     def get_column_letter(col_idx: int) -> str:

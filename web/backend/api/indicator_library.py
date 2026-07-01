@@ -37,14 +37,15 @@ async def download_template() -> StreamingResponse:
     """
     下载指标库导入模板
 
-    - 返回包含汇总表和明细表的 Excel 模板
-    - 员工可据此填写数据后导入系统
+    - 简化的单Sheet模板，只需填写汇总数据
+    - 支持数据验证下拉选择（业态、结构形式、交付形式）
     """
     logger.info("[download_template] 下载导入模板")
 
     try:
         import openpyxl
         from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from openpyxl.worksheet.datavalidation import DataValidation
 
         wb = openpyxl.Workbook()
 
@@ -60,104 +61,150 @@ async def download_template() -> StreamingResponse:
             bottom=Side(style="thin"),
         )
 
-        # ==================== 汇总表 ====================
-        ws_summary = wb.active
-        ws_summary.title = "汇总"
+        # ==================== 指标库数据表 ====================
+        ws = wb.active
+        ws.title = "指标库数据"
 
-        summary_headers = [
-            "序号", "项目名称", "业态", "项目所在地", "结构形式",
-            "交付形式", "层数（地上/下）", "总面积（m2）", "檐高（m）",
-            "总造价", "开工时间", "竣工时间",
+        # 表头 - 简化版，只需填写汇总数据
+        headers = [
+            "项目名称", "业态", "项目所在地", "结构形式", "交付形式",
+            "层数（地上/下）", "总面积（m2）", "檐高（m）",
+            "平米造价（元/m2）", "总造价（元）",
+            "地上建筑面积（m2）", "地下建筑面积（m2）",
+            "开工时间", "竣工时间", "备注",
         ]
 
-        for col, header in enumerate(summary_headers, 1):
-            cell = ws_summary.cell(row=1, column=col, value=header)
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = header_alignment
             cell.border = thin_border
 
         # 设置列宽
-        column_widths = [8, 25, 10, 15, 12, 12, 15, 15, 10, 15, 12, 12]
+        column_widths = [25, 10, 15, 15, 12, 15, 15, 10, 15, 15, 15, 15, 12, 12, 20]
         for col, width in enumerate(column_widths, 1):
-            ws_summary.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
 
-        # 添加示例数据
-        sample_summary = [
-            1, "示例住宅项目", "住宅", "山东烟台", "框架结构",
-            "毛坯交付", "18/2", 25000, 54, 58750000, "2023-01", "2024-06",
+        # 设置行高
+        ws.row_dimensions[1].height = 30
+
+        # ==================== 添加数据验证下拉 ====================
+        # 业态下拉
+        category_dv = DataValidation(
+            type="list",
+            formula1='"住宅,商业,办公,工业"',
+            allow_blank=True,
+            showDropDown=False  # 不显示下拉箭头在单元格上
+        )
+        category_dv.error = "请从下拉列表中选择业态"
+        category_dv.errorTitle = "无效输入"
+        category_dv.prompt = "请选择业态"
+        category_dv.promptTitle = "业态"
+        ws.add_data_validation(category_dv)
+        category_dv.add(f"C2:C1000")  # 业态列
+
+        # 结构形式下拉
+        structure_dv = DataValidation(
+            type="list",
+            formula1='"框架结构,框架-剪力墙结构,剪力墙结构,框架-核心筒结构,框筒结构,钢结构"',
+            allow_blank=True,
+            showDropDown=False
+        )
+        structure_dv.error = "请从下拉列表中选择结构形式"
+        structure_dv.errorTitle = "无效输入"
+        ws.add_data_validation(structure_dv)
+        structure_dv.add(f"D2:D1000")  # 结构形式列
+
+        # 交付形式下拉
+        delivery_dv = DataValidation(
+            type="list",
+            formula1='"毛坯交付,精装修,带装修"',
+            allow_blank=True,
+            showDropDown=False
+        )
+        delivery_dv.error = "请从下拉列表中选择交付形式"
+        delivery_dv.errorTitle = "无效输入"
+        ws.add_data_validation(delivery_dv)
+        delivery_dv.add(f"E2:E1000")  # 交付形式列
+
+        # ==================== 添加示例数据 ====================
+        sample_data = [
+            "示例住宅项目", "住宅", "山东烟台", "框架结构", "毛坯交付",
+            "18/2", 25000, 54, 2350, 58750000,
+            22000, 3000,
+            "2023-01", "2024-06", "",
         ]
-        for col, value in enumerate(sample_summary, 1):
-            cell = ws_summary.cell(row=2, column=col, value=value)
+        for col, value in enumerate(sample_data, 1):
+            cell = ws.cell(row=2, column=col, value=value)
             cell.border = thin_border
 
-        # 添加填写说明
-        ws_summary.cell(row=4, column=1, value="填写说明：").font = Font(bold=True)
-        ws_summary.cell(row=5, column=1, value="1. 序号从1开始，与明细表对应").font = note_font
-        ws_summary.cell(row=6, column=1, value="2. 业态可选：住宅/商业/办公/工业").font = note_font
-        ws_summary.cell(row=7, column=1, value="3. 交付形式可选：毛坯交付/精装修/带装修").font = note_font
-        ws_summary.cell(row=8, column=1, value="4. 层数格式示例：18/2 表示地上18层/地下2层").font = note_font
-        ws_summary.cell(row=9, column=1, value="5. 开工/竣工时间格式：YYYY-MM，如2023-01").font = note_font
+        # ==================== 添加填写说明（隐藏Sheet）====================
+        ws_note = wb.create_sheet("填写说明")
+        ws_note.sheet_state = "hidden"  # 默认隐藏
 
-        # ==================== 明细表 ====================
-        ws_detail = wb.create_sheet("明细")
-
-        detail_headers = [
-            "序号", "项目名称", "业态", "项目所在地", "结构形式", "交付形式",
-            "建筑高度（m）", "建筑层数（地上）", "建筑层数（地下）", "桩基形式",
-            "总面积（m2）", "地上建筑面积（m2）", "地下建筑面积（m2）",
-            "地上土建造价", "地上安装造价", "地下土建造价", "地下安装造价",
-            "平米造价（元/m2）", "措施费（元）", "室外造价（元）",
-            "桩基造价（元）", "基坑支护造价（元）", "幕墙造价（元）", "精装修造价（元）",
-            "地上砼用量（m3）", "地上砼平米含量", "地上钢筋用量（t）", "地上钢筋平米含量",
-            "地下砼用量（m3）", "地下砼平米含量", "地下钢筋用量（t）", "地下钢筋平米含量",
+        notes = [
+            "指标库导入模板填写说明",
+            "",
+            "【必填字段】",
+            "1. 项目名称 - 项目名称（必填）",
+            "2. 业态 - 从下拉列表选择：住宅/商业/办公/工业",
+            "3. 项目所在地 - 如：山东烟台、北京朝阳",
+            "4. 结构形式 - 从下拉列表选择",
+            "",
+            "【可选字段】",
+            "5. 交付形式 - 从下拉列表选择：毛坯交付/精装修/带装修",
+            "6. 层数（地上/下）- 格式：18/2 表示地上18层/地下2层",
+            "7. 总面积（m2）- 总建筑面积",
+            "8. 檐高（m）- 建筑檐口高度",
+            "9. 平米造价（元/m2）- 单方造价",
+            "10. 总造价（元）- 项目总造价",
+            "11. 地上/地下建筑面积 - 分别填写",
+            "12. 开工/竣工时间 - 格式：YYYY-MM，如2023-01",
+            "13. 备注 - 其他说明",
+            "",
+            "【数据验证下拉】",
+            "- 业态列：住宅, 商业, 办公, 工业",
+            "- 结构形式列：框架结构, 框架-剪力墙结构, 剪力墙结构, 框架-核心筒结构, 框筒结构, 钢结构",
+            "- 交付形式列：毛坯交付, 精装修, 带装修",
         ]
 
-        for col, header in enumerate(detail_headers, 1):
-            cell = ws_detail.cell(row=1, column=col, value=header)
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = header_alignment
-            cell.border = thin_border
+        for row, note in enumerate(notes, 1):
+            ws_note.cell(row=row, column=1, value=note)
 
-        # 设置列宽
-        for col in range(1, len(detail_headers) + 1):
-            ws_detail.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
+        # ==================== 添加数据验证选项（隐藏Sheet）====================
+        ws_options = wb.create_sheet("选项数据")
+        ws_options.sheet_state = "hidden"  # 默认隐藏
 
-        # 添加示例数据
-        sample_detail = [
-            1, "示例住宅项目", "住宅", "山东烟台", "框架结构", "毛坯交付",
-            54, 18, 2, "钻孔灌注桩",
-            25000, 22000, 3000,
-            35000000, 10000000, 8000000, 3000000,
-            2350, 3000000, 2000000,
-            500000, 800000, 2000000, 5000000,
-            8000, 0.32, 1000, 0.04,
-            2500, 0.1, 300, 0.012,
-        ]
-        for col, value in enumerate(sample_detail, 1):
-            cell = ws_detail.cell(row=2, column=col, value=value)
-            cell.border = thin_border
+        # 在隐藏Sheet中存储选项数据（用于公式引用）
+        ws_options.cell(row=1, column=1, value="业态")
+        options_categories = ["住宅", "商业", "办公", "工业"]
+        for i, opt in enumerate(options_categories, 2):
+            ws_options.cell(row=i, column=1, value=opt)
 
-        # 添加填写说明
-        ws_detail.cell(row=4, column=1, value="填写说明：").font = Font(bold=True)
-        ws_detail.cell(row=5, column=1, value="1. 序号必须与汇总表一致").font = note_font
-        ws_detail.cell(row=6, column=1, value="2. 数值字段直接填写数字，不要带单位").font = note_font
-        ws_detail.cell(row=7, column=1, value="3. 平米含量 = 用量 / 对应面积").font = note_font
+        ws_options.cell(row=1, column=2, value="结构形式")
+        options_structure = ["框架结构", "框架-剪力墙结构", "剪力墙结构", "框架-核心筒结构", "框筒结构", "钢结构"]
+        for i, opt in enumerate(options_structure, 2):
+            ws_options.cell(row=i, column=2, value=opt)
+
+        ws_options.cell(row=1, column=3, value="交付形式")
+        options_delivery = ["毛坯交付", "精装修", "带装修"]
+        for i, opt in enumerate(options_delivery, 3):
+            ws_options.cell(row=i, column=3, value=opt)
 
         # 保存到内存
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
 
-        filename = "indicator_template.xlsx"
+        filename = "指标库导入模板.xlsx"
 
         logger.info("[download_template] 模板生成完成")
 
         return StreamingResponse(
             output,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
         )
 
     except ImportError:
