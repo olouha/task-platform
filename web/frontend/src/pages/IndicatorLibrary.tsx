@@ -7,83 +7,27 @@ import { Layout, Button, Space, message, Spin, Card, Typography } from 'antd'
 import { PlusOutlined, UploadOutlined, DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
 import PageHeader from '../components/PageHeader'
 
-// 导入子组件（将在后续任务中实现）
+// 导入子组件
 import SummaryList from '../components/indicator-library/SummaryList'
 import DetailPanel from '../components/indicator-library/DetailPanel'
 import ImportPreview from '../components/indicator-library/ImportPreview'
 
-// API 类型占位符 - 后续将从 api.ts 导入
-// import { indicatorLibraryAPI } from '../services/api'
+// 导入 API
+import { indicatorLibraryApi } from '../services/api'
+import type { IndicatorLibrarySummary, IndicatorLibraryDetail, IndicatorLibraryFilter, ImportPreviewItem } from '../types/indicator'
 
 // ============================================================================
-// 类型定义
+// 类型定义（保持向后兼容）
 // ============================================================================
 
-/** 指标库摘要项 */
-export interface IndicatorSummary {
-  id: string
-  name: string
-  category: string
-  location: string
-  structure: string
-  unit_cost?: number
-  area_total?: number
-  height?: number
-  floor_above?: number
-  floor_below?: number
-  verified?: boolean
-  created_at?: string
-  updated_at?: string
-}
+/** 指标库摘要项 - 向后兼容别名 */
+export type IndicatorSummary = IndicatorLibrarySummary
 
-/** 指标库详情 */
-export interface IndicatorDetail extends IndicatorSummary {
-  // 造价指标
-  total_cost?: number
-  unit_structure?: number
-  unit_installation?: number
-  unit_decoration?: number
-  unit_measure?: number
-  // 经济指标
-  underground_structure?: number
-  above_structure?: number
-  roof?: number
-  exterior_wall?: number
-  interior_wall?: number
-  floor?: number
-  electrical?: number
-  plumbing?: number
-  hvac?: number
-  elevator?: number
-  fire?: number
-  measures?: number
-  // 材料含量
-  steel?: number
-  concrete?: number
-  formwork?: number
-  block?: number
-  cable?: number
-  pipe?: number
-  duct?: number
-  // 附加信息
-  source?: string
-  source_file?: string
-  remarks?: string
-  verified_by?: string
-  verified_at?: string
-}
+/** 指标库详情 - 向后兼容别名 */
+export type IndicatorDetail = IndicatorLibraryDetail
 
-/** 筛选条件 */
-export interface IndicatorFilters {
-  search_text?: string
-  category?: string
-  location?: string
-  delivery_type?: string
-  start_date_from?: string
-  start_date_to?: string
-  end_date_from?: string
-  end_date_to?: string
-}
+/** 筛选条件 - 向后兼容别名 */
+export type IndicatorFilters = IndicatorLibraryFilter
 
 /** API 响应类型 */
 interface ApiResponse<T> {
@@ -93,67 +37,11 @@ interface ApiResponse<T> {
 }
 
 // ============================================================================
-// 占位符 API（后续替换为实际实现）
+// API 别名（使用真实API）
 // ============================================================================
 
-/** 指标库 API 占位符 */
-const indicatorLibraryAPI = {
-  /** 获取摘要列表 */
-  getSummary: async (filters?: IndicatorFilters): Promise<IndicatorSummary[]> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] getSummary', filters)
-    // 模拟数据
-    return []
-  },
-
-  /** 获取详情 */
-  getDetail: async (id: string): Promise<IndicatorDetail | null> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] getDetail', id)
-    return null
-  },
-
-  /** 创建指标 */
-  create: async (data: Partial<IndicatorDetail>): Promise<IndicatorSummary> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] create', data)
-    return {} as IndicatorSummary
-  },
-
-  /** 更新指标 */
-  update: async (id: string, data: Partial<IndicatorDetail>): Promise<IndicatorSummary> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] update', id, data)
-    return {} as IndicatorSummary
-  },
-
-  /** 删除指标 */
-  delete: async (id: string): Promise<void> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] delete', id)
-  },
-
-  /** 导入指标 */
-  import: async (file: File): Promise<{ success: boolean; imported: number; failed: number }> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] import', file.name)
-    return { success: true, imported: 0, failed: 0 }
-  },
-
-  /** 导出指标 */
-  export: async (filters?: IndicatorFilters): Promise<Blob> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] export', filters)
-    return new Blob()
-  },
-
-  /** 预览导入数据 */
-  previewImport: async (file: File): Promise<IndicatorDetail[]> => {
-    // TODO: 替换为实际 API 调用
-    console.log('[IndicatorLibrary] previewImport', file.name)
-    return []
-  },
-}
+/** 指标库 API - 使用真实API实现 */
+const indicatorLibraryAPI = indicatorLibraryApi
 
 // ============================================================================
 // 组件定义
@@ -183,7 +71,7 @@ export default function IndicatorLibrary() {
   const [importVisible, setImportVisible] = useState(false)
 
   /** 导入预览数据 */
-  const [importPreviewData, setImportPreviewData] = useState<IndicatorDetail[]>([])
+  const [importPreviewData, setImportPreviewData] = useState<ImportPreviewItem[]>([])
 
   /** 筛选条件 */
   const [filters, setFilters] = useState<IndicatorFilters>({
@@ -253,10 +141,8 @@ export default function IndicatorLibrary() {
    * 新建指标
    */
   const handleCreate = useCallback(() => {
-    setSelectedId(null)
+    setSelectedId('new')
     setSelectedDetail(null)
-    // TODO: 打开新建表单弹窗
-    message.info('新建指标功能开发中')
   }, [])
 
   /**
@@ -271,8 +157,8 @@ export default function IndicatorLibrary() {
       if (!file) return
 
       try {
-        const previewData = await indicatorLibraryAPI.previewImport(file)
-        setImportPreviewData(previewData)
+        const previewData = await indicatorLibraryAPI.preview(file)
+        setImportPreviewData(previewData.items || [])
         setImportVisible(true)
       } catch (error) {
         console.error('[IndicatorLibrary] 预览导入失败:', error)
@@ -305,7 +191,7 @@ export default function IndicatorLibrary() {
    */
   const handleExport = useCallback(async () => {
     try {
-      const blob = await indicatorLibraryAPI.export(filters)
+      const blob = await indicatorLibraryAPI.exportExcel(filters?.category)
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -375,15 +261,18 @@ export default function IndicatorLibrary() {
    */
   const handleSave = useCallback(async (data: Partial<IndicatorDetail>) => {
     try {
-      if (selectedId) {
+      if (selectedId && selectedId !== 'new') {
         await indicatorLibraryAPI.update(selectedId, data)
         message.success('更新成功')
         loadDetail(selectedId)
       } else {
         await indicatorLibraryAPI.create(data)
         message.success('创建成功')
+        // 创建成功后刷新列表
+        loadSummaryList()
+        setSelectedId(null)
+        setSelectedDetail(null)
       }
-      loadSummaryList()
     } catch (error) {
       console.error('[IndicatorLibrary] 保存失败:', error)
       message.error('保存失败')

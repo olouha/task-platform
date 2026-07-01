@@ -171,5 +171,11 @@ export type IndicatorLibraryCreate = Partial<IndicatorLibraryDetail>;
 export interface IndicatorLibraryFilter {
   category?: string;
   location?: string;
+  delivery_type?: string;
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  search_text?: string;
   limit?: number;
 }
