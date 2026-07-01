@@ -7,20 +7,34 @@
 import logging
 import tempfile
 import os
+import sys
 from typing import Optional, List, Dict, Any, Union
 
-from ..models.indicator_library import (
-    IndicatorLibrarySummary,
-    IndicatorLibraryDetail,
-    IndicatorLibraryCreate,
-    ValidationResult,
-    ImportResult,
-    ImportPreviewResult,
-    ImportPreviewItem,
-)
-from .local_indicator_service import LocalIndicatorService
-from .excel_parser_service import ExcelParserService
-from .indicator_validator import IndicatorValidator
+# 兼容直接运行和包导入
+if __name__.startswith('services.'):
+    from models.indicator_library import (
+        IndicatorLibrarySummary,
+        IndicatorLibraryDetail,
+        IndicatorLibraryCreate,
+        ValidationResult,
+        ImportResult,
+        ImportPreviewResult,
+        ImportPreviewItem,
+    )
+else:
+    from ..models.indicator_library import (
+        IndicatorLibrarySummary,
+        IndicatorLibraryDetail,
+        IndicatorLibraryCreate,
+        ValidationResult,
+        ImportResult,
+        ImportPreviewResult,
+        ImportPreviewItem,
+    )
+
+from services.local_indicator_service import LocalIndicatorService
+from services.excel_parser_service import ExcelParserService
+from services.indicator_validator import IndicatorValidator
 
 logger = logging.getLogger(__name__)
 
