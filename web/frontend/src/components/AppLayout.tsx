@@ -39,7 +39,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { key: '/cost-reference', icon: <CalculatorOutlined />, label: '造价参考价' },
     { key: '/adjustments/rules', icon: <SettingOutlined />, label: '规则配置' },
     { key: '/indicator-library', icon: <LineChartOutlined />, label: '指标库管理' },
-    { key: '/indicators', icon: <LineChartOutlined />, label: '指标库(旧)' },
     { key: '/indicator-report', icon: <LineChartOutlined />, label: '指标分析报告' },
     { key: '/data-manager', icon: <SyncOutlined />, label: '数据管理' },
     { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
