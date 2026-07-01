@@ -288,7 +288,10 @@
       "Bash(cmd.exe /c \"stop.bat\")",
       "Bash(cmd.exe /c \"start.bat\")",
       "Bash(python -m json.tool)",
-      "Bash(curl -s http://140.143.125.234:8080/health)"
+      "Bash(curl -s http://140.143.125.234:8080/health)",
+      "Bash(timeout 5 python main.py)",
+      "Bash(python main.py)",
+      "Bash(curl -s \"http://localhost:8000/api/indicator-library/summary?limit=10\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\admin\\Desktop",

@@ -139,65 +139,12 @@ async def download_template() -> StreamingResponse:
             cell = ws.cell(row=2, column=col, value=value)
             cell.border = thin_border
 
-        # ==================== 添加填写说明（隐藏Sheet）====================
-        ws_note = wb.create_sheet("填写说明")
-        ws_note.sheet_state = "hidden"  # 默认隐藏
-
-        notes = [
-            "指标库导入模板填写说明",
-            "",
-            "【必填字段】",
-            "1. 项目名称 - 项目名称（必填）",
-            "2. 业态 - 从下拉列表选择：住宅/商业/办公/工业",
-            "3. 项目所在地 - 如：山东烟台、北京朝阳",
-            "4. 结构形式 - 从下拉列表选择",
-            "",
-            "【可选字段】",
-            "5. 交付形式 - 从下拉列表选择：毛坯交付/精装修/带装修",
-            "6. 层数（地上/下）- 格式：18/2 表示地上18层/地下2层",
-            "7. 总面积（m2）- 总建筑面积",
-            "8. 檐高（m）- 建筑檐口高度",
-            "9. 平米造价（元/m2）- 单方造价",
-            "10. 总造价（元）- 项目总造价",
-            "11. 地上/地下建筑面积 - 分别填写",
-            "12. 开工/竣工时间 - 格式：YYYY-MM，如2023-01",
-            "13. 备注 - 其他说明",
-            "",
-            "【数据验证下拉】",
-            "- 业态列：住宅, 商业, 办公, 工业",
-            "- 结构形式列：框架结构, 框架-剪力墙结构, 剪力墙结构, 框架-核心筒结构, 框筒结构, 钢结构",
-            "- 交付形式列：毛坯交付, 精装修, 带装修",
-        ]
-
-        for row, note in enumerate(notes, 1):
-            ws_note.cell(row=row, column=1, value=note)
-
-        # ==================== 添加数据验证选项（隐藏Sheet）====================
-        ws_options = wb.create_sheet("选项数据")
-        ws_options.sheet_state = "hidden"  # 默认隐藏
-
-        # 在隐藏Sheet中存储选项数据（用于公式引用）
-        ws_options.cell(row=1, column=1, value="业态")
-        options_categories = ["住宅", "商业", "办公", "工业"]
-        for i, opt in enumerate(options_categories, 2):
-            ws_options.cell(row=i, column=1, value=opt)
-
-        ws_options.cell(row=1, column=2, value="结构形式")
-        options_structure = ["框架结构", "框架-剪力墙结构", "剪力墙结构", "框架-核心筒结构", "框筒结构", "钢结构"]
-        for i, opt in enumerate(options_structure, 2):
-            ws_options.cell(row=i, column=2, value=opt)
-
-        ws_options.cell(row=1, column=3, value="交付形式")
-        options_delivery = ["毛坯交付", "精装修", "带装修"]
-        for i, opt in enumerate(options_delivery, 3):
-            ws_options.cell(row=i, column=3, value=opt)
-
         # 保存到内存
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)
 
-        filename = "指标库导入模板.xlsx"
+        filename = "indicator_template.xlsx"
 
         logger.info("[download_template] 模板生成完成")
 
