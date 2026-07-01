@@ -29,6 +29,11 @@
 ### 2.2 新增字段
 
 ```sql
+-- 项目时间信息
+ALTER TABLE indicator_projects ADD COLUMN start_date TEXT;            -- 开工时间（YYYY-MM）
+ALTER TABLE indicator_projects ADD COLUMN end_date TEXT;              -- 竣工时间（YYYY-MM）
+ALTER TABLE indicator_projects ADD COLUMN entry_date TEXT;            -- 录入时间（YYYY-MM-DD HH:mm:ss）
+
 -- 交付与基础信息
 ALTER TABLE indicator_projects ADD COLUMN delivery_type TEXT;
 ALTER TABLE indicator_projects ADD COLUMN foundation_type TEXT;
@@ -115,8 +120,11 @@ class IndicatorLibrarySummary(BaseModel):
     category: str  # 业态: 住宅/商业/办公/工业
     location: str
     structure: str
+    start_date: Optional[str]  # 开工时间（YYYY-MM）
+    end_date: Optional[str]    # 竣工时间（YYYY-MM）
     area_total: Optional[float] = Field(None, gt=0)
     unit_cost: Optional[float] = Field(None, gt=0)
+    entry_date: Optional[str]  # 录入时间
     updated_at: str
 
 class IndicatorLibraryDetail(BaseModel):
@@ -129,6 +137,8 @@ class IndicatorLibraryDetail(BaseModel):
     structure: str
     delivery_type: Optional[str]  # 交付形式
     foundation_type: Optional[str]  # 桩基形式
+    start_date: Optional[str]  # 开工时间（YYYY-MM）
+    end_date: Optional[str]    # 竣工时间（YYYY-MM）
     floor_above: Optional[int]
     floor_below: Optional[int]
     height: Optional[float]
@@ -200,6 +210,7 @@ class IndicatorLibraryDetail(BaseModel):
     source: Optional[str]
     source_file: Optional[str]
     remarks: Optional[str]
+    entry_date: Optional[str]  # 录入时间
     created_at: Optional[str]
     updated_at: Optional[str]
 ```
@@ -219,15 +230,17 @@ class IndicatorLibraryDetail(BaseModel):
 │                     │                                           │
 │  ┌───────────────┐ │  ┌─────────────────────────────────────┐ │
 │  │ XX项目        │ │  │ 基本信息                             │ │
-│  │ YY项目        │ │  │ 项目名称: [_____________]             │ │
-│  │ ZZ项目        │ │  │ 业态: [下拉选择▼]   结构: [_____]    │ │
-│  │ ...           │ │  │                                       │ │
-│  └───────────────┘ │  │ 造价指标（可折叠面板）                │ │
-│                     │  │ ▼ 地上/地下造价分解                  │ │
-│  筛选条件：         │  │ ▼ 专项工程造价（8项）                 │ │
-│  业态: [全部▼]     │  │ ▼ 材料用量指标                        │ │
-│  地区: [全部▼]     │  │                                       │ │
-│  搜索: [_______]   │  │ [保存] [取消]                         │ │
+│  │ 住宅/烟台     │ │  │ 项目名称: [_____________]             │ │
+│  │ 2023-01~2024-06│ │  │ 开工时间: [2023-01] 竣工: [2024-06] │ │
+│  │ 录入: 2026-07-01│ │  │ 业态: [下拉选择▼]   结构: [_____]    │ │
+│  │ YY项目        │ │  │                                       │ │
+│  │ ...           │ │  │ 造价指标（可折叠面板）                │ │
+│  └───────────────┘ │  │ ▼ 地上/地下造价分解                  │ │
+│                     │  │ ▼ 专项工程造价（8项）                 │ │
+│  筛选条件：         │  │ ▼ 材料用量指标                        │ │
+│  业态: [全部▼]     │  │                                       │ │
+│  地区: [全部▼]     │  │ [保存] [取消]                         │ │
+│  搜索: [_______]   │  └─────────────────────────────────────┘ │
 └─────────────────────┴───────────────────────────────────────────┘
 ```
 
