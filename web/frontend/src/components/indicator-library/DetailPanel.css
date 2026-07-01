@@ -1,0 +1,142 @@
+/**
+ * DetailPanel 组件样式
+ * 指标库详情面板
+ */
+
+.detail-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-panel-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-panel-card .ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 加载状态 */
+.detail-panel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+}
+
+/* 空状态 */
+.detail-panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  text-align: center;
+}
+
+/* 内容区域 */
+.detail-panel-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}
+
+/* 头部区域 */
+.detail-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+.detail-panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.detail-panel-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 折叠面板 */
+.detail-panel-collapse {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.detail-panel-collapse .ant-collapse-header {
+  padding: 12px 0 !important;
+  font-weight: 500;
+}
+
+.detail-panel-collapse .ant-collapse-content-box {
+  padding: 8px 0 16px 0 !important;
+}
+
+.detail-panel-collapse-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.detail-panel-collapse-header span:first-child {
+  font-size: 16px;
+}
+
+/* 时间戳 */
+.detail-panel-timestamps {
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+  margin-top: auto;
+}
+
+.detail-panel-timestamp {
+  font-size: 12px;
+}
+
+/* 删除确认弹窗 */
+.detail-panel-delete-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.detail-panel-delete-confirm {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 300px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .detail-panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .detail-panel-actions {
+    flex-wrap: wrap;
+  }
+}

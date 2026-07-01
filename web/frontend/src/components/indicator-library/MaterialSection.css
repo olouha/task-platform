@@ -1,0 +1,154 @@
+/**
+ * MaterialSection 组件样式
+ * 材料含量表单
+ */
+
+.material-section {
+  padding: 8px 0;
+}
+
+/* 标题 */
+.material-title {
+  margin-bottom: 16px;
+  color: #333;
+}
+
+/* 主要材料区域 */
+.material-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 材料行 */
+.material-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fafafa;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+}
+
+.material-row-edit {
+  flex-direction: column;
+  align-items: flex-start;
+  background: #fff;
+  border: none;
+  border-bottom: 1px dashed #f0f0f0;
+  border-radius: 0;
+  padding: 16px 0;
+}
+
+.material-row-edit:last-child {
+  border-bottom: none;
+}
+
+/* 材料行标签 */
+.material-row-label {
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.material-unit {
+  font-size: 12px;
+}
+
+/* 材料行数值（查看模式） */
+.material-row-values {
+  flex: 1;
+  display: flex;
+  gap: 24px;
+  margin-left: 16px;
+}
+
+.material-value-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.material-value-item.total {
+  padding-left: 16px;
+  border-left: 1px solid #e8e8e8;
+}
+
+.material-value-item.total .material-value {
+  color: #1890ff;
+  font-weight: 600;
+}
+
+.material-value {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  margin-top: 4px;
+}
+
+/* 材料行输入（编辑模式） */
+.material-row-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.material-form-item {
+  margin-bottom: 0;
+}
+
+.material-form-item-inline {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+/* 其他材料区域 */
+.material-other {
+  margin-top: 8px;
+}
+
+.material-other-title {
+  margin-bottom: 12px;
+}
+
+.material-other-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.material-other-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 6px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .material-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .material-row-values {
+    margin-left: 0;
+    margin-top: 12px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .material-row-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .material-other-grid {
+    grid-template-columns: 1fr;
+  }
+}

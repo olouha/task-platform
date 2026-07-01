@@ -1,0 +1,101 @@
+/**
+ * SpecialCostSection 组件样式
+ * 专项工程费用表单
+ */
+
+.special-cost-section {
+  padding: 8px 0;
+}
+
+/* 标题 */
+.special-cost-title {
+  margin-bottom: 16px;
+  color: #333;
+}
+
+/* 网格布局（查看模式） */
+.special-cost-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+/* 专项费用项（查看模式） */
+.special-cost-item {
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+  transition: all 0.2s ease;
+}
+
+.special-cost-item:hover {
+  border-color: #91d5ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+}
+
+.special-cost-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.special-cost-unit {
+  font-size: 12px;
+}
+
+.special-cost-item-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.special-cost-item-desc {
+  font-size: 11px;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 表单项（编辑模式） */
+.special-cost-form-item {
+  margin-bottom: 0;
+}
+
+.special-cost-edit-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 统计信息 */
+.special-cost-summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #f6ffed;
+  border: 1px solid #b7eb8f;
+  border-radius: 6px;
+}
+
+.special-cost-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 响应式调整 */
+@media (max-width: 992px) {
+  .special-cost-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 576px) {
+  .special-cost-grid {
+    grid-template-columns: 1fr;
+  }
+}

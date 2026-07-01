@@ -25,7 +25,7 @@ class LocalIndicatorService:
         conn = sqlite3.connect(self.db_file)
         cursor = conn.cursor()
 
-        # 创建主表（完整字段）
+        # 创建主表（完整字段 - 扩展版本）
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS indicator_projects (
                 id TEXT PRIMARY KEY,
@@ -67,6 +67,63 @@ class LocalIndicatorService:
                 cable REAL,
                 pipe REAL,
                 duct REAL,
+                -- ================== 新增字段 ==================
+                -- 项目时间信息
+                start_date TEXT,
+                end_date TEXT,
+                entry_date TEXT,
+                -- 交付与基础信息
+                delivery_type TEXT,
+                foundation_type TEXT,
+                -- 地上/地下造价分解
+                cost_underground_structure REAL,
+                cost_underground_installation REAL,
+                unit_cost_underground_structure REAL,
+                unit_cost_underground_installation REAL,
+                cost_above_structure REAL,
+                cost_above_installation REAL,
+                unit_cost_above_structure REAL,
+                unit_cost_above_installation REAL,
+                -- 措施费与室外
+                cost_measures REAL,
+                unit_cost_measures REAL,
+                cost_outdoor REAL,
+                unit_cost_outdoor REAL,
+                -- 专项工程造价（8组）
+                cost_pile REAL,
+                unit_cost_pile REAL,
+                cost_foundation_support REAL,
+                unit_cost_foundation_support REAL,
+                cost_curtain_wall REAL,
+                unit_cost_curtain_wall REAL,
+                cost_decoration REAL,
+                unit_cost_decoration REAL,
+                cost_exterior_insulation REAL,
+                unit_cost_exterior_insulation REAL,
+                cost_exterior_windows REAL,
+                unit_cost_exterior_windows REAL,
+                cost_water_drainage REAL,
+                unit_cost_water_drainage REAL,
+                cost_heating REAL,
+                unit_cost_heating REAL,
+                cost_electrical REAL,
+                unit_cost_electrical REAL,
+                cost_hvac REAL,
+                unit_cost_hvac REAL,
+                -- 地上主体材料
+                above_concrete REAL,
+                above_concrete_unit REAL,
+                above_rebar REAL,
+                above_rebar_unit REAL,
+                above_formwork REAL,
+                above_formwork_unit REAL,
+                -- 地下主体材料
+                underground_concrete REAL,
+                underground_concrete_unit REAL,
+                underground_rebar REAL,
+                underground_rebar_unit REAL,
+                underground_formwork REAL,
+                underground_formwork_unit REAL,
                 -- 来源信息
                 source TEXT,
                 source_file TEXT,
@@ -90,48 +147,85 @@ class LocalIndicatorService:
     def _migrate_old_table(self, conn):
         """迁移旧表，添加缺失的字段"""
         cursor = conn.cursor()
+        logger.info("[LocalIndicatorService] 开始数据库迁移检查")
 
         # 需要添加的字段及默认值
         new_columns = {
-            'total_cost': 'REAL',
-            'area_above': 'REAL',
-            'area_below': 'REAL',
-            'complete_date': 'TEXT',
-            'underground_structure': 'REAL',
-            'above_structure': 'REAL',
-            'roof': 'REAL',
-            'exterior_wall': 'REAL',
-            'interior_wall': 'REAL',
-            'floor': 'REAL',
-            'electrical': 'REAL',
-            'plumbing': 'REAL',
-            'hvac': 'REAL',
-            'elevator': 'REAL',
-            'fire': 'REAL',
-            'measures': 'REAL',
-            'formwork': 'REAL',
-            'block': 'REAL',
-            'cable': 'REAL',
-            'pipe': 'REAL',
-            'duct': 'REAL',
-            'source_file': 'TEXT',
-            'verified': 'INTEGER DEFAULT 0',
-            'verified_by': 'TEXT',
-            'verified_at': 'TEXT',
+            # 时间信息
+            'start_date': 'TEXT',
+            'end_date': 'TEXT',
+            'entry_date': 'TEXT',
+            # 交付与基础
+            'delivery_type': 'TEXT',
+            'foundation_type': 'TEXT',
+            # 造价分解
+            'cost_underground_structure': 'REAL',
+            'cost_underground_installation': 'REAL',
+            'unit_cost_underground_structure': 'REAL',
+            'unit_cost_underground_installation': 'REAL',
+            'cost_above_structure': 'REAL',
+            'cost_above_installation': 'REAL',
+            'unit_cost_above_structure': 'REAL',
+            'unit_cost_above_installation': 'REAL',
+            # 措施费与室外
+            'cost_measures': 'REAL',
+            'unit_cost_measures': 'REAL',
+            'cost_outdoor': 'REAL',
+            'unit_cost_outdoor': 'REAL',
+            # 专项工程（16个字段）
+            'cost_pile': 'REAL',
+            'unit_cost_pile': 'REAL',
+            'cost_foundation_support': 'REAL',
+            'unit_cost_foundation_support': 'REAL',
+            'cost_curtain_wall': 'REAL',
+            'unit_cost_curtain_wall': 'REAL',
+            'cost_decoration': 'REAL',
+            'unit_cost_decoration': 'REAL',
+            'cost_exterior_insulation': 'REAL',
+            'unit_cost_exterior_insulation': 'REAL',
+            'cost_exterior_windows': 'REAL',
+            'unit_cost_exterior_windows': 'REAL',
+            'cost_water_drainage': 'REAL',
+            'unit_cost_water_drainage': 'REAL',
+            'cost_heating': 'REAL',
+            'unit_cost_heating': 'REAL',
+            'cost_electrical': 'REAL',
+            'unit_cost_electrical': 'REAL',
+            'cost_hvac': 'REAL',
+            'unit_cost_hvac': 'REAL',
+            # 地上主体材料
+            'above_concrete': 'REAL',
+            'above_concrete_unit': 'REAL',
+            'above_rebar': 'REAL',
+            'above_rebar_unit': 'REAL',
+            'above_formwork': 'REAL',
+            'above_formwork_unit': 'REAL',
+            # 地下主体材料
+            'underground_concrete': 'REAL',
+            'underground_concrete_unit': 'REAL',
+            'underground_rebar': 'REAL',
+            'underground_rebar_unit': 'REAL',
+            'underground_formwork': 'REAL',
+            'underground_formwork_unit': 'REAL',
         }
 
         # 获取当前表的所有列
         cursor.execute("PRAGMA table_info(indicator_projects)")
         existing_columns = {row[1] for row in cursor.fetchall()}
+        logger.info(f"[LocalIndicatorService] 现有字段数量={len(existing_columns)}")
 
         # 添加缺失的列
+        added_count = 0
         for col, col_type in new_columns.items():
             if col not in existing_columns:
                 try:
                     cursor.execute(f"ALTER TABLE indicator_projects ADD COLUMN {col} {col_type}")
-                    logger.info(f"[LocalIndicatorService] 添加字段 {col}")
+                    logger.info(f"[LocalIndicatorService] 添加字段 {col}:{col_type}")
+                    added_count += 1
                 except sqlite3.OperationalError as e:
-                    logger.warning(f"[LocalIndicatorService] 添加字段失败: {e}")
+                    logger.warning(f"[LocalIndicatorService] 添加字段失败 {col}: {e}")
+
+        logger.info(f"[LocalIndicatorService] 迁移完成 | 新增字段={added_count}")
 
     def get_indicator_projects(self, limit: int = 100, category: str = None, location: str = None) -> List[Dict]:
         """获取指标库项目列表"""
@@ -193,6 +287,30 @@ class LocalIndicatorService:
                 'interior_wall', 'floor', 'electrical', 'plumbing', 'hvac',
                 'elevator', 'fire', 'measures',
                 'steel', 'concrete', 'formwork', 'block', 'cable', 'pipe', 'duct',
+                # 新增字段
+                'start_date', 'end_date', 'entry_date',
+                'delivery_type', 'foundation_type',
+                'cost_underground_structure', 'cost_underground_installation',
+                'unit_cost_underground_structure', 'unit_cost_underground_installation',
+                'cost_above_structure', 'cost_above_installation',
+                'unit_cost_above_structure', 'unit_cost_above_installation',
+                'cost_measures', 'unit_cost_measures', 'cost_outdoor', 'unit_cost_outdoor',
+                'cost_pile', 'unit_cost_pile',
+                'cost_foundation_support', 'unit_cost_foundation_support',
+                'cost_curtain_wall', 'unit_cost_curtain_wall',
+                'cost_decoration', 'unit_cost_decoration',
+                'cost_exterior_insulation', 'unit_cost_exterior_insulation',
+                'cost_exterior_windows', 'unit_cost_exterior_windows',
+                'cost_water_drainage', 'unit_cost_water_drainage',
+                'cost_heating', 'unit_cost_heating',
+                'cost_electrical', 'unit_cost_electrical',
+                'cost_hvac', 'unit_cost_hvac',
+                'above_concrete', 'above_concrete_unit',
+                'above_rebar', 'above_rebar_unit',
+                'above_formwork', 'above_formwork_unit',
+                'underground_concrete', 'underground_concrete_unit',
+                'underground_rebar', 'underground_rebar_unit',
+                'underground_formwork', 'underground_formwork_unit',
                 'source', 'source_file', 'remarks', 'verified', 'verified_by', 'verified_at',
                 'created_at', 'updated_at'
             ]
@@ -247,6 +365,30 @@ class LocalIndicatorService:
             'interior_wall', 'floor', 'electrical', 'plumbing', 'hvac',
             'elevator', 'fire', 'measures',
             'steel', 'concrete', 'formwork', 'block', 'cable', 'pipe', 'duct',
+            # 新增字段
+            'start_date', 'end_date', 'entry_date',
+            'delivery_type', 'foundation_type',
+            'cost_underground_structure', 'cost_underground_installation',
+            'unit_cost_underground_structure', 'unit_cost_underground_installation',
+            'cost_above_structure', 'cost_above_installation',
+            'unit_cost_above_structure', 'unit_cost_above_installation',
+            'cost_measures', 'unit_cost_measures', 'cost_outdoor', 'unit_cost_outdoor',
+            'cost_pile', 'unit_cost_pile',
+            'cost_foundation_support', 'unit_cost_foundation_support',
+            'cost_curtain_wall', 'unit_cost_curtain_wall',
+            'cost_decoration', 'unit_cost_decoration',
+            'cost_exterior_insulation', 'unit_cost_exterior_insulation',
+            'cost_exterior_windows', 'unit_cost_exterior_windows',
+            'cost_water_drainage', 'unit_cost_water_drainage',
+            'cost_heating', 'unit_cost_heating',
+            'cost_electrical', 'unit_cost_electrical',
+            'cost_hvac', 'unit_cost_hvac',
+            'above_concrete', 'above_concrete_unit',
+            'above_rebar', 'above_rebar_unit',
+            'above_formwork', 'above_formwork_unit',
+            'underground_concrete', 'underground_concrete_unit',
+            'underground_rebar', 'underground_rebar_unit',
+            'underground_formwork', 'underground_formwork_unit',
             'source', 'source_file', 'remarks', 'verified', 'verified_by', 'verified_at'
         ]
 

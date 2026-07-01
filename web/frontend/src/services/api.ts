@@ -834,16 +834,16 @@ export const indicatorReportApi = {
   },
 };
 
-// 烟台钢筋价格 API (Supabase)
+// 烟台钢筋价格 API (统一端点)
 export const yantaiRebarApi = {
   getStats: async () => {
-    const response = await fetch(`${config.apiUrl}/yantai-rebar/stats`);
+    const response = await fetch(`${config.apiUrl}/rebar/stats`);
     return response.json();
   },
   getLatest: async (date?: string, limit = 500) => {
     const url = date
-      ? `${config.apiUrl}/yantai-rebar/latest?date=${encodeURIComponent(date)}&limit=${limit}`
-      : `${config.apiUrl}/yantai-rebar/latest?limit=${limit}`;
+      ? `${config.apiUrl}/rebar/latest?date=${encodeURIComponent(date)}&limit=${limit}`
+      : `${config.apiUrl}/rebar/latest?limit=${limit}`;
     const response = await fetch(url);
     return response.json();
   },
@@ -851,7 +851,7 @@ export const yantaiRebarApi = {
     const params = new URLSearchParams({ start_date, end_date });
     if (material) params.append('material', material);
     if (spec) params.append('spec', spec);
-    const response = await fetch(`${config.apiUrl}/yantai-rebar/range?${params}`);
+    const response = await fetch(`${config.apiUrl}/rebar/range?${params}`);
     return response.json();
   },
   getTrend: async (material?: string, spec?: string, days = 365, start_date?: string, end_date?: string) => {
@@ -860,17 +860,17 @@ export const yantaiRebarApi = {
     if (spec) params.append('spec', spec);
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
-    const response = await fetch(`${config.apiUrl}/yantai-rebar/trend?${params}`);
+    const response = await fetch(`${config.apiUrl}/rebar/trend?${params}`);
     return response.json();
   },
   getMaterials: async () => {
-    const response = await fetch(`${config.apiUrl}/yantai-rebar/materials`);
+    const response = await fetch(`${config.apiUrl}/rebar/materials`);
     return response.json();
   },
   getSpecs: async (material?: string) => {
     const url = material
-      ? `${config.apiUrl}/yantai-rebar/specs?material=${encodeURIComponent(material)}`
-      : `${config.apiUrl}/yantai-rebar/specs`;
+      ? `${config.apiUrl}/rebar/specs?material=${encodeURIComponent(material)}`
+      : `${config.apiUrl}/rebar/specs`;
     const response = await fetch(url);
     return response.json();
   },
@@ -878,14 +878,14 @@ export const yantaiRebarApi = {
     const params = new URLSearchParams();
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
-    const url = `${config.apiUrl}/yantai-rebar/dates${params.toString() ? '?' + params : ''}`;
+    const url = `${config.apiUrl}/rebar/dates${params.toString() ? '?' + params : ''}`;
     const response = await fetch(url);
     return response.json();
   },
   search: async (keyword: string, date?: string, limit = 100) => {
     const params = new URLSearchParams({ keyword, limit: String(limit) });
     if (date) params.append('date', date);
-    const response = await fetch(`${config.apiUrl}/yantai-rebar/search?${params}`);
+    const response = await fetch(`${config.apiUrl}/rebar/search?${params}`);
     return response.json();
   },
   // 报告摘要API
@@ -894,13 +894,13 @@ export const yantaiRebarApi = {
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
     if (material_type) params.append('material_type', material_type);
-    const url = `${config.apiUrl}/yantai-rebar/report/summary${params.toString() ? '?' + params : ''}`;
+    const url = `${config.apiUrl}/rebar/report/summary${params.toString() ? '?' + params : ''}`;
     const response = await fetch(url);
     return response.json();
   },
   // 价格影响因素API
   getInfluencingFactors: async () => {
-    const response = await fetch(`${config.apiUrl}/yantai-rebar/report/influencing-factors`);
+    const response = await fetch(`${config.apiUrl}/rebar/report/influencing-factors`);
     return response.json();
   },
 };
@@ -983,6 +983,175 @@ export const indicatorDatabaseApi = {
   },
 };
 
+// 指标库导入 API - 对应 /indicator-library/* 端点
+import type {
+  IndicatorLibrarySummary,
+  IndicatorLibraryDetail,
+  ValidationWarning,
+  ValidationResult,
+  ImportPreviewItem,
+  ImportPreviewResult,
+  ImportResult,
+  IndicatorLibraryStats,
+} from '../types/indicator';
+
+export type {
+  IndicatorLibrarySummary,
+  IndicatorLibraryDetail,
+  ValidationWarning,
+  ValidationResult,
+  ImportPreviewItem,
+  ImportPreviewResult,
+  ImportResult,
+  IndicatorLibraryStats,
+} from '../types/indicator';
+
+export const indicatorLibraryApi = {
+  // 获取汇总列表
+  getSummary: async (params?: {
+    category?: string;
+    location?: string;
+    limit?: number;
+  }): Promise<IndicatorLibrarySummary[]> => {
+    const query = new URLSearchParams();
+    if (params?.category) query.append('category', params.category);
+    if (params?.location) query.append('location', params.location);
+    if (params?.limit) query.append('limit', String(params.limit));
+    const queryStr = query.toString();
+
+    const response = await fetch(`${config.apiUrl}/indicator-library/summary${queryStr ? '?' + queryStr : ''}`);
+    if (!response.ok) throw new Error('获取汇总列表失败');
+    return response.json();
+  },
+
+  // 获取项目详情
+  getDetail: async (id: string): Promise<IndicatorLibraryDetail> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/${id}`);
+    if (!response.ok) {
+      if (response.status === 404) throw new Error('项目不存在');
+      throw new Error('获取项目详情失败');
+    }
+    return response.json();
+  },
+
+  // 创建项目
+  create: async (data: Partial<IndicatorLibraryDetail>): Promise<IndicatorLibraryDetail> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '创建失败' }));
+      throw new Error(error.detail || '创建失败');
+    }
+    return response.json();
+  },
+
+  // 更新项目
+  update: async (id: string, data: Partial<IndicatorLibraryDetail>): Promise<IndicatorLibraryDetail> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '更新失败' }));
+      throw new Error(error.detail || '更新失败');
+    }
+    return response.json();
+  },
+
+  // 删除项目
+  delete: async (id: string): Promise<{ success: boolean }> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/${id}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('删除失败');
+    return response.json();
+  },
+
+  // 验证数据
+  validate: async (data: Partial<IndicatorLibraryDetail>): Promise<ValidationResult> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('验证失败');
+    return response.json();
+  },
+
+  // 预览 Excel 数据（解析并验证）
+  preview: async (file: File): Promise<ImportPreviewResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${config.apiUrl}/indicator-library/preview`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '预览失败' }));
+      throw new Error(error.detail || '预览失败');
+    }
+    return response.json();
+  },
+
+  // 导入 Excel 数据
+  import: async (file: File): Promise<ImportResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${config.apiUrl}/indicator-library/import`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '导入失败' }));
+      throw new Error(error.detail || '导入失败');
+    }
+    return response.json();
+  },
+
+  // 导出 Excel
+  exportExcel: async (category?: string): Promise<Blob> => {
+    const query = category ? `?category=${encodeURIComponent(category)}` : '';
+    const response = await fetch(`${config.apiUrl}/indicator-library/export${query}`);
+    if (!response.ok) throw new Error('导出失败');
+    return response.blob();
+  },
+
+  // 下载导出文件
+  downloadExport: (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  // 获取统计概览
+  getStats: async (): Promise<IndicatorLibraryStats> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/stats/overview`);
+    if (!response.ok) throw new Error('获取统计数据失败');
+    return response.json();
+  },
+
+  // 获取导入模板
+  getTemplate: async () => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/template`);
+    if (!response.ok) throw new Error('获取模板失败');
+    return response.json();
+  },
+
+  // 下载导入模板
+  downloadTemplate: () => {
+    window.open(`${config.apiUrl}/indicator-library/template`, '_blank');
+  },
+};
+
 // 默认导出（兼容 `import api from '../services/api'`）
 export default {
   config,
@@ -1004,4 +1173,5 @@ export default {
   indicatorReportApi,
   yantaiRebarApi,
   indicatorDatabaseApi,
+  indicatorLibraryApi,
 };

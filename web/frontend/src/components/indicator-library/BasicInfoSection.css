@@ -1,0 +1,76 @@
+/**
+ * BasicInfoSection 组件样式
+ * 基础信息表单
+ */
+
+.basic-info-section {
+  padding: 8px 0;
+}
+
+/* 标题行 */
+.basic-info-title-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 0 16px 0;
+  border-bottom: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+
+/* 行布局 */
+.basic-info-row {
+  margin-bottom: 16px;
+}
+
+.basic-info-row.three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* 表单项 */
+.basic-info-form-item {
+  margin-bottom: 0;
+}
+
+.basic-info-form-item.full-width {
+  grid-column: 1 / -1;
+}
+
+/* 字段样式 */
+.basic-info-field {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+.basic-info-label {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.basic-info-value {
+  font-size: 14px;
+  color: #333;
+}
+
+/* 来源信息 */
+.basic-info-source {
+  padding-top: 12px;
+  border-top: 1px dashed #f0f0f0;
+  margin-top: 8px;
+}
+
+.basic-info-source-text {
+  font-size: 12px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .basic-info-row.three-col {
+    grid-template-columns: 1fr;
+  }
+}

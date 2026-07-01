@@ -13,6 +13,7 @@ import Settings from './pages/Settings'
 import CostReference from './pages/CostReference'
 import DataManager from './pages/DataManager'
 import IndicatorReport from './pages/IndicatorReport'
+import IndicatorLibrary from './pages/IndicatorLibrary'
 
 const theme = {
   token: {
@@ -61,6 +62,7 @@ export default function App() {
               <Route path="/indicators" element={<Indicators />} />
               <Route path="/cost-reference" element={<CostReference />} />
               <Route path="/data-manager" element={<DataManager />} />
+              <Route path="/indicator-library" element={<IndicatorLibrary />} />
               <Route path="/indicator-report" element={<IndicatorReport />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>

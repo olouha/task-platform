@@ -1,0 +1,84 @@
+/**
+ * CostSection 组件样式
+ * 造价指标表单
+ */
+
+.cost-section {
+  padding: 8px 0;
+}
+
+/* 主标题 */
+.cost-main-title,
+.cost-breakdown-title,
+.cost-economy-title {
+  margin-bottom: 16px;
+  color: #333;
+}
+
+/* 行布局 */
+.cost-row {
+  margin-bottom: 16px;
+}
+
+.cost-row.two-col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.cost-row.three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.cost-row.four-col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+/* 表单项 */
+.cost-form-item {
+  margin-bottom: 0;
+}
+
+/* 字段样式 */
+.cost-field {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.cost-field.highlight {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+}
+
+.cost-label {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.cost-value {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.cost-field.highlight .cost-value {
+  color: #f5222d;
+  font-size: 16px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .cost-row.two-col,
+  .cost-row.three-col,
+  .cost-row.four-col {
+    grid-template-columns: 1fr;
+  }
+}

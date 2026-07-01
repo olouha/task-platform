@@ -1,0 +1,171 @@
+/**
+ * SummaryList 组件样式
+ * 指标库摘要列表
+ */
+
+/* 容器 */
+.summary-list-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #fff;
+}
+
+/* 筛选区域 */
+.summary-list-filters {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.summary-list-search {
+  margin-bottom: 8px;
+}
+
+/* 高级筛选区域 */
+.summary-list-advanced-filters {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-list-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-list-filter-label {
+  min-width: 70px;
+  color: #666;
+  font-size: 13px;
+}
+
+/* 活跃筛选标签区域 */
+.summary-list-active-filters {
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+  min-height: 40px;
+}
+
+.summary-list-filter-tag {
+  background: #e6f7ff;
+  border-color: #91d5ff;
+}
+
+/* 清除按钮 */
+.summary-list-clear-btn {
+  padding: 0;
+  height: auto;
+  color: #999;
+}
+
+.summary-list-clear-btn:hover {
+  color: #1890ff;
+}
+
+/* 列表统计 */
+.summary-list-stat {
+  padding: 8px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+  text-align: right;
+  font-size: 12px;
+}
+
+/* 列表内容区 */
+.summary-list-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* 空状态 */
+.summary-list-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  color: #999;
+}
+
+/* 列表项 */
+.summary-list-item {
+  padding: 12px 16px !important;
+  margin: 0 !important;
+  border-bottom: 1px solid #f0f0f0 !important;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.summary-list-item:hover {
+  background: #f5f5f5;
+}
+
+.summary-list-item.selected {
+  background: #e6f7ff;
+  border-left: 3px solid #1890ff;
+}
+
+.summary-list-item-content {
+  width: 100%;
+}
+
+/* 列表项标题 */
+.summary-list-item-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.summary-list-item-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: #333;
+  display: flex;
+  align-items: center;
+}
+
+/* 列表项信息行 */
+.summary-list-item-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.summary-list-item-tag {
+  font-size: 12px;
+  color: #666;
+  display: flex;
+  align-items: center;
+}
+
+/* 列表项日期和面积 */
+.summary-list-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #999;
+}
+
+.summary-list-item-dates {
+  display: flex;
+  align-items: center;
+}
+
+.summary-list-item-area {
+  color: #1890ff;
+}
+
+/* 列表项单方造价 */
+.summary-list-item-cost {
+  margin-top: 4px;
+  font-size: 13px;
+}
