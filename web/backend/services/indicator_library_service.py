@@ -559,6 +559,209 @@ class IndicatorLibraryService:
                 "error": str(e),
             }
 
+    # ==================== 自动导入（先校验后入库） ====================
+
+    def auto_import(self, file_content: bytes, filename: str) -> ImportResult:
+        """
+        自动导入 Excel 数据（先预览校验，有错误返回，无错误直接入库）
+
+        流程：解析Excel → 逐行校验 → 有错返回错误列表 → 无错直接入库
+
+        Args:
+            file_content: Excel 文件内容
+            filename: 文件名
+
+        Returns:
+            ImportResult 导入结果
+        """
+        logger.info(f"[IndicatorLibraryService] 自动导入 | filename={filename}")
+
+        try:
+            # 保存到临时文件
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp_file:
+                tmp_file.write(file_content)
+                tmp_path = tmp_file.name
+
+            try:
+                # 解析 Excel
+                parser = ExcelParserService(tmp_path)
+                parse_result = parser.parse()
+
+                if not parse_result.get("success"):
+                    raise ValueError(parse_result.get("error", "解析失败"))
+
+                projects = parse_result.get("projects", [])
+                logger.info(f"[IndicatorLibraryService] 解析完成 | count={len(projects)}")
+
+                # 校验所有数据
+                valid_projects = []
+                errors_list = []
+                warnings_list = []
+
+                for idx, project in enumerate(projects):
+                    # 添加元数据
+                    project["source"] = "Excel导入"
+                    project["source_file"] = filename
+
+                    # 验证数据
+                    validation_result = self._validator.validate(project)
+
+                    if validation_result.errors:
+                        # 有错误，记录并跳过
+                        errors_list.append({
+                            "row": idx + 1,
+                            "name": project.get("name", f"项目{idx + 1}"),
+                            "errors": [e.message for e in validation_result.errors]
+                        })
+                    else:
+                        # 验证通过（可能有警告但仍可导入）
+                        if validation_result.warnings:
+                            warnings_list.append({
+                                "row": idx + 1,
+                                "name": project.get("name", f"项目{idx + 1}"),
+                                "warnings": [w.message for w in validation_result.warnings]
+                            })
+                        valid_projects.append(project)
+
+                # 如果有错误，返回错误列表让用户处理
+                if errors_list:
+                    logger.info(f"[IndicatorLibraryService] 校验有误 | error_count={len(errors_list)}, valid_count={len(valid_projects)}")
+                    return ImportResult(
+                        success=False,
+                        imported=0,
+                        total=len(projects),
+                        warnings=warnings_list,
+                        errors=[f"第{e['row']}行 ({e['name']}): {', '.join(e['errors'])}" for e in errors_list],
+                    )
+
+                # 无错误，直接入库
+                imported = 0
+                imported_details = []
+
+                for project in valid_projects:
+                    result = self._storage_service.auto_import_project(project, filename)
+                    if result.get('success'):
+                        imported += 1
+                        imported_details.append({
+                            "id": result.get('id'),
+                            "name": project.get('name'),
+                            "version": result.get('version'),
+                            "is_update": result.get('is_update', False)
+                        })
+
+                # 记录导入历史
+                self._storage_service.record_import_history(
+                    filename=filename,
+                    total_count=len(projects),
+                    success_count=imported,
+                    fail_count=len(errors_list),
+                    details=imported_details
+                )
+
+                result = ImportResult(
+                    success=True,
+                    imported=imported,
+                    total=len(projects),
+                    warnings=[f"第{w['row']}行: {', '.join(w['warnings'])}" for w in warnings_list] if warnings_list else [],
+                    errors=[],
+                )
+
+                logger.info(f"[IndicatorLibraryService] 自动导入完成 | imported={imported}")
+                return result
+
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"[IndicatorLibraryService] 自动导入失败 | error={e}", exc_info=True)
+            raise ValueError(f"自动导入失败: {str(e)}")
+
+    # ==================== 导入历史 ====================
+
+    def get_import_history(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        获取导入历史列表
+
+        Args:
+            limit: 返回数量限制
+
+        Returns:
+            导入历史列表
+        """
+        logger.info(f"[IndicatorLibraryService] 获取导入历史 | limit={limit}")
+        return self._storage_service.get_import_history(limit)
+
+    def get_import_detail(self, import_id: int) -> Optional[Dict[str, Any]]:
+        """
+        获取导入详情
+
+        Args:
+            import_id: 导入记录ID
+
+        Returns:
+            导入详情或 None
+        """
+        logger.info(f"[IndicatorLibraryService] 获取导入详情 | import_id={import_id}")
+        return self._storage_service.get_import_detail(import_id)
+
+    # ==================== 版本历史 ====================
+
+    def get_version_history(self, project_id: str) -> List[Dict[str, Any]]:
+        """
+        获取项目版本历史
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            版本历史列表
+        """
+        logger.info(f"[IndicatorLibraryService] 获取版本历史 | project_id={project_id}")
+        return self._storage_service.get_version_history(project_id)
+
+    def get_snapshot_detail(self, snapshot_id: str) -> Optional[Dict[str, Any]]:
+        """
+        获取快照详情
+
+        Args:
+            snapshot_id: 快照ID
+
+        Returns:
+            快照数据或 None
+        """
+        logger.info(f"[IndicatorLibraryService] 获取快照详情 | snapshot_id={snapshot_id}")
+        return self._storage_service.get_snapshot_detail(snapshot_id)
+
+    def rollback_version(self, snapshot_id: str) -> bool:
+        """
+        回滚到指定快照
+
+        Args:
+            snapshot_id: 快照ID
+
+        Returns:
+            是否回滚成功
+        """
+        logger.info(f"[IndicatorLibraryService] 回滚版本 | snapshot_id={snapshot_id}")
+        return self._storage_service.rollback_to_snapshot(snapshot_id)
+
+    # ==================== 数据一致性校验 ====================
+
+    def sync_check(self) -> Dict[str, Any]:
+        """
+        前后端数据一致性校验
+
+        Returns:
+            校验结果
+        """
+        logger.info("[IndicatorLibraryService] 执行数据一致性校验")
+        return self._storage_service.sync_check()
+
     # ==================== 私有辅助方法 ====================
 
     def _to_summary(self, project: Dict[str, Any]) -> IndicatorLibrarySummary:

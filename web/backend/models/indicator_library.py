@@ -129,6 +129,10 @@ class IndicatorLibraryDetail(BaseModel):
     entry_date: Optional[str] = Field(None, description="录入时间")
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+    # 版本管理
+    version: Optional[int] = Field(1, description="版本号")
+    is_latest: Optional[bool] = Field(True, description="是否最新版本")
+    snapshot_id: Optional[str] = Field(None, description="快照ID")
 
     class Config:
         json_schema_extra = {
@@ -267,6 +271,34 @@ class ImportResult(BaseModel):
     total: int = Field(..., description="总数")
     warnings: List[Dict[str, Any]] = Field(default_factory=list, description="警告列表")
     errors: List[str] = Field(default_factory=list, description="错误列表")
+
+
+class ImportHistoryItem(BaseModel):
+    """导入历史项"""
+    id: int = Field(..., description="导入记录ID")
+    filename: str = Field(..., description="文件名")
+    total_count: int = Field(..., description="总条数")
+    success_count: int = Field(..., description="成功条数")
+    fail_count: int = Field(..., description="失败条数")
+    imported_at: str = Field(..., description="导入时间")
+
+
+class VersionHistoryItem(BaseModel):
+    """版本历史项"""
+    id: str = Field(..., description="快照ID")
+    project_id: str = Field(..., description="项目ID")
+    project_name: str = Field(..., description="项目名称")
+    version: int = Field(..., description="版本号")
+    created_at: str = Field(..., description="创建时间")
+    filename: Optional[str] = Field(None, description="来源文件名")
+
+
+class SyncCheckResult(BaseModel):
+    """数据一致性校验结果"""
+    sqlite: Dict[str, int] = Field(..., description="SQLite 统计")
+    last_update: Optional[str] = Field(None, description="最后更新时间")
+    last_import: Optional[str] = Field(None, description="最后导入时间")
+    in_sync: bool = Field(True, description="是否同步")
 
 
 # 辅助函数

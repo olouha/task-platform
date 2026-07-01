@@ -30,6 +30,144 @@ def get_service() -> IndicatorLibraryService:
     return get_indicator_library_service()
 
 
+# ==================== 下载导入模板 ====================
+
+@router.get("/template")
+async def download_template() -> StreamingResponse:
+    """
+    下载指标库导入模板
+
+    - 返回包含汇总表和明细表的 Excel 模板
+    - 员工可据此填写数据后导入系统
+    """
+    logger.info("[download_template] 下载导入模板")
+
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+        wb = openpyxl.Workbook()
+
+        # 定义样式
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        note_font = Font(italic=True, color="666666")
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+
+        # ==================== 汇总表 ====================
+        ws_summary = wb.active
+        ws_summary.title = "汇总"
+
+        summary_headers = [
+            "序号", "项目名称", "业态", "项目所在地", "结构形式",
+            "交付形式", "层数（地上/下）", "总面积（m2）", "檐高（m）",
+            "总造价", "开工时间", "竣工时间",
+        ]
+
+        for col, header in enumerate(summary_headers, 1):
+            cell = ws_summary.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # 设置列宽
+        column_widths = [8, 25, 10, 15, 12, 12, 15, 15, 10, 15, 12, 12]
+        for col, width in enumerate(column_widths, 1):
+            ws_summary.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+
+        # 添加示例数据
+        sample_summary = [
+            1, "示例住宅项目", "住宅", "山东烟台", "框架结构",
+            "毛坯交付", "18/2", 25000, 54, 58750000, "2023-01", "2024-06",
+        ]
+        for col, value in enumerate(sample_summary, 1):
+            cell = ws_summary.cell(row=2, column=col, value=value)
+            cell.border = thin_border
+
+        # 添加填写说明
+        ws_summary.cell(row=4, column=1, value="填写说明：").font = Font(bold=True)
+        ws_summary.cell(row=5, column=1, value="1. 序号从1开始，与明细表对应").font = note_font
+        ws_summary.cell(row=6, column=1, value="2. 业态可选：住宅/商业/办公/工业").font = note_font
+        ws_summary.cell(row=7, column=1, value="3. 交付形式可选：毛坯交付/精装修/带装修").font = note_font
+        ws_summary.cell(row=8, column=1, value="4. 层数格式示例：18/2 表示地上18层/地下2层").font = note_font
+        ws_summary.cell(row=9, column=1, value="5. 开工/竣工时间格式：YYYY-MM，如2023-01").font = note_font
+
+        # ==================== 明细表 ====================
+        ws_detail = wb.create_sheet("明细")
+
+        detail_headers = [
+            "序号", "项目名称", "业态", "项目所在地", "结构形式", "交付形式",
+            "建筑高度（m）", "建筑层数（地上）", "建筑层数（地下）", "桩基形式",
+            "总面积（m2）", "地上建筑面积（m2）", "地下建筑面积（m2）",
+            "地上土建造价", "地上安装造价", "地下土建造价", "地下安装造价",
+            "平米造价（元/m2）", "措施费（元）", "室外造价（元）",
+            "桩基造价（元）", "基坑支护造价（元）", "幕墙造价（元）", "精装修造价（元）",
+            "地上砼用量（m3）", "地上砼平米含量", "地上钢筋用量（t）", "地上钢筋平米含量",
+            "地下砼用量（m3）", "地下砼平米含量", "地下钢筋用量（t）", "地下钢筋平米含量",
+        ]
+
+        for col, header in enumerate(detail_headers, 1):
+            cell = ws_detail.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # 设置列宽
+        for col in range(1, len(detail_headers) + 1):
+            ws_detail.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 12
+
+        # 添加示例数据
+        sample_detail = [
+            1, "示例住宅项目", "住宅", "山东烟台", "框架结构", "毛坯交付",
+            54, 18, 2, "钻孔灌注桩",
+            25000, 22000, 3000,
+            35000000, 10000000, 8000000, 3000000,
+            2350, 3000000, 2000000,
+            500000, 800000, 2000000, 5000000,
+            8000, 0.32, 1000, 0.04,
+            2500, 0.1, 300, 0.012,
+        ]
+        for col, value in enumerate(sample_detail, 1):
+            cell = ws_detail.cell(row=2, column=col, value=value)
+            cell.border = thin_border
+
+        # 添加填写说明
+        ws_detail.cell(row=4, column=1, value="填写说明：").font = Font(bold=True)
+        ws_detail.cell(row=5, column=1, value="1. 序号必须与汇总表一致").font = note_font
+        ws_detail.cell(row=6, column=1, value="2. 数值字段直接填写数字，不要带单位").font = note_font
+        ws_detail.cell(row=7, column=1, value="3. 平米含量 = 用量 / 对应面积").font = note_font
+
+        # 保存到内存
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        filename = "indicator_template.xlsx"
+
+        logger.info("[download_template] 模板生成完成")
+
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"},
+        )
+
+    except ImportError:
+        logger.error("[download_template] openpyxl 未安装")
+        raise HTTPException(status_code=500, detail="服务器未安装 Excel 支持库")
+    except Exception as e:
+        logger.error(f"[download_template] 模板生成失败 | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"模板生成失败: {str(e)}")
+
+
 # ==================== 汇总列表 ====================
 
 @router.get("/summary", response_model=List[Dict[str, Any]])
@@ -62,6 +200,212 @@ async def get_summary_list(
         logger.error(f"[get_summary_list] 获取汇总列表失败 | error={e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取汇总列表失败: {str(e)}")
 
+
+# ==================== 自动导入（先校验后入库）====================
+
+@router.post("/auto-import", response_model=Dict[str, Any])
+async def auto_import(
+    file: UploadFile = File(..., description="Excel文件"),
+    service: IndicatorLibraryService = Depends(get_service),
+) -> Dict[str, Any]:
+    """
+    自动导入 Excel 数据（先预览校验，有错误返回，无错误直接入库）
+
+    - 解析 Excel 文件
+    - 逐行校验数据
+    - 有错误返回错误列表让用户处理
+    - 无错误直接入库并返回成功结果
+    """
+    logger.info(f"[auto_import] 自动导入 | filename={file.filename}")
+
+    try:
+        # 验证文件类型
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            raise HTTPException(status_code=400, detail="仅支持 .xlsx 或 .xls 格式的 Excel 文件")
+
+        # 读取文件内容
+        content = await file.read()
+        if len(content) == 0:
+            raise HTTPException(status_code=400, detail="文件为空")
+
+        # 执行自动导入
+        result = service.auto_import(content, file.filename)
+        logger.info(
+            f"[auto_import] 导入完成 | success={result.success} | imported={result.imported} | total={result.total}"
+        )
+        return result.model_dump()
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"[auto_import] 导入失败 | error={e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"[auto_import] 自动导入失败 | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"自动导入失败: {str(e)}")
+
+
+# ==================== 导入历史 ====================
+
+@router.get("/import-history", response_model=List[Dict[str, Any]])
+async def get_import_history(
+    limit: int = Query(50, ge=1, le=200, description="返回数量限制"),
+    service: IndicatorLibraryService = Depends(get_service),
+) -> List[Dict[str, Any]]:
+    """
+    获取导入历史列表
+
+    - 返回历史导入记录
+    - 包含文件名、导入数量、成功/失败数等信息
+    """
+    logger.info(f"[get_import_history] 获取导入历史 | limit={limit}")
+
+    try:
+        history = service.get_import_history(limit)
+        logger.info(f"[get_import_history] 返回 {len(history)} 条记录")
+        return history
+
+    except Exception as e:
+        logger.error(f"[get_import_history] 获取导入历史失败 | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取导入历史失败: {str(e)}")
+
+
+@router.get("/import-history/{import_id}", response_model=Dict[str, Any])
+async def get_import_detail(
+    import_id: int,
+    service: IndicatorLibraryService = Depends(get_service),
+) -> Dict[str, Any]:
+    """
+    获取导入详情
+
+    - 返回指定导入记录的详细信息
+    - 包含成功导入的详细数据
+    """
+    logger.info(f"[get_import_detail] 获取导入详情 | import_id={import_id}")
+
+    try:
+        detail = service.get_import_detail(import_id)
+
+        if not detail:
+            logger.warning(f"[get_import_detail] 导入记录不存在 | import_id={import_id}")
+            raise HTTPException(status_code=404, detail=f"导入记录不存在: {import_id}")
+
+        logger.info(f"[get_import_detail] 获取成功 | import_id={import_id}")
+        return detail
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[get_import_detail] 获取导入详情失败 | import_id={import_id} | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取导入详情失败: {str(e)}")
+
+
+# ==================== 版本历史 ====================
+
+@router.get("/versions/{project_id}", response_model=List[Dict[str, Any]])
+async def get_version_history(
+    project_id: str,
+    service: IndicatorLibraryService = Depends(get_service),
+) -> List[Dict[str, Any]]:
+    """
+    获取项目版本历史
+
+    - 返回项目的所有版本快照
+    - 包含版本号、创建时间、来源文件等信息
+    """
+    logger.info(f"[get_version_history] 获取版本历史 | project_id={project_id}")
+
+    try:
+        versions = service.get_version_history(project_id)
+        logger.info(f"[get_version_history] 返回 {len(versions)} 个版本")
+        return versions
+
+    except Exception as e:
+        logger.error(f"[get_version_history] 获取版本历史失败 | project_id={project_id} | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取版本历史失败: {str(e)}")
+
+
+@router.get("/versions/{project_id}/snapshot/{snapshot_id}", response_model=Dict[str, Any])
+async def get_snapshot_detail(
+    project_id: str,
+    snapshot_id: str,
+    service: IndicatorLibraryService = Depends(get_service),
+) -> Dict[str, Any]:
+    """
+    获取快照详情
+
+    - 返回指定快照的完整数据
+    """
+    logger.info(f"[get_snapshot_detail] 获取快照详情 | project_id={project_id} | snapshot_id={snapshot_id}")
+
+    try:
+        detail = service.get_snapshot_detail(snapshot_id)
+
+        if not detail:
+            logger.warning(f"[get_snapshot_detail] 快照不存在 | snapshot_id={snapshot_id}")
+            raise HTTPException(status_code=404, detail=f"快照不存在: {snapshot_id}")
+
+        logger.info(f"[get_snapshot_detail] 获取成功 | snapshot_id={snapshot_id}")
+        return detail
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[get_snapshot_detail] 获取快照详情失败 | snapshot_id={snapshot_id} | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"获取快照详情失败: {str(e)}")
+
+
+@router.post("/versions/{project_id}/rollback/{snapshot_id}")
+async def rollback_version(
+    project_id: str,
+    snapshot_id: str,
+    service: IndicatorLibraryService = Depends(get_service),
+) -> Dict[str, bool]:
+    """
+    回滚到指定版本
+
+    - 将项目恢复到指定快照的状态
+    - 会自动保存当前版本为新快照
+    """
+    logger.info(f"[rollback_version] 回滚版本 | project_id={project_id} | snapshot_id={snapshot_id}")
+
+    try:
+        success = service.rollback_version(snapshot_id)
+
+        if success:
+            logger.info(f"[rollback_version] 回滚成功 | project_id={project_id} | snapshot_id={snapshot_id}")
+        else:
+            logger.warning(f"[rollback_version] 回滚失败 | snapshot_id={snapshot_id}")
+
+        return {"success": success}
+
+    except Exception as e:
+        logger.error(f"[rollback_version] 回滚失败 | snapshot_id={snapshot_id} | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"回滚失败: {str(e)}")
+
+
+# ==================== 数据一致性校验 ====================
+
+@router.get("/data-sync", response_model=Dict[str, Any])
+async def sync_check(
+    service: IndicatorLibraryService = Depends(get_service),
+) -> Dict[str, Any]:
+    """
+    前后端数据一致性校验
+
+    - 返回数据库统计信息
+    - 包含项目数、快照数、导入记录数等
+    """
+    logger.info("[sync_check] 执行数据一致性校验")
+
+    try:
+        result = service.sync_check()
+        logger.info(f"[sync_check] 校验完成 | in_sync={result.get('in_sync')}")
+        return result
+
+    except Exception as e:
+        logger.error(f"[sync_check] 校验失败 | error={e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"数据一致性校验失败: {str(e)}")
 
 # ==================== 项目详情 ====================
 
@@ -462,3 +806,5 @@ async def get_stats_overview(
     except Exception as e:
         logger.error(f"[get_stats_overview] 获取统计失败 | error={e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
+
+

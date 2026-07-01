@@ -1146,9 +1146,89 @@ export const indicatorLibraryApi = {
     return response.json();
   },
 
-  // 下载导入模板
-  downloadTemplate: () => {
-    window.open(`${config.apiUrl}/indicator-library/template`, '_blank');
+  // 下载导入模板（返回 Blob 以便正确下载）
+  downloadTemplate: async () => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/template`);
+    if (!response.ok) throw new Error('下载模板失败');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '指标库导入模板.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  // 自动导入（先校验后入库）
+  autoImport: async (file: File): Promise<{
+    success: boolean;
+    imported: number;
+    total: number;
+    warnings: any[];
+    errors: string[];
+  }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${config.apiUrl}/indicator-library/auto-import`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: '自动导入失败' }));
+      throw new Error(error.detail || '自动导入失败');
+    }
+    return response.json();
+  },
+
+  // 获取导入历史
+  getImportHistory: async (limit: number = 50): Promise<any[]> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/import-history?limit=${limit}`);
+    if (!response.ok) throw new Error('获取导入历史失败');
+    return response.json();
+  },
+
+  // 获取导入详情
+  getImportDetail: async (importId: number): Promise<any> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/import-history/${importId}`);
+    if (!response.ok) throw new Error('获取导入详情失败');
+    return response.json();
+  },
+
+  // 获取版本历史
+  getVersionHistory: async (projectId: string): Promise<any[]> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/versions/${projectId}`);
+    if (!response.ok) throw new Error('获取版本历史失败');
+    return response.json();
+  },
+
+  // 获取快照详情
+  getSnapshotDetail: async (projectId: string, snapshotId: string): Promise<any> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/versions/${projectId}/snapshot/${snapshotId}`);
+    if (!response.ok) throw new Error('获取快照详情失败');
+    return response.json();
+  },
+
+  // 回滚到指定版本
+  rollbackVersion: async (projectId: string, snapshotId: string): Promise<{ success: boolean }> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/versions/${projectId}/rollback/${snapshotId}`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('回滚失败');
+    return response.json();
+  },
+
+  // 数据一致性校验
+  syncCheck: async (): Promise<{
+    sqlite: { project_count: number; snapshot_count: number; import_count: number; max_version: number };
+    last_update: string | null;
+    last_import: string | null;
+    in_sync: boolean;
+  }> => {
+    const response = await fetch(`${config.apiUrl}/indicator-library/data-sync`);
+    if (!response.ok) throw new Error('数据一致性校验失败');
+    return response.json();
   },
 };
 

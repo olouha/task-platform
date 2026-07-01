@@ -3,8 +3,8 @@
  * Master-detail layout: 左侧摘要列表 (35%) + 右侧详情面板 (65%)
  */
 import { useState, useEffect, useCallback } from 'react'
-import { Layout, Button, Space, message, Spin, Card, Typography } from 'antd'
-import { PlusOutlined, UploadOutlined, DownloadOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Layout, Button, Space, message, Spin, Card, Typography, Modal, Table, Badge, Descriptions } from 'antd'
+import { PlusOutlined, UploadOutlined, DownloadOutlined, ReloadOutlined, FileExcelOutlined, HistoryOutlined, SyncOutlined } from '@ant-design/icons'
 import PageHeader from '../components/PageHeader'
 
 // 导入子组件
@@ -87,6 +87,15 @@ export default function IndicatorLibrary() {
 
   /** 文件上传 input ref */
   const fileInputRef = useState<HTMLInputElement | null>(null)
+
+  /** 导入历史弹窗 */
+  const [historyVisible, setHistoryVisible] = useState(false)
+  const [importHistory, setImportHistory] = useState<any[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  /** 同步状态 */
+  const [syncStatus, setSyncStatus] = useState<any>(null)
+  const [syncVisible, setSyncVisible] = useState(false)
 
   // -------------------------------------------------------------------------
   // 数据加载
@@ -185,6 +194,71 @@ export default function IndicatorLibrary() {
     setImportVisible(false)
     setImportPreviewData([])
   }, [])
+
+  /**
+   * 下载导入模板
+   */
+  const handleDownloadTemplate = useCallback(async () => {
+    try {
+      await indicatorLibraryApi.downloadTemplate()
+      message.success('模板下载成功')
+    } catch (error) {
+      console.error('[IndicatorLibrary] 下载模板失败:', error)
+      message.error('下载模板失败')
+    }
+  }, [])
+
+  /**
+   * 查看导入历史
+   */
+  const handleShowHistory = useCallback(async () => {
+    setHistoryVisible(true)
+    setHistoryLoading(true)
+    try {
+      const history = await indicatorLibraryApi.getImportHistory(50)
+      setImportHistory(history)
+    } catch (error) {
+      console.error('[IndicatorLibrary] 获取导入历史失败:', error)
+      message.error('获取导入历史失败')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
+  /**
+   * 查看同步状态
+   */
+  const handleShowSync = useCallback(async () => {
+    setSyncVisible(true)
+    try {
+      const status = await indicatorLibraryApi.syncCheck()
+      setSyncStatus(status)
+    } catch (error) {
+      console.error('[IndicatorLibrary] 获取同步状态失败:', error)
+      message.error('获取同步状态失败')
+    }
+  }, [])
+
+  /**
+   * 自动导入（使用新接口）
+   */
+  const handleAutoImport = useCallback(async (file: File) => {
+    try {
+      const result = await indicatorLibraryApi.autoImport(file)
+      if (result.success) {
+        message.success(`导入成功！共导入 ${result.imported} 条数据`)
+        loadSummaryList()
+      } else {
+        // 有错误，返回错误信息
+        message.warning(`校验未通过：${result.errors?.length || 0} 条错误`)
+        return result
+      }
+    } catch (error) {
+      console.error('[IndicatorLibrary] 自动导入失败:', error)
+      message.error('自动导入失败')
+    }
+    return null
+  }, [loadSummaryList])
 
   /**
    * 导出指标
@@ -322,10 +396,28 @@ export default function IndicatorLibrary() {
             导入
           </Button>
           <Button
+            icon={<FileExcelOutlined />}
+            onClick={handleDownloadTemplate}
+          >
+            下载模板
+          </Button>
+          <Button
             icon={<DownloadOutlined />}
             onClick={handleExport}
           >
             导出
+          </Button>
+          <Button
+            icon={<HistoryOutlined />}
+            onClick={handleShowHistory}
+          >
+            导入历史
+          </Button>
+          <Button
+            icon={<SyncOutlined spin={!!syncStatus} />}
+            onClick={handleShowSync}
+          >
+            同步状态
           </Button>
           <Button
             icon={<ReloadOutlined />}
@@ -336,6 +428,67 @@ export default function IndicatorLibrary() {
           </Button>
         </Space>
       </Card>
+
+      {/* 导入历史弹窗 */}
+      <Modal
+        title="导入历史"
+        open={historyVisible}
+        onCancel={() => setHistoryVisible(false)}
+        footer={null}
+        width={800}
+      >
+        <Table
+          dataSource={importHistory}
+          loading={historyLoading}
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+          columns={[
+            { title: '序号', dataIndex: 'id', key: 'id', width: 60 },
+            { title: '文件名', dataIndex: 'filename', key: 'filename' },
+            { title: '总数', dataIndex: 'total_count', key: 'total_count', width: 80 },
+            { title: '成功', dataIndex: 'success_count', key: 'success_count', width: 80, render: (v) => <span style={{ color: '#52c41a' }}>{v}</span> },
+            { title: '失败', dataIndex: 'fail_count', key: 'fail_count', width: 80, render: (v) => v > 0 ? <span style={{ color: '#ff4d4f' }}>{v}</span> : v },
+            { title: '导入时间', dataIndex: 'imported_at', key: 'imported_at', width: 180 },
+          ]}
+        />
+      </Modal>
+
+      {/* 同步状态弹窗 */}
+      <Modal
+        title="数据同步状态"
+        open={syncVisible}
+        onCancel={() => setSyncVisible(false)}
+        footer={null}
+        width={600}
+      >
+        {syncStatus && (
+          <div>
+            <Descriptions bordered column={1}>
+              <Descriptions.Item label="SQLite 项目数">
+                {syncStatus.sqlite?.project_count || 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="快照数量">
+                {syncStatus.sqlite?.snapshot_count || 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="导入记录数">
+                {syncStatus.sqlite?.import_count || 0}
+              </Descriptions.Item>
+              <Descriptions.Item label="最高版本号">
+                {syncStatus.sqlite?.max_version || 1}
+              </Descriptions.Item>
+              <Descriptions.Item label="最后更新时间">
+                {syncStatus.last_update || '无'}
+              </Descriptions.Item>
+              <Descriptions.Item label="最后导入时间">
+                {syncStatus.last_import || '无'}
+              </Descriptions.Item>
+              <Descriptions.Item label="数据同步状态">
+                <Badge status="success" text="正常" />
+              </Descriptions.Item>
+            </Descriptions>
+          </div>
+        )}
+      </Modal>
 
       {/* Master-Detail 布局 */}
       <Layout style={{ background: '#fff', minHeight: 'calc(100vh - 200px)' }}>
