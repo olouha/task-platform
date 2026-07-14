@@ -49,16 +49,6 @@ async def list_projects():
     return {"projects": projects, "total": len(projects)}
 
 
-@router.get("/{project_id}", summary="获取单个项目")
-async def get_project(project_id: str):
-    """获取指定项目的详细信息"""
-    projects = load_projects()
-    for p in projects:
-        if p.get("id") == project_id:
-            return p
-    raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")
-
-
 @router.post("/", summary="创建调差项目")
 async def create_project(request: CreateProjectRequest):
     """创建新的调差项目"""
@@ -254,3 +244,15 @@ async def get_excel_template():
             ]
         }
     }
+
+
+# 注意：动态路径 /{project_id} 必须放在所有静态 GET 路由（如 /excel-template）之后，
+# 否则 /excel-template 会被当成 project_id="excel-template" 拦截。
+@router.get("/{project_id}", summary="获取单个项目")
+async def get_project(project_id: str):
+    """获取指定项目的详细信息"""
+    projects = load_projects()
+    for p in projects:
+        if p.get("id") == project_id:
+            return p
+    raise HTTPException(status_code=404, detail=f"项目 {project_id} 不存在")

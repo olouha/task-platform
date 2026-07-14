@@ -17,17 +17,21 @@ class SupabaseService:
     """Supabase 数据库服务"""
 
     def __init__(self, url: str = None, api_key: str = None):
-        # 优先级：1. 构造函数参数 2. 环境变量 3. 配置文件
+        # 优先级：1. 构造函数参数 2. 环境变量 3. 配置文件(config/cloud.json)
+        # 由 cloud.json 的 mode 字段控制是否启用 Supabase：
+        #   mode="supabase" → 启用，读取 supabase_url/supabase_key
+        #   mode="local"(或其他) → 禁用，使用本地 SQLite，所有请求静默返回 None
         if not url:
             url = os.environ.get('SUPABASE_URL')
         if not api_key:
             api_key = os.environ.get('SUPABASE_KEY')
 
-        if not url or not api_key:
-            config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'cloud.json')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    config = json.load(f)
+        # 仅当 cloud.json 的 mode="supabase" 时，才加载其中的账号信息
+        config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'cloud.json')
+        if (not url or not api_key) and os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                if config.get('mode') == 'supabase':
                     url = url or config.get('supabase_url')
                     api_key = api_key or config.get('supabase_key')
 
@@ -41,12 +45,15 @@ class SupabaseService:
         }
         self.timeout = 30
 
-        logger.info(f"[SupabaseService] 初始化 | url={self.url[:30] + '...' if self.url else 'None'}")
+        if self.url:
+            logger.info(f"[SupabaseService] 已启用 | url={self.url[:30] + '...'}")
+        else:
+            logger.info("[SupabaseService] 未启用，使用本地 SQLite 存储（Supabase 相关功能已禁用）")
 
     def _request(self, method: str, endpoint: str, **kwargs) -> Optional[Any]:
         """发送请求"""
         if not self.url:
-            logger.error("未配置 Supabase URL")
+            # Supabase 未启用（本地 SQLite 模式），静默返回 None，避免刷错误日志
             return None
 
         url = f"{self.url}/rest/v1{endpoint}"

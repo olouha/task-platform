@@ -97,6 +97,9 @@ export default function IndicatorLibrary() {
   const [syncStatus, setSyncStatus] = useState<any>(null)
   const [syncVisible, setSyncVisible] = useState(false)
 
+  /** 待导入文件（点击确认时使用，避免 file 引用丢失） */
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+
   // -------------------------------------------------------------------------
   // 数据加载
   // -------------------------------------------------------------------------
@@ -169,6 +172,7 @@ export default function IndicatorLibrary() {
         const previewData = await indicatorLibraryAPI.preview(file)
         setImportPreviewData(previewData.items || [])
         setImportVisible(true)
+        setPendingImportFile(file)  // 保存文件引用，供确认时使用
       } catch (error) {
         console.error('[IndicatorLibrary] 预览导入失败:', error)
         message.error('预览导入失败')
@@ -181,11 +185,31 @@ export default function IndicatorLibrary() {
    * 确认导入
    */
   const handleImportConfirm = useCallback(async () => {
+    const file = pendingImportFile
     setImportVisible(false)
     setImportPreviewData([])
-    message.success('导入成功')
+    setPendingImportFile(null)
+
+    if (!file) {
+      message.error('没有待导入文件')
+      return
+    }
+
+    try {
+      const result = await indicatorLibraryApi.autoImport(file)
+      if (result.success) {
+        message.success(`导入成功！共导入 ${result.imported} 条数据`)
+      } else {
+        message.warning(`校验未通过：${result.errors?.length || 0} 条错误`)
+        return
+      }
+    } catch (error) {
+      console.error('[IndicatorLibrary] 自动导入失败:', error)
+      message.error('自动导入失败')
+    }
+
     loadSummaryList()
-  }, [loadSummaryList])
+  }, [pendingImportFile, loadSummaryList])
 
   /**
    * 取消导入

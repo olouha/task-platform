@@ -41,8 +41,9 @@ class AIService:
             AI 响应结果
         """
         if not self.base_url or not self.api_key:
-            logger.warning("未配置 AI 服务，将返回模拟响应")
-            return self._mock_response(messages)
+            logger.warning("未配置 AI 服务，委托 local_qa 返回真实数据响应")
+            from services.local_qa_service import local_qa
+            return local_qa.chat(messages)
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
@@ -72,11 +73,13 @@ class AIService:
                     return result
                 else:
                     logger.error(f"AI 服务请求失败: {response.status_code} - {response.text}")
-                    return self._mock_response(messages)
+                    from services.local_qa_service import local_qa
+                    return local_qa.chat(messages)
 
         except Exception as e:
             logger.error(f"调用 AI 服务异常: {e}")
-            return self._mock_response(messages)
+            from services.local_qa_service import local_qa
+            return local_qa.chat(messages)
 
     async def chat_stream(
         self,

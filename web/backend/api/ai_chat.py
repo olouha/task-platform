@@ -62,7 +62,7 @@ def get_user_id(x_user_id: Optional[str] = Header(None)) -> Optional[str]:
 @router.post("/chat/completions")
 async def chat_completions(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None)
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     普通 AI 对话
@@ -111,7 +111,7 @@ async def chat_completions(
 @router.post("/chat/completions/stream")
 async def chat_completions_stream(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None)
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     流式 AI 对话（SSE）
@@ -177,7 +177,7 @@ async def chat_completions_stream(
 @router.post("/chat/rag")
 async def chat_with_rag(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None),
+    user_id: Optional[str] = Header(None, alias="x-user-id"),
     enable_rag: bool = Query(True, description="是否启用知识库检索")
 ):
     """
@@ -264,7 +264,7 @@ async def chat_with_rag(
 @router.post("/chat/rag/stream")
 async def chat_with_rag_stream(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None)
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     流式 RAG 对话
@@ -598,7 +598,7 @@ tool_executor = ToolExecutor()
 @router.post("/chat/tools")
 async def chat_with_tools(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None)
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     支持工具调用的AI对话
@@ -665,7 +665,7 @@ async def chat_with_tools(
 @router.post("/chat/tools/stream")
 async def chat_with_tools_stream(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None)
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     流式工具调用对话

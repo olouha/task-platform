@@ -380,20 +380,65 @@ async def calculate_by_project(project_id: str):
         base_prices = {}
         period_prices = {}
 
+        # 复用 tool_executor 查 SQLite 真实价格（与 local_qa、AI tools 同源）
+        from services.tool_executor import tool_executor
+
         for m in materials:
             material_name = m.get('name', '')
             base_price = m.get('base_price', 0)
+            construction_start = project.get('construction_start') or project.get('base_date')
+            construction_end = project.get('construction_end') or construction_start
 
-            if not base_price:
-                base_price = 4500
+            # 基准价：查指定日期（或最新日期）
+            base_date = project.get('base_date') or construction_start
+            if base_date:
+                db_result = tool_executor._query_yantai_db(base_date, material=material_name)
+                if db_result:
+                    base_price = db_result[0].get('price', base_price)
+            elif not base_price:
+                base_price = 0  # 无基准日期且无预设，保留 0 而非硬编码 4500
 
             base_prices[material_name] = base_price
 
-            simulated_price = base_price * 1.05
+            # 施工期价：查真实价格序列取均值
+            if construction_start and construction_end:
+                range_result = tool_executor._query_yantai_range(
+                    construction_start, construction_end, material=material_name
+                )
+                if range_result:
+                    prices = [r.get('price', 0) for r in range_result if r.get('price')]
+                    avg_price = sum(prices) / len(prices) if prices else base_price
+                    period_prices[material_name] = [{
+                        'date': construction_end,
+                        'price': round(avg_price, 2),
+                        'source': '数据库'
+                    }]
+                    continue  # 已处理，跳过下面的兜底
+                # range 查询失败则退化
+            elif construction_start:
+                # 只有起始日期，退化为取起始日
+                db_result = tool_executor._query_yantai_db(construction_start, material=material_name)
+                if db_result:
+                    period_prices[material_name] = [{
+                        'date': construction_start,
+                        'price': db_result[0].get('price', base_price),
+                        'source': '数据库'
+                    }]
+                    continue
+
+            # 退化兜底：无日期信息时取最新日期价格，不再编造 *1.05
+            latest_date = tool_executor._get_latest_date()
+            source = '数据缺失'
+            price = base_price
+            if latest_date:
+                db_result = tool_executor._query_yantai_db(latest_date, material=material_name)
+                if db_result:
+                    price = db_result[0].get('price', base_price)
+                    source = '数据库'
             period_prices[material_name] = [{
-                'date': datetime.now().strftime('%Y-%m-%d'),
-                'price': round(simulated_price, 2),
-                'source': '模拟数据'
+                'date': latest_date or datetime.now().strftime('%Y-%m-%d'),
+                'price': round(price, 2),
+                'source': source
             }]
 
         quantities = []

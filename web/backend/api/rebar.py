@@ -223,8 +223,14 @@ async def check_fetch_status():
     }
 
 
+class CredentialRequest(BaseModel):
+    """凭据更新请求"""
+    username: str
+    password: str
+
+
 @router.post("/credentials")
-async def update_credentials(username: str, password: str):
+async def update_credentials(data: CredentialRequest):
     """
     更新登录凭据（使用加密存储）
 
@@ -233,6 +239,8 @@ async def update_credentials(username: str, password: str):
 
     更新后会自动删除旧Cookie，下次抓取会重新登录
     """
+    username = data.username
+    password = data.password
     logger.info(f"[update_credentials] 更新凭据 | username={username[:3]}***")
     try:
         # 优先使用加密存储

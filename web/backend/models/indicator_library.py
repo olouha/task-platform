@@ -269,7 +269,7 @@ class ImportResult(BaseModel):
     success: bool = Field(..., description="是否成功")
     imported: int = Field(..., description="成功导入数")
     total: int = Field(..., description="总数")
-    warnings: List[Dict[str, Any]] = Field(default_factory=list, description="警告列表")
+    warnings: List[str] = Field(default_factory=list, description="警告列表")
     errors: List[str] = Field(default_factory=list, description="错误列表")
 
 

@@ -1,7 +1,7 @@
 import { Card, Form, Input, Select, Switch, Button, Space, Divider, message, Tabs, Alert, Tag } from 'antd'
 import { SaveOutlined, SyncOutlined, SafetyCertificateOutlined, SettingOutlined, CloudOutlined, DatabaseOutlined, UserOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
-import { config } from '../services/api'
+import { yantaiRebarApi } from '../services/api'
 import PageHeader from '../components/PageHeader'
 
 // 科技数据卡片组件
@@ -43,8 +43,7 @@ export default function Settings() {
 
   const fetchCredentialsStatus = async () => {
     try {
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/credentials`)
-      const data = await response.json()
+      const data = await yantaiRebarApi.getCredentialsStatus()
       setCredentialsStatus(data)
     } catch (error) {
       console.error('获取凭据状态失败:', error)
@@ -62,15 +61,7 @@ export default function Settings() {
   const handleUpdateCredentials = async (values: any) => {
     setUpdating(true)
     try {
-      const response = await fetch(`${config.apiUrl}/api/yantai-prices/update-credentials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: values.username,
-          password: values.password
-        })
-      })
-      const data = await response.json()
+      const data = await yantaiRebarApi.updateCredentials(values.username, values.password)
 
       if (data.success) {
         message.success('凭据已更新')

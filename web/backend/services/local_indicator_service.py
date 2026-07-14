@@ -853,10 +853,14 @@ class LocalIndicatorService:
 
                 logger.info(f"[auto_import_project] 新增项目 | name={project_name}")
 
-            # 插入数据
-            fields = list(data.keys())
+            # 获取表的实际列名（过滤掉 Excel 解析来的不存在于表的字段如 index）
+            cursor.execute("PRAGMA table_info(indicator_projects)")
+            table_cols = {row[1] for row in cursor.fetchall()}
+
+            # 插入数据（字段名加双引号避免保留字冲突；跳过表中不存在的字段）
+            fields = [f for f in data.keys() if f in table_cols]
             placeholders = ', '.join(['?'] * len(fields))
-            field_names = ', '.join(fields)
+            field_names = ', '.join(f'"{f}"' for f in fields)
             values = [data.get(f) for f in fields]
 
             cursor.execute(f'''

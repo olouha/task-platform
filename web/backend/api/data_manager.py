@@ -110,7 +110,7 @@ async def get_data_stats():
         materials = {row[0]: row[1] for row in c.fetchall()}
 
         # 最后更新时间
-        c.execute('SELECT MAX(created_at) FROM rebar_prices')
+        c.execute('SELECT MAX(fetch_time) FROM rebar_prices')
         last_updated = c.fetchone()[0]
 
         conn.close()
@@ -144,7 +144,7 @@ async def export_data(
 
         # 构建查询
         sql = '''
-            SELECT date, material_name, spec, material_type, brand, price, region, fetch_time, created_at
+            SELECT date, material_name, spec, material_type, brand, price, region, fetch_time, fetch_time AS created_at
             FROM rebar_prices
             WHERE 1=1
         '''

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from pathlib import Path
 from http.cookiejar import CookieJar, MozillaCookieJar
+from bs4 import BeautifulSoup  # 顶层导入：函数签名用作类型注解，否则类定义时 NameError
 
 logging.basicConfig(
     level=logging.INFO,

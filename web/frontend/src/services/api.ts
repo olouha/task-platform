@@ -903,6 +903,19 @@ export const yantaiRebarApi = {
     const response = await fetch(`${config.apiUrl}/rebar/report/influencing-factors`);
     return response.json();
   },
+  // 凭据管理（我的钢铁网登录凭据）
+  getCredentialsStatus: async () => {
+    const response = await fetch(`${config.apiUrl}/rebar/credentials`);
+    return response.json();
+  },
+  updateCredentials: async (username: string, password: string) => {
+    const response = await fetch(`${config.apiUrl}/rebar/credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    return response.json();
+  },
 };
 
 // 指标库项目管理 API - 对应 /indicator-report/database/* 端点

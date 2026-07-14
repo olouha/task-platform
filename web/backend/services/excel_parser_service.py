@@ -40,35 +40,34 @@ class ExcelParserService:
         "业态": "category",
         "项目所在地": "location",
         "结构形式": "structure",
+        "交付形式": "delivery_form",
         "层数（地上/下）": "floor_info",
         "总面积（m2）": "area_total",
         "檐高（m）": "height",
-        "单方造价（元/m2）": "unit_cost",
-        "土建工程": "unit_structure",
-        "安装工程": "unit_installation",
-        "装饰工程": "unit_decoration",
-        "措施项目": "unit_measure",
-        "钢筋": "steel",
-        "混凝土": "concrete",
-        "模板": "formwork",
-        "砌体": "block",
-        "电缆": "cable",
-        "管道": "pipe",
-        "风管": "duct",
-        "地下结构": "underground_structure",
-        "地上结构": "above_structure",
-        "屋面": "roof",
-        "外墙": "exterior_wall",
-        "内墙": "interior_wall",
-        "楼地面": "floor",
-        "电气": "electrical",
-        "给排水": "plumbing",
-        "暖通": "hvac",
-        "电梯": "elevator",
-        "消防": "fire",
-        "措施": "measures",
-        "交付形式": "delivery_form",
-        "总造价": "total_cost",
+        "地上建筑面积（m2）": "area_above",
+        "地下建筑面积（m2）": "area_below",
+        "平米造价（元/m2）": "unit_cost",
+        "总造价（元）": "total_cost",
+        "地上土建造价": "cost_above_structure",
+        "地上安装造价": "cost_above_installation",
+        "地下土建造价": "cost_underground_structure",
+        "地下安装造价": "cost_underground_installation",
+        "措施费（元）": "cost_measures",
+        "室外造价（元）": "cost_outdoor",
+        "桩基造价（元）": "cost_pile",
+        "基坑支护造价（元）": "cost_foundation_support",
+        "幕墙造价（元）": "cost_curtain_wall",
+        "精装修造价（元）": "cost_decoration",
+        "地上砼用量（m3）": "above_concrete",
+        "地上砼平米含量": "above_concrete_unit",
+        "地上钢筋用量（t）": "above_rebar",
+        "地上钢筋平米含量": "above_rebar_unit",
+        "地下砼用量（m3）": "underground_concrete",
+        "地下砼平米含量": "underground_concrete_unit",
+        "地下钢筋用量（t）": "underground_rebar",
+        "地下钢筋平米含量": "underground_rebar_unit",
+        "开工时间": "start_date",
+        "竣工时间": "end_date",
         "备注": "remarks",
     }
 
@@ -82,10 +81,28 @@ class ExcelParserService:
         "层数（地上/下）": "floor_info",
         "总面积（m2）": "area_total",
         "檐高（m）": "height",
-        "平米造价（元/m2）": "unit_cost",
-        "总造价（元）": "total_cost",
         "地上建筑面积（m2）": "area_above",
         "地下建筑面积（m2）": "area_below",
+        "平米造价（元/m2）": "unit_cost",
+        "总造价（元）": "total_cost",
+        "地上土建造价": "cost_above_structure",
+        "地上安装造价": "cost_above_installation",
+        "地下土建造价": "cost_underground_structure",
+        "地下安装造价": "cost_underground_installation",
+        "措施费（元）": "cost_measures",
+        "室外造价（元）": "cost_outdoor",
+        "桩基造价（元）": "cost_pile",
+        "基坑支护造价（元）": "cost_foundation_support",
+        "幕墙造价（元）": "cost_curtain_wall",
+        "精装修造价（元）": "cost_decoration",
+        "地上砼用量（m3）": "above_concrete",
+        "地上砼平米含量": "above_concrete_unit",
+        "地上钢筋用量（t）": "above_rebar",
+        "地上钢筋平米含量": "above_rebar_unit",
+        "地下砼用量（m3）": "underground_concrete",
+        "地下砼平米含量": "underground_concrete_unit",
+        "地下钢筋用量（t）": "underground_rebar",
+        "地下钢筋平米含量": "underground_rebar_unit",
         "开工时间": "start_date",
         "竣工时间": "end_date",
         "备注": "remarks",
@@ -132,18 +149,17 @@ class ExcelParserService:
             logger.info(f"[ExcelParserService] 工作簿加载成功 | sheets={self.workbook.sheetnames}")
 
             # 检测并解析文件格式
-            if "指标库数据" in self.workbook.sheetnames:
-                # 新格式：单Sheet
-                logger.info("[ExcelParserService] 使用新格式解析（单Sheet）")
+            if "明细" in self.workbook.sheetnames and "汇总" in self.workbook.sheetnames:
+                # 新格式：明细表（员工填写）+ 汇总表（自动提取）
+                # 优先从明细表读取数据
+                logger.info("[ExcelParserService] 使用明细表解析")
+                projects = self._parse_detail_sheet()
+            elif "指标库数据" in self.workbook.sheetnames:
+                # 单Sheet格式（兼容旧模板）
+                logger.info("[ExcelParserService] 使用单Sheet解析")
                 projects = self._parse_simple_sheet()
-            elif "汇总" in self.workbook.sheetnames and "明细" in self.workbook.sheetnames:
-                # 旧格式：双Sheet
-                logger.info("[ExcelParserService] 使用旧格式解析（汇总+明细）")
-                summary_data = self._parse_summary_sheet()
-                detail_data = self._parse_detail_sheet()
-                projects = self._merge_data(summary_data, detail_data)
             else:
-                raise ValueError("Excel文件格式不正确，需要包含'指标库数据'或'汇总'+'明细'Sheet")
+                raise ValueError("Excel文件格式不正确，需要包含'明细'+'汇总'Sheet或'指标库数据'Sheet")
 
             logger.info(f"[ExcelParserService] 解析完成 | rows={len(projects)}")
 
@@ -327,7 +343,7 @@ class ExcelParserService:
 
     def _parse_detail_sheet(self) -> List[Dict[str, Any]]:
         """
-        解析明细sheet，处理多级表头
+        解析明细sheet
 
         Returns:
             明细数据列表
@@ -337,17 +353,30 @@ class ExcelParserService:
         ws = self.workbook["明细"]
         rows = list(ws.iter_rows(values_only=True))
 
-        if len(rows) < 4:
-            logger.warning("[ExcelParserService] 明细sheet数据行数不足（需要至少4行表头）")
+        if len(rows) < 2:
+            logger.warning("[ExcelParserService] 明细sheet数据行数不足")
             return []
 
-        # 构建合并后的表头（融合第2-4行的多级表头）
-        self.merged_headers = self._build_merged_headers(rows[:4])
-        logger.debug(f"[ExcelParserService] 明细合并表头 | headers={self.merged_headers}")
+        # 检查表头行数
+        header_row = rows[0]
+        self.detail_headers = [str(cell) if cell else "" for cell in header_row]
+        logger.debug(f"[ExcelParserService] 明细表头 | headers={self.detail_headers}")
 
-        # 解析数据行（从第5行开始，索引为4）
+        # 确定数据起始行
+        # data_start_row 表示表头所在的行索引
+        data_start_row = 0  # 默认第1行是表头
+
+        # 检查是否是旧格式多级表头（检查第2行是否为空）
+        if len(rows) > 4 and not any(rows[1]):
+            # 第2行为空，说明可能是多级表头格式
+            if not any(rows[2]):
+                data_start_row = 3  # 第4行是最终表头
+                self.detail_headers = [str(cell) if cell else "" for cell in rows[3]]
+                logger.debug(f"[ExcelParserService] 检测到多级表头，使用第4行 | headers={self.detail_headers}")
+
+        # 解析数据行（跳过表头行，从下一行开始）
         data_rows = []
-        for row_idx, row in enumerate(rows[4:], start=5):
+        for row_idx, row in enumerate(rows[data_start_row + 1:], start=data_start_row + 2):
             if self._is_empty_row(row):
                 continue
 
@@ -356,6 +385,7 @@ class ExcelParserService:
                 row_data["_row_index"] = row_idx
                 data_rows.append(row_data)
 
+        logger.info(f"[ExcelParserService] 明细解析完成 | count={len(data_rows)}")
         return data_rows
 
     def _build_merged_headers(self, header_rows: List[Tuple]) -> Dict[int, str]:
@@ -415,16 +445,28 @@ class ExcelParserService:
         row_data = {}
 
         for col_idx, cell_value in enumerate(row):
-            if col_idx not in self.merged_headers:
-                continue
+            if col_idx >= len(self.detail_headers):
+                break
 
-            header = self.merged_headers[col_idx]
+            header = self.detail_headers[col_idx]
             if header not in self.DETAIL_COLUMN_MAPPING:
                 continue
 
             field_name = self.DETAIL_COLUMN_MAPPING[header]
             value = self._clean_cell_value(cell_value)
             row_data[field_name] = value
+
+        # 检查是否有有效数据（通过序号判断）
+        if not row_data.get("index"):
+            return None
+
+        # 解析楼层信息
+        floor_info = row_data.get("floor_info")
+        if floor_info:
+            floor_above, floor_below = self._parse_floor_info(str(floor_info))
+            row_data["floor_above"] = floor_above
+            row_data["floor_below"] = floor_below
+            row_data.pop("floor_info", None)
 
         return row_data
 
@@ -572,20 +614,42 @@ class ExcelParserService:
         first_cell = row[0] if row else None
         if first_cell is not None:
             first_str = str(first_cell).strip()
+            # 跳过表头行（序号列包含"序号"）
+            if first_str == "序号":
+                return True
+            # 跳过填写指导行（以【开头）
+            if first_str.startswith("【") and first_str.endswith("】"):
+                return True
             # 跳过说明行（包含特定关键词的行）
             skip_keywords = ["填写说明", "说明：", "备注：", "注：", "注意：", "样例："]
             if any(kw in first_str for kw in skip_keywords):
                 return True
-            # 跳过纯数字序号之外的文字行（包含冒号和说明性文字）
-            if first_str and not first_str.isdigit() and not first_str.replace('.', '').isdigit():
-                # 如果第一列是文字且不是纯数字，可能是说明行
-                # 但排除正常的项目名称（通常长度较短，不以冒号结尾）
-                if first_str.endswith('：') or first_str.endswith(':'):
+            # 跳过中文章节序号行（一、二、三... 或 1.、2. 等）
+            import re
+            if re.match(r'^[一二三四五六七八九十]+[、.：]', first_str):
+                return True
+            if re.match(r'^[0-9]+[.、:：]', first_str):
+                return True
+            # 跳过以数字开头+点的序号格式（说明行）
+            if re.match(r'^\d+[.、:：]', first_str):
+                return True
+
+            # 如果第一列是文字且包含常见说明特征，跳过
+            # 指导行特征：第二列开始有长文字
+            if first_str and not first_str.isdigit():
+                # 检查后续列是否有长文字（超过20字符）
+                has_long_text = any(
+                    cell and isinstance(cell, str) and len(cell.strip()) > 20
+                    for cell in row[1:5]
+                )
+                if has_long_text:
                     return True
-                # 检查是否以数字开头+点的序号格式（说明行）
-                import re
-                if re.match(r'^\d+[.、:：]', first_str):
-                    return True
+
+                # 检查第一列是否是字段说明（如"项目名称"、"业态"等）
+                guide_field_indicators = ["必须填写", "填写项目", "从下拉列表", "填写地区", "只填数字", "格式："]
+                for indicator in guide_field_indicators:
+                    if indicator in first_str:
+                        return True
 
         return False
 

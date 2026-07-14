@@ -15,15 +15,19 @@ class RAGService:
     """RAG 服务 - 知识库检索"""
 
     def __init__(self, supabase_url: str = None, supabase_key: str = None):
-        # 从环境变量或配置获取 Supabase 连接信息
+        # 由 config/cloud.json 的 mode 字段控制是否启用：
+        #   mode="supabase" → 启用知识库向量检索
+        #   mode="local"(或其他) → 禁用，search 直接返回 []，由调用方走规则问答兜底
         if not supabase_url or not supabase_key:
-            config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', 'cloud.json')
+            # services/ 目录上溯三级到项目根，读 config/cloud.json
+            config_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', 'config', 'cloud.json')
             if os.path.exists(config_path):
                 import json
                 with open(config_path, 'r') as f:
                     config = json.load(f)
-                    supabase_url = config.get('supabase_url')
-                    supabase_key = config.get('supabase_key')
+                    if config.get('mode') == 'supabase':
+                        supabase_url = config.get('supabase_url')
+                        supabase_key = config.get('supabase_key')
 
         self.url = supabase_url.rstrip('/') if supabase_url else None
         self.api_key = supabase_key
@@ -53,7 +57,8 @@ class RAGService:
             检索结果列表
         """
         if not self.url:
-            logger.warning("未配置 Supabase，无法进行知识库检索")
+            # Supabase 未启用（本地模式），跳过向量检索，由调用方走规则问答兜底
+            logger.debug("RAG: Supabase 未启用，跳过知识库检索")
             return []
 
         try:

@@ -158,7 +158,7 @@ async def manual_fetch_with_cookies(cookies: list, period: str = None, record_id
                                     spec,
                                     material_type: cells[2]?.textContent?.trim() || '',
                                     brand,
-                                    price: int(price_str)
+                                    price: parseInt(price_str, 10)
                                 });
                             }
                         }
