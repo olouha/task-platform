@@ -3,7 +3,7 @@ FastAPI 应用入口
 工程调差计算系统 - Railway 部署版本
 """
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -40,16 +40,31 @@ app = FastAPI(
 # 挂载静态文件
 if os.path.exists(FRONTEND_DIST):
     app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="assets")
-    app.mount("/ai-logo.jpg", StaticFiles(directory=FRONTEND_DIST), name="ai-logo")
-    app.mount("/design-logo.png", StaticFiles(directory=FRONTEND_DIST), name="design-logo")
-    app.mount("/logo-title.png", StaticFiles(directory=FRONTEND_DIST), name="logo-title")
-    app.mount("/logo.jpg", StaticFiles(directory=FRONTEND_DIST), name="logo")
-    app.mount("/knigHts_logo.png", StaticFiles(directory=FRONTEND_DIST), name="knigHts-logo")
-    app.mount("/knigHts_logo_small.png", StaticFiles(directory=FRONTEND_DIST), name="knigHts-logo-small")
-    app.mount("/knigHts_logo_large.png", StaticFiles(directory=FRONTEND_DIST), name="knigHts-logo-large")
     logger.info(f"[startup] 前端静态文件已挂载 | path={FRONTEND_DIST}")
 else:
     logger.warning(f"[startup] 前端dist目录不存在 | path={FRONTEND_DIST}")
+
+# 根目录静态资源（图片等）—— 用 FileResponse 精确路由，避免 mount 单文件的 307 重定向问题
+ROOT_STATIC_FILES = [
+    "ai-logo.jpg", "design-logo.png", "logo-title.png", "logo.jpg",
+    "knigHts_logo.png", "knigHts_logo_small.png", "knigHts_logo_large.png",
+    "vite.svg",
+]
+
+
+def _make_root_file_handler(filename: str):
+    """生成单个根目录静态文件的处理器"""
+    async def serve_root_file():
+        file_path = os.path.join(FRONTEND_DIST, filename)
+        if os.path.exists(file_path):
+            return FileResponse(file_path)
+        logger.warning(f"[serve_root_file] 文件不存在 | file={filename}")
+        raise HTTPException(status_code=404, detail="Not Found")
+    return serve_root_file
+
+
+for _fn in ROOT_STATIC_FILES:
+    app.add_api_route(f"/{_fn}", _make_root_file_handler(_fn), methods=["GET"])
 
 # CORS 配置（生产环境应限制来源）
 app.add_middleware(
