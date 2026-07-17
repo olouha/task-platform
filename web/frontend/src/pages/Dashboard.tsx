@@ -16,6 +16,7 @@ import {
 import { Column } from '@ant-design/charts'
 import { useEffect, useState } from 'react'
 import { statsApi, config, yantaiRebarApi } from '../services/api'
+const { buildUrl } = config
 import * as XLSX from 'xlsx'
 import PageHeader from '../components/PageHeader'
 import { AreaChart, Area, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, BarChart, Bar, ResponsiveContainer, Line } from 'recharts'
@@ -102,7 +103,7 @@ export default function Dashboard() {
       try {
         const [statsData, datesData] = await Promise.all([
           statsApi.get(),
-          fetch(`${config.apiUrl}/api/yantai-db/dates`).then(r => r.json()).catch(() => ({ success: false, dates: [] }))
+          fetch(buildUrl('/yantai-db/dates')).then(r => r.json()).catch(() => ({ success: false, dates: [] }))
         ])
 
         setStats(statsData)
@@ -154,7 +155,7 @@ export default function Dashboard() {
     setCostLoading(true)
     try {
       // 先获取可用时期列表
-      const response = await fetch(`${config.apiUrl}/api/cost-history/periods`).then(r => r.json())
+      const response = await fetch(buildUrl('/cost-history/periods')).then(r => r.json())
       if (response && response.length > 0) {
         // 获取最新时期 - 按时间排序取最后一个
         const sortedPeriods = response.sort((a: any, b: any) => {
@@ -167,12 +168,12 @@ export default function Dashboard() {
 
         // 获取混凝土数据
         const concreteResponse = await fetch(
-          `${config.apiUrl}/api/cost-history/concrete/by-period?year=${latestPeriod.year}&quarter=${encodeURIComponent(latestPeriod.quarter)}`
+          buildUrl(`/cost-history/concrete/by-period?year=${latestPeriod.year}&quarter=${encodeURIComponent(latestPeriod.quarter)}`)
         ).then(r => r.json()).catch(() => null)
 
         // 获取钢筋数据
         const steelResponse = await fetch(
-          `${config.apiUrl}/api/cost-history/steel/by-period?year=${latestPeriod.year}&quarter=${encodeURIComponent(latestPeriod.quarter)}`
+          buildUrl(`/cost-history/steel/by-period?year=${latestPeriod.year}&quarter=${encodeURIComponent(latestPeriod.quarter)}`)
         ).then(r => r.json()).catch(() => null)
 
         // 合并数据
@@ -222,7 +223,7 @@ export default function Dashboard() {
       setPriceLoading(true)
       setDataError(null)
       try {
-        const response = await fetch(`${config.apiUrl}/api/yantai-db/latest?date=${selectedDate}&limit=200`)
+        const response = await fetch(buildUrl(`/yantai-db/latest?date=${selectedDate}&limit=200`))
         const data = await response.json()
 
         let prices = []
@@ -253,7 +254,7 @@ export default function Dashboard() {
 
     const fetchComparison = async () => {
       try {
-        const response = await fetch(`${config.apiUrl}/api/yantai-db/latest?date=${comparisonDate}&limit=200`)
+        const response = await fetch(buildUrl(`/yantai-db/latest?date=${comparisonDate}&limit=200`))
         const data = await response.json()
         if (data.prices) {
           setAllPrices(prev => ({ ...prev, [comparisonDate]: data.prices }))

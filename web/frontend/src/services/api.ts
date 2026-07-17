@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 // 辅助函数：构建API URL
 // 如果 API_BASE_URL 是 '/api'（代理模式），直接拼接路径
 // 如果是完整URL（如 'http://localhost:8000'），直接使用
-const buildApiUrl = (path: string): string => {
+function buildApiUrl(path: string): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   if (API_BASE_URL === '/api') {
     // 代理模式：/api + /stats -> /api/stats
@@ -19,12 +19,14 @@ const buildApiUrl = (path: string): string => {
   }
   // 无base URL：/stats -> /stats
   return cleanPath;
-};
+}
 
 export const config = {
   apiUrl: API_BASE_URL,
   buildUrl: buildApiUrl,
 };
+
+export { buildApiUrl as buildUrl };
 
 // 类型定义
 export interface YantaiPrice {
@@ -837,13 +839,13 @@ export const indicatorReportApi = {
 // 烟台钢筋价格 API (统一端点)
 export const yantaiRebarApi = {
   getStats: async () => {
-    const response = await fetch(`${config.apiUrl}/rebar/stats`);
+    const response = await fetch(buildApiUrl('/api/rebar/stats'));
     return response.json();
   },
   getLatest: async (date?: string, limit = 500) => {
     const url = date
-      ? `${config.apiUrl}/rebar/latest?date=${encodeURIComponent(date)}&limit=${limit}`
-      : `${config.apiUrl}/rebar/latest?limit=${limit}`;
+      ? buildApiUrl(`/api/rebar/latest?date=${encodeURIComponent(date)}&limit=${limit}`)
+      : buildApiUrl(`/api/rebar/latest?limit=${limit}`);
     const response = await fetch(url);
     return response.json();
   },
@@ -851,7 +853,7 @@ export const yantaiRebarApi = {
     const params = new URLSearchParams({ start_date, end_date });
     if (material) params.append('material', material);
     if (spec) params.append('spec', spec);
-    const response = await fetch(`${config.apiUrl}/rebar/range?${params}`);
+    const response = await fetch(config.buildUrl(`/api/rebar/range?${params}`));
     return response.json();
   },
   getTrend: async (material?: string, spec?: string, days = 365, start_date?: string, end_date?: string) => {
@@ -860,17 +862,17 @@ export const yantaiRebarApi = {
     if (spec) params.append('spec', spec);
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
-    const response = await fetch(`${config.apiUrl}/rebar/trend?${params}`);
+    const response = await fetch(config.buildUrl(`/api/rebar/trend?${params}`));
     return response.json();
   },
   getMaterials: async () => {
-    const response = await fetch(`${config.apiUrl}/rebar/materials`);
+    const response = await fetch(buildApiUrl('/api/rebar/materials'));
     return response.json();
   },
   getSpecs: async (material?: string) => {
     const url = material
-      ? `${config.apiUrl}/rebar/specs?material=${encodeURIComponent(material)}`
-      : `${config.apiUrl}/rebar/specs`;
+      ? buildApiUrl(`/api/rebar/specs?material=${encodeURIComponent(material)}`)
+      : buildApiUrl('/api/rebar/specs');
     const response = await fetch(url);
     return response.json();
   },
@@ -878,14 +880,14 @@ export const yantaiRebarApi = {
     const params = new URLSearchParams();
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
-    const url = `${config.apiUrl}/rebar/dates${params.toString() ? '?' + params : ''}`;
+    const url = config.buildUrl(`/api/rebar/dates${params.toString() ? '?' + params : ''}`);
     const response = await fetch(url);
     return response.json();
   },
   search: async (keyword: string, date?: string, limit = 100) => {
     const params = new URLSearchParams({ keyword, limit: String(limit) });
     if (date) params.append('date', date);
-    const response = await fetch(`${config.apiUrl}/rebar/search?${params}`);
+    const response = await fetch(config.buildUrl(`/api/rebar/search?${params}`));
     return response.json();
   },
   // 报告摘要API
@@ -894,22 +896,22 @@ export const yantaiRebarApi = {
     if (start_date) params.append('start_date', start_date);
     if (end_date) params.append('end_date', end_date);
     if (material_type) params.append('material_type', material_type);
-    const url = `${config.apiUrl}/rebar/report/summary${params.toString() ? '?' + params : ''}`;
+    const url = config.buildUrl(`/api/rebar/report/summary${params.toString() ? '?' + params : ''}`);
     const response = await fetch(url);
     return response.json();
   },
   // 价格影响因素API
   getInfluencingFactors: async () => {
-    const response = await fetch(`${config.apiUrl}/rebar/report/influencing-factors`);
+    const response = await fetch(buildApiUrl('/api/rebar/report/influencing-factors'));
     return response.json();
   },
   // 凭据管理（我的钢铁网登录凭据）
   getCredentialsStatus: async () => {
-    const response = await fetch(`${config.apiUrl}/rebar/credentials`);
+    const response = await fetch(buildApiUrl('/api/rebar/credentials'));
     return response.json();
   },
   updateCredentials: async (username: string, password: string) => {
-    const response = await fetch(`${config.apiUrl}/rebar/credentials`, {
+    const response = await fetch(buildApiUrl('/api/rebar/credentials'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),

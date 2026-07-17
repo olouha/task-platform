@@ -44,6 +44,9 @@ if os.path.exists(FRONTEND_DIST):
     app.mount("/design-logo.png", StaticFiles(directory=FRONTEND_DIST), name="design-logo")
     app.mount("/logo-title.png", StaticFiles(directory=FRONTEND_DIST), name="logo-title")
     app.mount("/logo.jpg", StaticFiles(directory=FRONTEND_DIST), name="logo")
+    app.mount("/knigHts_logo.png", StaticFiles(directory=FRONTEND_DIST), name="knigHts-logo")
+    app.mount("/knigHts_logo_small.png", StaticFiles(directory=FRONTEND_DIST), name="knigHts-logo-small")
+    app.mount("/knigHts_logo_large.png", StaticFiles(directory=FRONTEND_DIST), name="knigHts-logo-large")
     logger.info(f"[startup] 前端静态文件已挂载 | path={FRONTEND_DIST}")
 else:
     logger.warning(f"[startup] 前端dist目录不存在 | path={FRONTEND_DIST}")
