@@ -1,7 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { ConfigProvider, Layout } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import AppLayout from './components/AppLayout'
+import { isAuthenticated, getUserInfo } from './auth'
+import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Projects from './pages/Projects'
 import Materials from './pages/Materials'
@@ -14,6 +16,8 @@ import CostReference from './pages/CostReference'
 import DataManager from './pages/DataManager'
 import IndicatorReport from './pages/IndicatorReport'
 import IndicatorLibrary from './pages/IndicatorLibrary'
+import UserManagement from './pages/UserManagement'
+import Profile from './pages/Profile'
 
 const theme = {
   token: {
@@ -45,13 +49,40 @@ const theme = {
   },
 }
 
+/** 路由守卫：未登录跳转登录页 */
+function ProtectedLayout() {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />
+  }
+  return (
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
+  )
+}
+
+/** 管理员专属路由守卫 */
+function AdminProtectedLayout() {
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />
+  }
+  return (
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
+  )
+}
+
 export default function App() {
   return (
     <ConfigProvider locale={zhCN} theme={theme}>
       <BrowserRouter>
         <Layout style={{ minHeight: '100vh' }}>
-          <AppLayout>
-            <Routes>
+          <Routes>
+            {/* 登录页（独立全屏，不进主布局） */}
+            <Route path="/login" element={<Login />} />
+            {/* 业务页面：需登录 */}
+            <Route element={<ProtectedLayout />}>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/projects" element={<Projects />} />
@@ -65,8 +96,12 @@ export default function App() {
               <Route path="/indicator-library" element={<IndicatorLibrary />} />
               <Route path="/indicator-report" element={<IndicatorReport />} />
               <Route path="/settings" element={<Settings />} />
-            </Routes>
-          </AppLayout>
+              <Route path="/user-management" element={<UserManagement />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+            {/* 兜底：未匹配跳首页 */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </Layout>
       </BrowserRouter>
     </ConfigProvider>

@@ -1,5 +1,5 @@
-import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Select, message, Spin, Alert, Badge, Tooltip, DatePicker, Empty, Divider } from 'antd'
-import { SyncOutlined, ReloadOutlined, FilterOutlined, CalendarOutlined, DownloadOutlined, ClockCircleOutlined, RiseOutlined, FallOutlined, LineChartOutlined, DatabaseOutlined, DollarOutlined, SafetyCertificateOutlined, ClearOutlined, FileTextOutlined } from '@ant-design/icons'
+import { Table, Card, Button, Space, Tag, Row, Col, Statistic, Select, message, Spin, Alert, Badge, Tooltip, DatePicker, Empty, Divider, Modal, Upload, Input, InputNumber, Popconfirm } from 'antd'
+import { SyncOutlined, ReloadOutlined, FilterOutlined, CalendarOutlined, DownloadOutlined, ClockCircleOutlined, RiseOutlined, FallOutlined, LineChartOutlined, DatabaseOutlined, DollarOutlined, SafetyCertificateOutlined, ClearOutlined, FileTextOutlined, UploadOutlined, DeleteOutlined, PictureOutlined } from '@ant-design/icons'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { YantaiPrice, fetchApi, config, yantaiRebarApi } from '../services/api'
 import * as XLSX from 'xlsx'
@@ -80,6 +80,25 @@ export default function PriceMonitor() {
   const pollingRef = useRef<number | null>(null)
   const refreshIntervalRef = useRef<number | null>(null)
   const [isPolling, setIsPolling] = useState(false)
+
+  // ===== 截图识别上传 =====
+  interface EditablePriceRow {
+    key: string
+    material_name: string
+    spec: string
+    material_type: string
+    brand: string
+    price: number
+    issues?: string[]
+  }
+  const [uploadModalOpen, setUploadModalOpen] = useState(false)
+  const [recognizing, setRecognizing] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [recognizeMeta, setRecognizeMeta] = useState<{ method: string | null; date: string; period: string; fetch_time: string; warnings: string[] } | null>(null)
+  const [editRows, setEditRows] = useState<EditablePriceRow[]>([])
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadDate, setUploadDate] = useState<dayjs.Dayjs>(() => dayjs())
+  const [uploadPeriod, setUploadPeriod] = useState<'AM' | 'PM'>('AM')
 
   // ===== 辅助函数 =====
   const formatDisplayDate = (dateStr: string | null): string => {
@@ -437,6 +456,147 @@ export default function PriceMonitor() {
     setLoading(false)
   }
 
+  // ===== 截图识别上传相关处理 =====
+  const openUploadModal = () => {
+    setEditRows([])
+    setRecognizeMeta(null)
+    setUploadError(null)
+    setRecognizing(false)
+    setSubmitting(false)
+    setUploadDate(dayjs())
+    setUploadPeriod('AM')
+    setUploadModalOpen(true)
+  }
+
+  const handleUploadScreenshot = async (file: File) => {
+    setRecognizing(true)
+    setUploadError(null)
+    setEditRows([])
+    setRecognizeMeta(null)
+    try {
+      const dateStr = uploadDate.format('YYYY-MM-DD')
+      const result = await yantaiRebarApi.recognizeScreenshot(file, dateStr, uploadPeriod)
+      if (result.success && Array.isArray(result.prices) && result.prices.length > 0) {
+        setRecognizeMeta({
+          method: result.method,
+          date: result.date,
+          period: result.period,
+          fetch_time: result.fetch_time,
+          warnings: result.warnings || [],
+        })
+        setEditRows(result.prices.map((p: any, i: number) => ({
+          key: `row-${i}`,
+          material_name: p.material_name || '钢筋',
+          spec: p.spec || '',
+          material_type: p.material_type || '',
+          brand: p.brand || '',
+          price: Number(p.price) || 0,
+          issues: Array.isArray(p.issues) ? p.issues : [],
+        })))
+        message.success(`识别到 ${result.prices.length} 条（${result.method === 'rapidocr' ? 'RapidOCR' : result.method === 'tesseract' ? 'Tesseract' : '识别'}）`)
+      } else {
+        setUploadError((result.warnings || []).join('；') || '未识别到价格数据，请更换更清晰的截图')
+      }
+    } catch (error: any) {
+      console.error('截图识别失败:', error)
+      setUploadError(error?.message || '识别请求失败，请检查后端服务')
+    } finally {
+      setRecognizing(false)
+    }
+  }
+
+  const handleUploadExcel = async (file: File) => {
+    setRecognizing(true)
+    setUploadError(null)
+    setEditRows([])
+    setRecognizeMeta(null)
+    try {
+      const dateStr = uploadDate.format('YYYY-MM-DD')
+      const result = await yantaiRebarApi.parseExcel(file, dateStr, uploadPeriod)
+      if (result.success && Array.isArray(result.prices) && result.prices.length > 0) {
+        setRecognizeMeta({
+          method: result.method,
+          date: result.date,
+          period: result.period,
+          fetch_time: result.fetch_time,
+          warnings: result.warnings || [],
+        })
+        setEditRows(result.prices.map((p: any, i: number) => ({
+          key: `row-${i}`,
+          material_name: p.material_name || '钢筋',
+          spec: p.spec || '',
+          material_type: p.material_type || '',
+          brand: p.brand || '',
+          price: Number(p.price) || 0,
+          issues: Array.isArray(p.issues) ? p.issues : [],
+        })))
+        message.success(`解析到 ${result.prices.length} 条（Excel）`)
+      } else {
+        setUploadError((result.warnings || []).join('；') || 'Excel 未解析到数据，请检查表头是否含 价格/单价 + 品名/规格/材质/品牌 之一')
+      }
+    } catch (error: any) {
+      console.error('Excel 解析失败:', error)
+      setUploadError(error?.message || '解析请求失败，请检查后端服务')
+    } finally {
+      setRecognizing(false)
+    }
+  }
+
+  const updateEditRow = (key: string, field: keyof EditablePriceRow, value: string | number) => {
+    setEditRows(prev => prev.map(r => (r.key === key ? { ...r, [field]: value } : r)))
+  }
+
+  const removeEditRow = (key: string) => {
+    setEditRows(prev => prev.filter(r => r.key !== key))
+  }
+
+  const handleConfirmInsert = async () => {
+    if (editRows.length === 0) {
+      message.warning('没有可入库的数据')
+      return
+    }
+    if (!recognizeMeta) return
+    setSubmitting(true)
+    try {
+      const payload = editRows
+        .filter(r => Number(r.price) > 0)
+        .map(r => ({
+          date: recognizeMeta.date,
+          fetch_time: recognizeMeta.fetch_time,
+          material_name: r.material_name || '钢筋',
+          spec: r.spec,
+          material_type: r.material_type,
+          brand: r.brand,
+          price: Math.round(Number(r.price)),
+          region: '山东烟台',
+        }))
+      if (payload.length === 0) {
+        message.warning('没有有效价格行（价格需大于 0）')
+        setSubmitting(false)
+        return
+      }
+      const result = await yantaiRebarApi.insertPrices(payload)
+      const inserted = result.inserted ?? 0
+      const skipped = result.skipped ?? 0
+      message.success(`入库完成：新增 ${inserted} 条${skipped > 0 ? `，重复跳过 ${skipped} 条` : ''}`)
+      const insertedDate = recognizeMeta.date
+      setUploadModalOpen(false)
+      // 刷新相关数据
+      await fetchAvailableDates()
+      await fetchAllDataSummary()
+      setSelectedDate(insertedDate)
+      await fetchPricesByDate(insertedDate)
+      await fetchTrendData()
+      await fetchStatusData()
+      await fetchLastFetchInfo()
+    } catch (error: any) {
+      console.error('入库失败:', error)
+      message.error(error?.message || '入库失败，请检查后端服务')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const handleDateRangeChange = (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
     if (!dates) {
       setDateRange([null, null])
@@ -686,7 +846,7 @@ export default function PriceMonitor() {
         <div className="data-section-header">
           <div className="data-section-title"><CalendarOutlined /><span>数据筛选</span>{isRangeMode && dateRange[0] && dateRange[1] && <Tag color="#4A86C8" style={{ marginLeft: 8 }}>{dateRange[0].format('YYYY-MM-DD')} 至 {dateRange[1].format('YYYY-MM-DD')}</Tag>}</div>
           <Space className="btn-group-tech">
-            <Button icon={<SyncOutlined spin={loading} />} onClick={handleAutoFetch} loading={loading}>强制抓取</Button>
+            <Button type="primary" icon={<UploadOutlined />} onClick={openUploadModal}>导入</Button>
             <Button icon={<DownloadOutlined />} onClick={handleExport} disabled={filteredPrices.length === 0}>导出数据</Button>
           </Space>
         </div>
@@ -740,7 +900,6 @@ export default function PriceMonitor() {
           <div className="data-section-title"><LineChartOutlined /><span>价格明细</span>{selectedDate && <Tag color="#4A86C8" style={{ marginLeft: 8 }}>{formatDisplayDate(selectedDate)}</Tag>}</div>
           <Space className="btn-group-tech">
             <Button icon={<ReloadOutlined />} onClick={() => selectedDate && fetchPricesByDate(selectedDate, selectedSheet)}>刷新</Button>
-            <Button icon={<SyncOutlined spin={loading} />} onClick={handleAutoFetch} loading={loading}>抓取最新</Button>
           </Space>
         </div>
         <div className="data-section-body">
@@ -749,10 +908,95 @@ export default function PriceMonitor() {
           ) : filteredPrices.length > 0 ? (
             <Table dataSource={filteredPrices.map((p, i) => ({ ...p, key: i }))} rowKey="key" pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total: number) => `共 ${total} 条` }} columns={columns} size="small" scroll={{ x: 1200 }} />
           ) : (
-            <Alert message="暂无数据，请点击「抓取最新」按钮获取数据" type="info" showIcon />
+            <Alert message="暂无数据，请点击「导入」按钮获取数据" type="info" showIcon />
           )}
         </div>
       </div>
+
+      {/* 上传截图识别 Modal */}
+      <Modal
+        title="导入钢筋价格"
+        open={uploadModalOpen}
+        onCancel={() => setUploadModalOpen(false)}
+        width={920}
+        destroyOnClose
+        footer={[
+          <Button key="cancel" onClick={() => setUploadModalOpen(false)}>取消</Button>,
+          <Button key="confirm" type="primary" loading={submitting} disabled={editRows.length === 0} onClick={handleConfirmInsert}>
+            确认入库 ({editRows.length})
+          </Button>,
+        ]}
+      >
+        <Row gutter={12} style={{ marginBottom: 12 }}>
+          <Col flex="220px">
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 13 }}>价格日期</div>
+            <DatePicker value={uploadDate} onChange={(d) => d && setUploadDate(d)} disabledDate={disabledDate} style={{ width: '100%' }} allowClear={false} />
+          </Col>
+          <Col flex="160px">
+            <div style={{ marginBottom: 4, color: '#666', fontSize: 13 }}>时段</div>
+            <Select value={uploadPeriod} onChange={(v) => setUploadPeriod(v)} style={{ width: '100%' }} options={[{ label: '上午场 (AM)', value: 'AM' }, { label: '下午场 (PM)', value: 'PM' }]} />
+          </Col>
+          <Col flex="auto">
+            <Upload.Dragger
+              accept="image/png,image/jpeg"
+              showUploadList={false}
+              multiple={false}
+              disabled={recognizing}
+              beforeUpload={(file) => { handleUploadScreenshot(file); return false }}
+            >
+              {recognizing ? (
+                <div style={{ padding: 16, textAlign: 'center' }}><Spin /> <span style={{ marginLeft: 8, color: '#666' }}>识别中...</span></div>
+              ) : (
+                <>
+                  <p style={{ margin: 0, fontSize: 26, color: '#4A86C8' }}><PictureOutlined /></p>
+                  <p style={{ margin: '4px 0 0', fontSize: 13, color: '#666' }}>点击或拖拽上传「我的钢铁网」价格截图（PNG/JPG）</p>
+                </>
+              )}
+            </Upload.Dragger>
+          </Col>
+        </Row>
+
+        <div style={{ marginTop: 4, padding: '10px 0', borderTop: '1px dashed #e8e8e8', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ color: '#666', fontSize: 13 }}><strong style={{ color: '#fa8c16' }}>推荐</strong>：用 WPS「图片转表格」或复制网页表格粘贴到 Excel 后上传，准确率远高于截图识别：</span>
+          <Upload accept=".xlsx,.xls" showUploadList={false} beforeUpload={(file) => { handleUploadExcel(file); return false }} disabled={recognizing}>
+            <Button icon={<UploadOutlined />} size="small" loading={recognizing}>选择 Excel 文件</Button>
+          </Upload>
+        </div>
+
+        {uploadError && <Alert type="error" message="识别失败" description={uploadError} showIcon style={{ marginBottom: 12 }} />}
+
+        {recognizeMeta && editRows.length > 0 && (
+          <>
+            <div style={{ marginBottom: 8 }}>
+              <Tag color={recognizeMeta.method === 'rapidocr' ? 'blue' : recognizeMeta.method === 'excel' ? 'green' : 'orange'}>{recognizeMeta.method === 'rapidocr' ? 'RapidOCR 识别' : recognizeMeta.method === 'excel' ? 'Excel 解析' : recognizeMeta.method === 'tesseract' ? 'Tesseract 识别' : '识别'}</Tag>
+              <Tag color="#4A86C8">{recognizeMeta.date}</Tag>
+              <Tag>{recognizeMeta.period === 'PM' ? '下午场' : '上午场'} {recognizeMeta.fetch_time}</Tag>
+              {recognizeMeta.warnings.map((w, i) => <Tag key={i} color="warning">⚠ {w}</Tag>)}
+              <span style={{ color: '#999', fontSize: 12, marginLeft: 8 }}>可编辑或删除各行后再入库；<span style={{ color: '#fa8c16' }}>黄底行</span>为识别存疑，请重点核对</span>
+            </div>
+            <Table
+              size="small"
+              dataSource={editRows}
+              rowKey="key"
+              pagination={false}
+              scroll={{ y: 320 }}
+              onRow={(r: any) => ({ style: r.issues && r.issues.length ? { background: '#fff7e6' } : {} })}
+              columns={[
+                { title: '品名', dataIndex: 'material_name', width: 110, render: (v: any, r: EditablePriceRow) => <Input value={v} size="small" onChange={e => updateEditRow(r.key, 'material_name', e.target.value)} /> },
+                { title: '规格', dataIndex: 'spec', width: 100, render: (v: any, r: EditablePriceRow) => <Input value={v} size="small" onChange={e => updateEditRow(r.key, 'spec', e.target.value)} /> },
+                { title: '材质', dataIndex: 'material_type', width: 120, render: (v: any, r: EditablePriceRow) => <Input value={v} size="small" onChange={e => updateEditRow(r.key, 'material_type', e.target.value)} /> },
+                { title: '品牌/钢厂', dataIndex: 'brand', width: 130, render: (v: any, r: EditablePriceRow) => <Input value={v} size="small" onChange={e => updateEditRow(r.key, 'brand', e.target.value)} /> },
+                { title: '单价(元/吨)', dataIndex: 'price', width: 120, render: (v: any, r: EditablePriceRow) => <InputNumber value={v} size="small" min={0} style={{ width: '100%' }} onChange={val => updateEditRow(r.key, 'price', (val ?? 0) as number)} /> },
+                { title: '', width: 50, render: (_v: any, r: EditablePriceRow) => (
+                  <Popconfirm title="删除该行？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => removeEditRow(r.key)}>
+                    <Button type="text" danger size="small" icon={<DeleteOutlined />} />
+                  </Popconfirm>
+                ) },
+              ]}
+            />
+          </>
+        )}
+      </Modal>
     </div>
   )
 }

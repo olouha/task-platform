@@ -12,7 +12,7 @@ import logging
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-DB_FILE = 'services/data/yantai_rebar.db'
+DB_FILE = 'data/yantai_rebar.db'
 
 
 def get_db_connection():

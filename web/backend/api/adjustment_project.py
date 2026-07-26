@@ -2,13 +2,15 @@
 调差项目 API
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 import uuid
 import json
 from pathlib import Path
+
+from api.deps import get_current_user_can_delete
 
 from models.adjustment_project import (
     AdjustmentProject, MaterialItem, AttachmentFile,
@@ -76,7 +78,7 @@ async def create_project(request: CreateProjectRequest):
 
 
 @router.put("/{project_id}", summary="更新项目")
-async def update_project(project_id: str, request: UpdateProjectRequest):
+async def update_project(project_id: str, request: UpdateProjectRequest, admin_account: str = Depends(get_current_user_can_delete)):
     """更新项目信息"""
     projects = load_projects()
 
@@ -107,7 +109,7 @@ async def update_project(project_id: str, request: UpdateProjectRequest):
 
 
 @router.delete("/{project_id}", summary="删除项目")
-async def delete_project(project_id: str):
+async def delete_project(project_id: str, admin_account: str = Depends(get_current_user_can_delete)):
     """删除调差项目"""
     projects = load_projects()
 
@@ -182,7 +184,7 @@ async def add_attachment(project_id: str, attachment: dict):
 
 
 @router.delete("/{project_id}/attachments/{attachment_id}", summary="删除附件")
-async def delete_attachment(project_id: str, attachment_id: str):
+async def delete_attachment(project_id: str, attachment_id: str, admin_account: str = Depends(get_current_user_can_delete)):
     """删除项目附件"""
     projects = load_projects()
 

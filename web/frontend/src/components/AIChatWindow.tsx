@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Button, Input, Spin, Tooltip, Dropdown, List, Empty } from 'antd'
+import { Button, Input, Spin, Tooltip, Dropdown, List, Empty, Popconfirm, Modal } from 'antd'
 import {
   RobotOutlined,
   CloseOutlined,
@@ -155,7 +155,14 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
                   icon: <DeleteOutlined />,
                   label: '清空对话',
                   danger: true,
-                  onClick: clearMessages
+                  onClick: () => Modal.confirm({
+                    title: '确认清空对话',
+                    content: '确定清空当前对话的所有消息吗？此操作无法撤销。',
+                    okText: '清空',
+                    okButtonProps: { danger: true },
+                    cancelText: '取消',
+                    onOk: () => clearMessages()
+                  })
                 }
               ]
             }}
@@ -207,13 +214,21 @@ const AIChatWindow: React.FC<AIChatWindowProps> = ({ position = 'header' }) => {
                     }`}
                     onClick={() => handleSelectConversation(item.id)}
                     extra={
-                      <Button
-                        type="text"
-                        size="small"
-                        danger
-                        icon={<DeleteOutlined />}
-                        onClick={e => handleDeleteConversation(e, item.id)}
-                      />
+                      <Popconfirm
+                        title="删除该会话？"
+                        okText="删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => deleteConversation(item.id)}
+                      >
+                        <Button
+                          type="text"
+                          size="small"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={e => e.stopPropagation()}
+                        />
+                      </Popconfirm>
                     }
                   >
                     {item.title}

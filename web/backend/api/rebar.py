@@ -9,7 +9,8 @@
 - 报告分析
 """
 
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, UploadFile, File, Form, Header
+from api.deps import get_current_account
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta
@@ -20,8 +21,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# 数据库配置
-DB_FILE = 'data/yantai_rebar.db'
+# 数据库配置（绝对路径，避免依赖 cwd 导致库分裂）
+DB_FILE = str(Path(__file__).resolve().parent.parent / 'data' / 'yantai_rebar.db')
 
 # ============================================================
 # 路由定义
@@ -1224,14 +1225,144 @@ async def get_influencing_factors():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/recognize-screenshot", summary="上传钢筋价格截图识别（不入库）")
+async def upload_and_recognize(
+    file: UploadFile = File(...),
+    date: Optional[str] = Form(None),
+    period: Optional[str] = Form(None),
+):
+    """
+    上传我的钢铁网钢筋价格截图，AI 视觉识别（不可用时本地 OCR 回退），返回可预览编辑的价格列表。
+
+    本端点只识别不入库；用户在前端预览确认后，通过 POST /api/rebar/prices 入库。
+    """
+    logger.info(f"[upload_and_recognize] 收到上传 | filename={file.filename} | date={date} | period={period}")
+
+    # 校验扩展名
+    allowed_ext = ['.png', '.jpg', '.jpeg']
+    ext = Path(file.filename or '').suffix.lower()
+    if ext not in allowed_ext:
+        logger.warning(f"[upload_and_recognize] 不支持的文件类型 | ext={ext}")
+        raise HTTPException(status_code=400, detail=f"仅支持图片: {', '.join(allowed_ext)}")
+
+    # 校验时段
+    if period and str(period).strip().upper() not in ('AM', 'PM'):
+        raise HTTPException(status_code=400, detail="period 必须为 AM 或 PM")
+
+    # 落盘到临时文件
+    upload_dir = Path('services/data/uploads')
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_path = upload_dir / f"screenshot_{timestamp}{ext}"
+
+    try:
+        content = await file.read()
+        with open(file_path, 'wb') as f:
+            f.write(content)
+        logger.info(f"[upload_and_recognize] 已保存截图 | path={file_path} | size={len(content)}")
+
+        from services.price.screenshot_recognizer import recognize_screenshot as do_recognize
+        result = await do_recognize(str(file_path), hint_date=date, hint_period=period)
+
+        logger.info(f"[upload_and_recognize] 识别完成 | success={result.get('success')} | method={result.get('method')} | count={len(result.get('prices', []))}")
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[upload_and_recognize] 识别失败 | {type(e).__name__}: {e}", exc_info=True)
+        return {
+            'success': False,
+            'method': None,
+            'date': None,
+            'period': None,
+            'fetch_time': None,
+            'prices': [],
+            'warnings': [f'识别失败: {type(e).__name__}: {e}'],
+        }
+    finally:
+        # 识别完成，清理临时图片
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            logger.warning(f"[upload_and_recognize] 清理临时文件失败 | {e}")
+
+
+@router.post("/parse-excel", summary="上传 Excel 解析（不入库）")
+async def upload_and_parse_excel(
+    file: UploadFile = File(...),
+    date: Optional[str] = Form(None),
+    period: Optional[str] = Form(None),
+):
+    """
+    上传钢筋价格 Excel（员工用 WPS 转图或复制网页所得），解析为可预览价格列表。
+
+    本端点只解析不入库；用户在前端预览确认后，通过 POST /api/rebar/prices 入库。
+    """
+    logger.info(f"[upload_and_parse_excel] 收到上传 | filename={file.filename} | date={date} | period={period}")
+    allowed_ext = ['.xlsx', '.xls']
+    ext = Path(file.filename or '').suffix.lower()
+    if ext not in allowed_ext:
+        raise HTTPException(status_code=400, detail=f"仅支持 Excel: {', '.join(allowed_ext)}")
+    if period and str(period).strip().upper() not in ('AM', 'PM'):
+        raise HTTPException(status_code=400, detail="period 必须为 AM 或 PM")
+
+    upload_dir = Path('services/data/uploads')
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file_path = upload_dir / f"rebar_{timestamp}{ext}"
+
+    try:
+        content = await file.read()
+        with open(file_path, 'wb') as f:
+            f.write(content)
+
+        from services.price.excel_parser import parse_excel_to_prices
+        from services.price.screenshot_recognizer import _valid_date, _valid_period, PERIOD_TO_TIME
+
+        result = parse_excel_to_prices(str(file_path))
+        hint_date = _valid_date(date)
+        hint_period = _valid_period(period)
+        final_date = hint_date or datetime.now().strftime('%Y-%m-%d')
+        final_period = hint_period or 'AM'
+        fetch_time = PERIOD_TO_TIME.get(final_period, '09:00')
+
+        warnings = list(result.get('warnings', []))
+        if not hint_date:
+            warnings.append(f'已使用日期 {final_date}，请确认入库前核对')
+
+        logger.info(f"[upload_and_parse_excel] 解析完成 | success={result['ok']} | count={len(result['prices'])}")
+        return {
+            'success': result['ok'],
+            'method': 'excel',
+            'date': final_date,
+            'period': final_period,
+            'fetch_time': fetch_time,
+            'prices': result['prices'],
+            'warnings': warnings,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[upload_and_parse_excel] 失败 | {type(e).__name__}: {e}", exc_info=True)
+        return {'success': False, 'method': 'excel', 'date': None, 'period': None,
+                'fetch_time': None, 'prices': [], 'warnings': [f'解析失败: {type(e).__name__}: {e}']}
+    finally:
+        try:
+            if file_path.exists():
+                file_path.unlink()
+        except Exception as e:
+            logger.warning(f"[upload_and_parse_excel] 清理临时文件失败 | {e}")
+
+
 @router.post("/prices")
-async def insert_prices(prices: List[RebarPriceRecord]):
+async def insert_prices(prices: List[RebarPriceRecord], account: str = Depends(get_current_account)):
     """
     批量插入价格数据
 
     用于批量导入价格数据到数据库
     """
-    logger.info(f"[insert_prices] 插入 | count={len(prices)}")
+    logger.info(f"[insert_prices] 插入 | count={len(prices)} | by={account}")
 
     # 先尝试Supabase
     supabase = get_supabase_service()

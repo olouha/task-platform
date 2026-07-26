@@ -1,29 +1,49 @@
 """
-项目管理 API
-使用 Supabase 数据库实现数据持久化
+项目管理 API（老 Projects 模块）
+使用本地 SQLite 数据库实现数据持久化（原 Supabase 已禁用）
+
+字段契约与前端 Projects.tsx 保持一致：id / name / description / created_at / status
+注意：与「调差项目管理」(adjustment_projects) 是两套独立数据，互不影响。
 """
 
 from fastapi import APIRouter, HTTPException, Depends
-from typing import List
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any, Literal
 import logging
 
-from models.schemas import Project, ProjectMaterial, ConstructionPhase
+from models.schemas import ProjectMaterial, ConstructionPhase
 from services.supabase_service import SupabaseService
+from services import projects_db_service
+from api.deps import get_current_user_can_delete
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def get_supabase():
+class ProjectCreateRequest(BaseModel):
+    """创建项目请求（契约对齐前端）"""
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field("", max_length=2000)
+    status: Literal["active", "completed"] = Field("active")
+
+
+class ProjectUpdateRequest(BaseModel):
+    """更新项目请求（字段均可选）"""
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    status: Optional[Literal["active", "completed"]] = None
+
+
+def get_supabase() -> SupabaseService:
     return SupabaseService()
 
 
 @router.get("/", response_model=List[dict])
-async def list_projects(supabase: SupabaseService = Depends(get_supabase)):
-    """获取所有项目"""
-    logger.info("[list_projects] 从数据库查询所有项目")
+async def list_projects() -> List[Dict[str, Any]]:
+    """获取所有项目（本地 SQLite）"""
+    logger.info("[list_projects] 从本地数据库查询所有项目")
     try:
-        result = supabase.get_projects()
+        result = projects_db_service.list_projects()
         logger.info(f"[list_projects] 返回 {len(result)} 个项目")
         return result
     except Exception as e:
@@ -32,31 +52,28 @@ async def list_projects(supabase: SupabaseService = Depends(get_supabase)):
 
 
 @router.post("/", response_model=dict)
-async def create_project(project: Project, supabase: SupabaseService = Depends(get_supabase)):
-    """创建项目"""
-    logger.info(f"[create_project] 创建项目 | name={project.name}")
+async def create_project(project: ProjectCreateRequest) -> Dict[str, Any]:
+    """创建项目（本地 SQLite）"""
+    logger.info(f"[create_project] 创建项目 | name={project.name}, status={project.status}")
     try:
-        project_data = project.dict(exclude={'id'})
-        result = supabase.create_project(project_data)
-        if result:
-            logger.info(f"[create_project] 创建成功 | id={result['id']}")
-            return result
-        else:
-            logger.error("[create_project] 创建失败")
-            raise HTTPException(status_code=500, detail="创建失败")
-    except HTTPException:
-        raise
+        result = projects_db_service.create_project(
+            name=project.name,
+            description=project.description or "",
+            status=project.status,
+        )
+        logger.info(f"[create_project] 创建成功 | id={result['id']}")
+        return result
     except Exception as e:
         logger.error(f"[create_project] 创建失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="创建项目失败")
 
 
 @router.get("/{project_id}", response_model=dict)
-async def get_project(project_id: str, supabase: SupabaseService = Depends(get_supabase)):
-    """获取项目详情"""
+async def get_project(project_id: str) -> Dict[str, Any]:
+    """获取项目详情（本地 SQLite）"""
     logger.info(f"[get_project] 查询项目 | project_id={project_id}")
     try:
-        result = supabase.get_project(project_id)
+        result = projects_db_service.get_project(project_id)
         if not result:
             logger.warning(f"[get_project] 项目不存在 | project_id={project_id}")
             raise HTTPException(status_code=404, detail="项目不存在")
@@ -70,19 +87,21 @@ async def get_project(project_id: str, supabase: SupabaseService = Depends(get_s
 
 
 @router.put("/{project_id}", response_model=dict)
-async def update_project(project_id: str, project: Project, supabase: SupabaseService = Depends(get_supabase)):
-    """更新项目"""
+async def update_project(project_id: str, project: ProjectUpdateRequest, admin_account: str = Depends(get_current_user_can_delete)) -> Dict[str, Any]:
+    """更新项目（本地 SQLite）"""
     logger.info(f"[update_project] 更新项目 | project_id={project_id}")
     try:
-        project_data = project.dict(exclude={'id'})
-        success = supabase.update_project(project_id, project_data)
-        if success:
-            result = supabase.get_project(project_id)
-            logger.info(f"[update_project] 更新成功 | project_id={project_id}")
-            return result
-        else:
-            logger.error("[update_project] 更新失败")
-            raise HTTPException(status_code=500, detail="更新失败")
+        result = projects_db_service.update_project(
+            project_id,
+            name=project.name,
+            description=project.description,
+            status=project.status,
+        )
+        if not result:
+            logger.warning(f"[update_project] 项目不存在 | project_id={project_id}")
+            raise HTTPException(status_code=404, detail="项目不存在")
+        logger.info(f"[update_project] 更新成功 | project_id={project_id}")
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -91,11 +110,11 @@ async def update_project(project_id: str, project: Project, supabase: SupabaseSe
 
 
 @router.delete("/{project_id}")
-async def delete_project(project_id: str, supabase: SupabaseService = Depends(get_supabase)):
-    """删除项目"""
+async def delete_project(project_id: str, admin_account: str = Depends(get_current_user_can_delete)) -> Dict[str, Any]:
+    """删除项目（本地 SQLite）"""
     logger.info(f"[delete_project] 删除项目 | project_id={project_id}")
     try:
-        success = supabase.delete_project(project_id)
+        success = projects_db_service.delete_project(project_id)
         if success:
             logger.info(f"[delete_project] 删除成功 | project_id={project_id}")
         else:

@@ -169,7 +169,7 @@ export default function DataManager() {
             type="link"
             size="small"
             icon={<DownloadOutlined />}
-            onClick={() => window.open(`${config.apiUrl}/api/data-manager/download/${record.name}`, '_blank')}
+            onClick={() => window.open(`${config.apiUrl}/data-manager/download/${record.name}`, '_blank')}
           >
             下载
           </Button>

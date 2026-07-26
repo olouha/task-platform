@@ -2,7 +2,8 @@
 数据管理 API
 提供数据导出、备份、导入、清洗等功能
 """
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends, Header
+from api.deps import get_current_account
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
@@ -18,7 +19,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # 数据库路径
-DB_FILE = 'services/data/yantai_rebar.db'
+DB_FILE = 'data/yantai_rebar.db'
 BACKUP_DIR = 'services/data/backups'
 EXPORT_DIR = 'services/data/exports'
 
@@ -378,11 +379,12 @@ async def clean_data():
 
 
 @router.post("/import")
-async def import_data(file_path: str = Query(..., description="要导入的文件路径")):
+async def import_data(file_path: str = Query(..., description="要导入的文件路径"), account: str = Depends(get_current_account)):
     """
     导入数据（从已存在的文件）
     注意：实际的文件上传功能需要通过其他方式实现
     """
+    logger.info(f"[import_data] 导入 | file={file_path} | by={account}")
     try:
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="文件不存在")

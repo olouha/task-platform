@@ -2,15 +2,11 @@ import {
   Card,
   Row,
   Col,
-  Form,
-  Input,
   Select,
-  InputNumber,
   Button,
   Table,
   Tag,
   Progress,
-  Divider,
   Alert,
   List,
   Typography,
@@ -33,6 +29,11 @@ import {
 } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 import PageHeader from '../components/PageHeader';
+import { indicatorLibraryApi } from '../services/api';
+import type {
+  IndicatorLibrarySummary,
+  IndicatorLibraryDetail,
+} from '../types/indicator';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
@@ -101,7 +102,9 @@ interface CorrectionFactor {
 interface AnalysisReport {
   report_id: string;
   generated_at: string;
+  project_id?: string;
   project_name: string;
+  project_snapshot?: any;
   matched_indicators: MatchedIndicator[];
   comparison: ComparisonItem[];
   cost_breakdown: CostBreakdown[];
@@ -119,15 +122,49 @@ interface DbSummary {
 }
 
 export default function IndicatorReport() {
-  const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [dbSummary, setDbSummary] = useState<DbSummary | null>(null);
   const [activeKey, setActiveKey] = useState<string[]>([]);
 
+  // 指标库列表（与「指标库管理」页同源，用于下拉选择）
+  const [dbProjects, setDbProjects] = useState<IndicatorLibrarySummary[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(undefined);
+  // 选中项目的详情（含层高/钢筋/混凝土等摘要中不存在的字段）
+  const [selectedDetail, setSelectedDetail] = useState<IndicatorLibraryDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   useEffect(() => {
     loadDbSummary();
+    loadDbProjects();
   }, []);
+
+  // 选中项目变化时，拉取详情用于展示摘要卡片
+  useEffect(() => {
+    if (!selectedProjectId) {
+      setSelectedDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    indicatorLibraryApi
+      .getDetail(selectedProjectId)
+      .then((detail) => {
+        if (!cancelled) setSelectedDetail(detail);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('加载项目详情失败:', error);
+          setSelectedDetail(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProjectId]);
 
   const loadDbSummary = async () => {
     try {
@@ -139,43 +176,29 @@ export default function IndicatorReport() {
     }
   };
 
-  const handleGenerateReport = async () => {
+  const loadDbProjects = async () => {
+    // 数据源：指标库管理页同款 /api/indicator-library/summary
     try {
-      const values = await form.validateFields();
+      const list = await indicatorLibraryApi.getSummary({ limit: 500 });
+      setDbProjects(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.error('加载指标库列表失败:', error);
+      setDbProjects([]);
+    }
+  };
 
-      setLoading(true);
-      const requestBody = {
-        project: {
-          name: values.name,
-          category: values.category,
-          location: values.location,
-          structure: values.structure,
-          floor_above: values.floor_above,
-          floor_below: values.floor_below || 0,
-          area_total: values.area_total,
-          area_above: values.area_above,
-          area_below: values.area_below,
-          height: values.height,
-        },
-        indicators: {
-          unit_cost: values.unit_cost,
-          unit_structure: values.unit_structure,
-          unit_installation: values.unit_installation,
-          unit_decoration: values.unit_decoration,
-          unit_measure: values.unit_measure,
-        },
-        material_content: values.steel_content ? {
-          steel: values.steel_content,
-          concrete: values.concrete_content,
-        } : undefined,
-      };
-
-      const res = await fetch('/api/indicator-report/generate', {
+  const handleGenerateReport = async () => {
+    if (!selectedProjectId) {
+      message.warning('请先从指标库中选择一个项目');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/indicator-report/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ project_id: selectedProjectId }),
       });
-
       const data = await res.json();
       if (res.ok) {
         setReport(data);
@@ -412,179 +435,75 @@ export default function IndicatorReport() {
               </span>
             }
           >
-            <Form form={form} layout="vertical" initialValues={{
-              floor_above: 1,
-              floor_below: 0,
-              category: '住宅',
-              structure: '剪力墙结构',
-            }}>
-              <Divider orientation="left">基本信息</Divider>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div>
+                <div style={{ marginBottom: 4, color: '#666' }}>选择指标库项目（与「指标库管理」页联动，系统将对该项目进行深度分析）</div>
+                <Select
+                  showSearch
+                  allowClear
+                  placeholder="搜索项目名 / 业态 / 地区，选中后点击「生成分析报告」"
+                  style={{ width: '100%' }}
+                  value={selectedProjectId}
+                  onChange={setSelectedProjectId}
+                  optionFilterProp="label"
+                  filterOption={(input, opt: any) =>
+                    (opt?.label as string || '').toLowerCase().includes(input.toLowerCase())
+                  }
+                  options={dbProjects.map((p) => ({
+                    value: p.id,
+                    label: `${p.name || '(无名称)'}  ·  ${p.category || ''}  ·  ${p.location || ''}`,
+                  }))}
+                />
+              </div>
 
-              <Form.Item
-                name="name"
-                label="项目名称"
-                rules={[{ required: true, message: '请输入项目名称' }]}
+              {selectedProjectId && (() => {
+                const summary = dbProjects.find((x) => x.id === selectedProjectId);
+                // 详情优先（含层高/楼层/钢筋/混凝土），未加载完时回退摘要
+                const p: Partial<IndicatorLibraryDetail> = selectedDetail || summary || {};
+                if (!p) return null;
+                // 钢筋：库内字段为 above_rebar_unit(t/㎡)，转 kg/㎡ 与算法一致
+                const steelKg = selectedDetail?.above_rebar_unit != null
+                  ? Math.round(selectedDetail.above_rebar_unit * 1000)
+                  : undefined;
+                return (
+                  <Card
+                    size="small"
+                    title="选中项目摘要"
+                    extra={detailLoading ? <Text type="secondary">加载中…</Text> : undefined}
+                    style={{ background: '#fafafa' }}
+                  >
+                    <Row gutter={[16, 8]}>
+                      <Col span={12}><Text type="secondary">项目名称：</Text><Text strong> {p.name || '-'}</Text></Col>
+                      <Col span={6}><Text type="secondary">业态：</Text>{p.category || '-'}</Col>
+                      <Col span={6}><Text type="secondary">地区：</Text>{p.location || '-'}</Col>
+                      <Col span={6}><Text type="secondary">结构：</Text>{p.structure || '-'}</Col>
+                      <Col span={6}><Text type="secondary">地上/地下层：</Text>{selectedDetail?.floor_above ?? '-'} / {selectedDetail?.floor_below ?? 0}</Col>
+                      <Col span={6}><Text type="secondary">檐高(m)：</Text>{selectedDetail?.height ?? '-'}</Col>
+                      <Col span={6}><Text type="secondary">总面积(㎡)：</Text>{p.area_total?.toLocaleString?.() ?? '-'}</Col>
+                      <Col span={6}><Text type="secondary">单方造价(元/㎡)：</Text><Text strong>{p.unit_cost ?? '-'}</Text></Col>
+                      <Col span={6}><Text type="secondary">钢筋(kg/㎡)：</Text>{steelKg ?? '-'}</Col>
+                      <Col span={6}><Text type="secondary">混凝土(m³/㎡)：</Text>{selectedDetail?.above_concrete_unit ?? '-'}</Col>
+                    </Row>
+                  </Card>
+                );
+              })()}
+
+              <Button
+                type="primary"
+                size="large"
+                block
+                icon={<BarChartOutlined />}
+                loading={loading}
+                disabled={!selectedProjectId}
+                onClick={handleGenerateReport}
               >
-                <Input placeholder="请输入项目名称" />
-              </Form.Item>
+                生成分析报告
+              </Button>
 
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="category"
-                    label="业态类型"
-                    rules={[{ required: true, message: '请选择业态' }]}
-                  >
-                    <Select>
-                      <Option value="住宅">住宅</Option>
-                      <Option value="商业">商业</Option>
-                      <Option value="办公">办公</Option>
-                      <Option value="酒店">酒店</Option>
-                      <Option value="工业">工业</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="location"
-                    label="项目地区"
-                    rules={[{ required: true, message: '请选择地区' }]}
-                  >
-                    <Select>
-                      <Option value="北京">北京</Option>
-                      <Option value="上海">上海</Option>
-                      <Option value="山东">山东</Option>
-                      <Option value="广东">广东</Option>
-                      <Option value="浙江">浙江</Option>
-                      <Option value="江苏">江苏</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item
-                name="structure"
-                label="结构形式"
-                rules={[{ required: true, message: '请选择结构形式' }]}
-              >
-                <Select>
-                  <Option value="框架结构">框架结构</Option>
-                  <Option value="剪力墙结构">剪力墙结构</Option>
-                  <Option value="框架剪力墙结构">框架剪力墙结构</Option>
-                  <Option value="框架核心筒">框架核心筒</Option>
-                  <Option value="钢结构">钢结构</Option>
-                </Select>
-              </Form.Item>
-
-              <Divider orientation="left">建筑规模</Divider>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="floor_above"
-                    label="地上层数"
-                    rules={[{ required: true, message: '请输入地上层数' }]}
-                  >
-                    <InputNumber min={1} max={200} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="floor_below" label="地下层数">
-                    <InputNumber min={0} max={10} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item
-                    name="area_total"
-                    label="总建筑面积(㎡)"
-                    rules={[{ required: true, message: '请输入建筑面积' }]}
-                  >
-                    <InputNumber
-                      min={100}
-                      style={{ width: '100%' }}
-                      formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={(value) => value!.replace(/,/g, '') as any}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item
-                    name="height"
-                    label="檐高(m)"
-                    rules={[{ required: true, message: '请输入檐高' }]}
-                  >
-                    <InputNumber min={1} max={500} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Divider orientation="left">造价指标</Divider>
-
-              <Form.Item
-                name="unit_cost"
-                label="单方造价(元/㎡)"
-                rules={[{ required: true, message: '请输入单方造价' }]}
-              >
-                <InputNumber min={100} style={{ width: '100%' }} />
-              </Form.Item>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="unit_structure" label="土建单方(元/㎡)">
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="unit_installation" label="安装单方(元/㎡)">
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="unit_decoration" label="装饰单方(元/㎡)">
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="unit_measure" label="措施费单方(元/㎡)">
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Divider orientation="left">材料含量</Divider>
-
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="steel_content" label="钢筋含量(kg/㎡)">
-                    <InputNumber min={0} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-                <Col span={12}>
-                  <Form.Item name="concrete_content" label="混凝土含量(m³/㎡)">
-                    <InputNumber min={0} step={0.01} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Form.Item>
-                <Button
-                  type="primary"
-                  size="large"
-                  block
-                  icon={<BarChartOutlined />}
-                  loading={loading}
-                  onClick={handleGenerateReport}
-                >
-                  生成分析报告
-                </Button>
-              </Form.Item>
-            </Form>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                分析 = 该项目 vs 指标库其他项目（业态/结构/地区/层高匹配 + 高度/结构/地区修正 + 对比 + 风险）
+              </Text>
+            </Space>
           </Card>
         </Col>
 
@@ -615,6 +534,18 @@ export default function IndicatorReport() {
                         <Tag color="blue">分析完成</Tag>
                       </Col>
                     </Row>
+                    {report.project_snapshot && (
+                      <div style={{ marginTop: 8, fontSize: 12, color: '#666' }}>
+                        <Space size="middle" wrap>
+                          <span>业态: {report.project_snapshot.category}</span>
+                          <span>地区: {report.project_snapshot.location}</span>
+                          <span>结构: {report.project_snapshot.structure}</span>
+                          <span>层数: {report.project_snapshot.floor_above}/{report.project_snapshot.floor_below || 0}</span>
+                          <span>檐高: {report.project_snapshot.height}m</span>
+                          <span>面积: {report.project_snapshot.area_total?.toLocaleString?.() || report.project_snapshot.area_total}㎡</span>
+                        </Space>
+                      </div>
+                    )}
                   </Card>
 
                   {/* 匹配结果 */}
@@ -776,12 +707,12 @@ export default function IndicatorReport() {
               <div style={{ textAlign: 'center', padding: 60 }}>
                 <BarChartOutlined style={{ fontSize: 80, color: '#d9d9d9' }} />
                 <Title level={4} type="secondary" style={{ marginTop: 16 }}>
-                  请在左侧录入项目信息
+                  请在左侧指标库中选择一个项目
                 </Title>
                 <Text type="secondary">
-                  输入项目基本信息和指标数据，系统将自动：
+                  从指标库下拉选一个项目，系统将自动：
                   <br />
-                  1. 匹配相似历史项目
+                  1. 与指标库其他项目做业态/结构/地区/层高匹配
                   <br />
                   2. 应用高度/结构/地区修正
                   <br />

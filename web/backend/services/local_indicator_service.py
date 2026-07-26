@@ -7,6 +7,7 @@ import logging
 import sqlite3
 import json
 import uuid
+import threading
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from pathlib import Path
@@ -19,16 +20,50 @@ DB_FILE = Path(__file__).parent / 'data' / 'yantai_rebar.db'
 MAX_SNAPSHOTS = 10
 
 
+def _synchronized_write(method):
+    """
+    写操作同步装饰器：用实例的 _write_lock 串行化所有写操作。
+
+    消除"先查后写"竞态（如 auto_import 的 SELECT→DELETE→INSERT 重复插入）。
+    使用 RLock，允许写方法内部调用其它写方法（如 auto_import_project 调 _save_snapshot）。
+    """
+    import functools
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with self._write_lock:
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class LocalIndicatorService:
     """本地指标库服务 - 支持版本管理和历史追溯"""
 
     def __init__(self, db_file: str = None):
         self.db_file = db_file or str(DB_FILE)
+        # 全局写锁：串行化所有写操作，消除 read-then-write 竞态。
+        # 使用 RLock 是因为部分写方法会调用其它写方法（如 auto_import_project 调 _save_snapshot）。
+        self._write_lock = threading.RLock()
         self._init_table()
+
+    def _get_connection(self) -> sqlite3.Connection:
+        """
+        创建配置好的 SQLite 连接（WAL + busy_timeout）
+
+        - WAL 模式：读写互不阻塞，显著降低 database is locked 概率
+        - busy_timeout=30s：遇到写锁时最多等待 30 秒，而非默认 5 秒立即报错
+        - synchronous=NORMAL：WAL 模式下的推荐设置，兼顾安全与性能
+        """
+        conn = sqlite3.connect(self.db_file, timeout=30)
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
 
     def _init_table(self):
         """初始化指标库表"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         # 创建主表（完整字段 - 扩展版本）
@@ -52,6 +87,8 @@ class LocalIndicatorService:
                 unit_installation REAL,
                 unit_decoration REAL,
                 unit_measure REAL,
+                above_cost_ratio REAL,
+                below_cost_ratio REAL,
                 -- 主要经济指标
                 underground_structure REAL,
                 above_structure REAL,
@@ -132,6 +169,7 @@ class LocalIndicatorService:
                 -- ================== 来源信息 ==================
                 source TEXT,
                 source_file TEXT,
+                uploaded_by TEXT,
                 remarks TEXT,
                 verified INTEGER DEFAULT 0,
                 verified_by TEXT,
@@ -248,6 +286,20 @@ class LocalIndicatorService:
             'version': 'INTEGER DEFAULT 1',
             'is_latest': 'INTEGER DEFAULT 1',
             'snapshot_id': 'TEXT',
+            # 上传留痕
+            'uploaded_by': 'TEXT',
+            # 建筑指标字段
+            'wall_floor_ratio': 'REAL',
+            'window_wall_ratio': 'REAL',
+            'window_content': 'REAL',
+            'door_content': 'REAL',
+            'interior_wall_content': 'REAL',
+            'balcony_ratio': 'REAL',
+            'assembly_rate': 'REAL',
+            'assembly_content': 'REAL',
+            # 造价占比
+            'above_cost_ratio': 'REAL',
+            'below_cost_ratio': 'REAL',
         }
 
         # 获取当前表的所有列
@@ -270,7 +322,7 @@ class LocalIndicatorService:
 
     def get_indicator_projects(self, limit: int = 100, category: str = None, location: str = None) -> List[Dict]:
         """获取指标库项目列表"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -298,7 +350,7 @@ class LocalIndicatorService:
 
     def get_indicator_project(self, project_id: str) -> Optional[Dict]:
         """获取单个指标库项目"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -309,9 +361,10 @@ class LocalIndicatorService:
 
         return dict(row) if row else None
 
+    @_synchronized_write
     def create_indicator_project(self, project: Dict) -> Optional[Dict]:
         """创建指标库项目"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         project_id = project.get('id') or f"IND-{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -323,7 +376,7 @@ class LocalIndicatorService:
                 'id', 'name', 'category', 'location', 'structure',
                 'floor_above', 'floor_below', 'area_total', 'area_above', 'area_below',
                 'height', 'complete_date', 'unit_cost', 'total_cost',
-                'unit_structure', 'unit_installation', 'unit_decoration', 'unit_measure',
+                'unit_structure', 'unit_installation', 'unit_decoration', 'unit_measure', 'above_cost_ratio', 'below_cost_ratio',
                 'underground_structure', 'above_structure', 'roof', 'exterior_wall',
                 'interior_wall', 'floor', 'electrical', 'plumbing', 'hvac',
                 'elevator', 'fire', 'measures',
@@ -352,9 +405,17 @@ class LocalIndicatorService:
                 'underground_concrete', 'underground_concrete_unit',
                 'underground_rebar', 'underground_rebar_unit',
                 'underground_formwork', 'underground_formwork_unit',
-                'source', 'source_file', 'remarks', 'verified', 'verified_by', 'verified_at',
+                # 建筑指标字段
+                'wall_floor_ratio', 'window_wall_ratio', 'window_content',
+                'door_content', 'interior_wall_content', 'balcony_ratio',
+                'assembly_rate', 'assembly_content',
+                'source', 'source_file', 'uploaded_by', 'remarks', 'verified', 'verified_by', 'verified_at',
                 'created_at', 'updated_at'
             ]
+
+            # 保留原始创建时间（REPLACE 会删除旧行，新行用新的 created_at）
+            existing = self.get_indicator_project(project_id)
+            created_at_value = existing.get('created_at') if existing else now
 
             # 构建INSERT语句
             fields = [f for f in all_fields if f in project or f in ('id', 'created_at', 'updated_at')]
@@ -365,33 +426,36 @@ class LocalIndicatorService:
             for f in fields:
                 if f == 'id':
                     values.append(project_id)
-                elif f == 'created_at' or f == 'updated_at':
+                elif f == 'created_at':
+                    values.append(created_at_value)
+                elif f == 'updated_at':
                     values.append(now)
                 else:
                     values.append(project.get(f))
 
             cursor.execute(f'''
-                INSERT INTO indicator_projects ({field_names})
+                INSERT OR REPLACE INTO indicator_projects ({field_names})
                 VALUES ({placeholders})
             ''', values)
 
             conn.commit()
-            logger.info(f"[create_indicator_project] 创建成功 | id={project_id}")
+            action = "覆盖" if existing else "创建"
+            logger.info(f"[create_indicator_project] {action}成功 | id={project_id}")
+            conn.close()
 
             return self.get_indicator_project(project_id)
-
-        except sqlite3.IntegrityError:
-            logger.warning(f"[create_indicator_project] ID已存在 | {project_id}")
-            conn.close()
-            return None
         except Exception as e:
             logger.error(f"[create_indicator_project] 创建失败 | {e}", exc_info=True)
-            conn.close()
+            try:
+                conn.close()
+            except Exception:
+                pass
             return None
 
+    @_synchronized_write
     def update_indicator_project(self, project_id: str, project: Dict) -> bool:
         """更新指标库项目"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         now = datetime.now().isoformat()
@@ -401,7 +465,7 @@ class LocalIndicatorService:
             'name', 'category', 'location', 'structure',
             'floor_above', 'floor_below', 'area_total', 'area_above', 'area_below',
             'height', 'complete_date', 'unit_cost', 'total_cost',
-            'unit_structure', 'unit_installation', 'unit_decoration', 'unit_measure',
+            'unit_structure', 'unit_installation', 'unit_decoration', 'unit_measure', 'above_cost_ratio', 'below_cost_ratio',
             'underground_structure', 'above_structure', 'roof', 'exterior_wall',
             'interior_wall', 'floor', 'electrical', 'plumbing', 'hvac',
             'elevator', 'fire', 'measures',
@@ -430,6 +494,10 @@ class LocalIndicatorService:
             'underground_concrete', 'underground_concrete_unit',
             'underground_rebar', 'underground_rebar_unit',
             'underground_formwork', 'underground_formwork_unit',
+            # 建筑指标字段
+            'wall_floor_ratio', 'window_wall_ratio', 'window_content',
+            'door_content', 'interior_wall_content', 'balcony_ratio',
+            'assembly_rate', 'assembly_content',
             'source', 'source_file', 'remarks', 'verified', 'verified_by', 'verified_at'
         ]
 
@@ -437,7 +505,10 @@ class LocalIndicatorService:
         params = []
 
         for field in all_fields:
-            if field in project:
+            # 跳过 None 值：update_project 传入的是 Create.model_dump()，包含所有声明字段，
+            # 其中前端用 Detail 转换名（rebar_above）而 Create 用 db 名（above_rebar_unit），
+            # 名字不匹配的字段解析为 None。若不跳过，UPDATE 会把 db 已有值覆盖成 None，清空数据。
+            if field in project and project[field] is not None:
                 update_fields.append(f'{field} = ?')
                 params.append(project[field])
 
@@ -461,9 +532,10 @@ class LocalIndicatorService:
 
         return success
 
+    @_synchronized_write
     def delete_indicator_project(self, project_id: str) -> bool:
         """删除指标库项目"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute('DELETE FROM indicator_projects WHERE id = ?', (project_id,))
@@ -503,7 +575,7 @@ class LocalIndicatorService:
 
     def get_stats(self) -> Dict:
         """获取指标库统计信息"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute('SELECT COUNT(*) FROM indicator_projects')
@@ -535,9 +607,10 @@ class LocalIndicatorService:
 
     # ==================== 版本管理 ====================
 
+    @_synchronized_write
     def _save_snapshot(self, project_id: str, data: Dict, filename: str = None) -> str:
         """保存项目快照（入库前调用）"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         # 获取当前版本号
@@ -585,7 +658,7 @@ class LocalIndicatorService:
 
     def get_version_history(self, project_id: str) -> List[Dict]:
         """获取项目版本历史"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -603,7 +676,7 @@ class LocalIndicatorService:
 
     def get_snapshot_detail(self, snapshot_id: str) -> Optional[Dict]:
         """获取快照详情"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute('SELECT data FROM indicator_snapshots WHERE id = ?', (snapshot_id,))
@@ -615,9 +688,10 @@ class LocalIndicatorService:
             return json.loads(row[0])
         return None
 
+    @_synchronized_write
     def rollback_to_snapshot(self, snapshot_id: str) -> bool:
         """回滚到指定快照"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         try:
@@ -679,6 +753,7 @@ class LocalIndicatorService:
 
     # ==================== 导入历史 ====================
 
+    @_synchronized_write
     def record_import_history(
         self,
         filename: str,
@@ -688,7 +763,7 @@ class LocalIndicatorService:
         details: List[Dict] = None
     ) -> int:
         """记录导入历史"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute('''
@@ -711,7 +786,7 @@ class LocalIndicatorService:
 
     def get_import_history(self, limit: int = 50) -> List[Dict]:
         """获取导入历史列表"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
 
@@ -729,7 +804,7 @@ class LocalIndicatorService:
 
     def get_import_detail(self, import_id: int) -> Optional[Dict]:
         """获取导入详情"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         cursor.execute(
@@ -756,7 +831,7 @@ class LocalIndicatorService:
 
     def sync_check(self) -> Dict[str, Any]:
         """前后端数据一致性校验"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
 
         # 获取主表统计
@@ -799,9 +874,10 @@ class LocalIndicatorService:
 
     # ==================== 自动导入（先校验后入库） ====================
 
+    @_synchronized_write
     def auto_import_project(self, data: Dict, source_filename: str = None) -> Dict[str, Any]:
         """自动导入项目（校验通过直接入库，已存在则更新版本）"""
-        conn = sqlite3.connect(self.db_file)
+        conn = self._get_connection()
         cursor = conn.cursor()
         now = datetime.now().isoformat()
 

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 # 数据库路径
 BASE_DIR = Path(__file__).parent.parent
-DB_PATH = BASE_DIR / "services" / "data" / "yantai_rebar.db"
+DB_PATH = BASE_DIR / "data" / "yantai_rebar.db"
 COST_REF_DB_PATH = BASE_DIR / "services" / "data" / "cost_reference.db"
 
 

@@ -11,7 +11,7 @@ import logging
 import asyncio
 import os
 
-from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, adjustment_prices_batch, building_schedule, building_adjustment, cost_history, data_manager, adjustment_template, indicator_report, fetch_history, indicator_library
+from api import projects, materials, price_sources, price_history, adjustments, indicators, sync, adjustment_rules, scheduler_api, fetch as fetch_api, cron_fetch, cost_reference, adjustment_project, history_fetch, price_history_db, file_parser, adjustment_prices, adjustment_prices_batch, building_schedule, building_adjustment, cost_history, data_manager, adjustment_template, indicator_report, fetch_history, indicator_library, auth
 from api import ai_chat, ai_self_review
 from api.rebar import router as rebar_router
 from services.websocket_manager import ws_manager
@@ -101,6 +101,7 @@ app.add_middleware(
 #     return response
 
 # 注册API路由
+app.include_router(auth.router, prefix="/api/auth", tags=["用户认证"])
 app.include_router(projects.router, prefix="/api/projects", tags=["项目管理"])
 app.include_router(materials.router, prefix="/api/materials", tags=["材料管理"])
 app.include_router(price_sources.router, prefix="/api/price-sources", tags=["价格来源"])
@@ -108,9 +109,9 @@ app.include_router(price_history.router, prefix="/api/price-history", tags=["价
 app.include_router(adjustments.router, prefix="/api", tags=["调差计算"])
 app.include_router(indicators.router, prefix="/api/indicators", tags=["指标管理"])
 app.include_router(sync.router, prefix="/api/sync", tags=["数据同步"])
-app.include_router(adjustment_rules.router, prefix="/api/adjustment-rules", tags=["调差规则管理"])
+app.include_router(adjustment_rules.router, prefix="/api", tags=["调差规则管理"])
 app.include_router(scheduler_api.router, prefix="/api/scheduler", tags=["定时任务调度"])
-app.include_router(fetch_api.router, prefix="/api/fetch", tags=["人工抓取"])
+app.include_router(fetch_api.router, tags=["人工抓取"])
 app.include_router(cron_fetch.router, prefix="/api/cron", tags=["定时抓取"])
 app.include_router(cost_reference.router, prefix="/api/cost-reference", tags=["造价参考价"])
 app.include_router(adjustment_project.router, tags=["调差项目管理"])
@@ -118,8 +119,8 @@ app.include_router(ai_chat.router, prefix="/api", tags=["AI对话"])
 app.include_router(price_history_db.router, prefix="/api/price-db", tags=["价格数据库"])
 app.include_router(ai_self_review.router, tags=["AI自检复盘"])
 app.include_router(file_parser.router, prefix="/api", tags=["文件解析"])
-app.include_router(adjustment_prices.router, prefix="/api/adjustment-prices", tags=["调差价格获取"])
-app.include_router(adjustment_prices_batch.router, prefix="/api/adjustments/prices", tags=["调差价格批量获取"])
+app.include_router(adjustment_prices.router, prefix="/api", tags=["调差价格获取"])
+app.include_router(adjustment_prices_batch.router, prefix="/api", tags=["调差价格批量获取"])
 app.include_router(building_schedule.router, prefix="/api/building-schedule", tags=["楼栋施工时间"])
 app.include_router(building_adjustment.router, prefix="/api/building-adjustment", tags=["楼栋调差计算"])
 app.include_router(cost_history.router, prefix="/api/cost-history", tags=["造价历史参考价"])
@@ -225,6 +226,24 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.error(f"[websocket] 连接异常 | client={websocket.client} | error={e}", exc_info=True)
         ws_manager.disconnect(websocket)
+
+
+# SPA fallback：前端路由（如 /dashboard、/user-management、/profile）在被刷新或直接访问时，
+# 后端需返回 index.html 交由前端路由处理，否则 FastAPI 会返回 404 Not Found。
+# 必须放在所有 API/静态路由之后注册（catch-all）。
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    # API 与静态资源走各自路由，未命中的仍按 404 处理（不返回 index.html）
+    if (full_path.startswith("api/")
+            or full_path.startswith("assets/")
+            or full_path in ROOT_STATIC_FILES):
+        raise HTTPException(status_code=404, detail="Not Found")
+    index_path = os.path.join(FRONTEND_DIST, "index.html")
+    if os.path.exists(index_path):
+        logger.debug(f"[spa_fallback] 返回 index.html | path={full_path}")
+        return FileResponse(index_path)
+    logger.warning(f"[spa_fallback] 前端 dist 未构建 | path={full_path}")
+    raise HTTPException(status_code=404, detail="前端未构建")
 
 
 if __name__ == "__main__":

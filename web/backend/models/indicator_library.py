@@ -6,7 +6,7 @@
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,10 @@ class IndicatorLibraryDetail(BaseModel):
     total_cost: Optional[float] = Field(None, gt=0, description="总造价(元)")
     unit_structure: Optional[float] = Field(None, ge=0, description="结构平米造价")
     unit_installation: Optional[float] = Field(None, ge=0, description="安装平米造价")
+    unit_decoration: Optional[float] = Field(None, ge=0, description="装修平米造价(元/㎡)")
+    unit_measure: Optional[float] = Field(None, ge=0, description="措施平米造价(元/㎡)")
+    above_cost_ratio: Optional[float] = Field(None, ge=0, le=100, description="地上造价占比(%)")
+    below_cost_ratio: Optional[float] = Field(None, ge=0, le=100, description="地下造价占比(%)")
 
     # 地上/地下造价分解
     cost_above_structure: Optional[float] = Field(None, ge=0, description="地上土建造价(元)")
@@ -122,6 +126,32 @@ class IndicatorLibraryDetail(BaseModel):
     underground_formwork: Optional[float] = Field(None, ge=0, description="地下模板用量(m²)")
     underground_formwork_unit: Optional[float] = Field(None, ge=0, description="地下模板平米含量(m²/㎡)")
 
+    # 前端展示字段（由 _to_detail 映射生成，含单位换算）
+    # 钢筋：kg/㎡（由 above_rebar_unit t/㎡ × 1000）
+    rebar_above: Optional[float] = Field(None, ge=0, description="地上钢筋平米含量(kg/㎡)")
+    rebar_below: Optional[float] = Field(None, ge=0, description="地下钢筋平米含量(kg/㎡)")
+    # 混凝土：m³/㎡（由 above_concrete_unit 直接映射）
+    concrete_above: Optional[float] = Field(None, ge=0, description="地上砼平米含量(m³/㎡)")
+    concrete_below: Optional[float] = Field(None, ge=0, description="地下砼平米含量(m³/㎡)")
+    # 模板：m²/㎡（由 above_formwork_unit 直接映射）
+    formwork_above: Optional[float] = Field(None, ge=0, description="地上模板平米含量(m²/㎡)")
+    formwork_below: Optional[float] = Field(None, ge=0, description="地下模板平米含量(m²/㎡)")
+    # 砌体/电缆/管道/风管
+    block_total: Optional[float] = Field(None, ge=0, description="砌体平米含量")
+    cable: Optional[float] = Field(None, ge=0, description="电缆含量(m/㎡)")
+    pipe: Optional[float] = Field(None, ge=0, description="管道含量(m/㎡)")
+    duct: Optional[float] = Field(None, ge=0, description="风管含量(m²/㎡)")
+
+    # 建筑指标字段
+    wall_floor_ratio: Optional[float] = Field(None, ge=0, description="墙地比(%)")
+    window_wall_ratio: Optional[float] = Field(None, ge=0, description="窗墙比(%)")
+    window_content: Optional[float] = Field(None, ge=0, description="窗含量(㎡/㎡)")
+    door_content: Optional[float] = Field(None, ge=0, description="门含量(㎡/㎡)")
+    interior_wall_content: Optional[float] = Field(None, ge=0, description="内墙含量(㎡/㎡)")
+    balcony_ratio: Optional[float] = Field(None, ge=0, description="阳台占比(%)")
+    assembly_rate: Optional[float] = Field(None, ge=0, description="装配率(%)")
+    assembly_content: Optional[float] = Field(None, ge=0, description="装配构件含量(m³/㎡)")
+
     # 元数据
     source: Optional[str] = Field(None, description="数据来源")
     source_file: Optional[str] = Field(None, description="来源文件名")
@@ -174,6 +204,8 @@ class IndicatorLibraryCreate(BaseModel):
     total_cost: Optional[float] = Field(None, gt=0, description="总造价(元)")
     unit_structure: Optional[float] = Field(None, ge=0, description="结构平米造价")
     unit_installation: Optional[float] = Field(None, ge=0, description="安装平米造价")
+    above_cost_ratio: Optional[float] = Field(None, ge=0, le=100, description="地上造价占比(%)")
+    below_cost_ratio: Optional[float] = Field(None, ge=0, le=100, description="地下造价占比(%)")
     cost_above_structure: Optional[float] = Field(None, ge=0)
     cost_above_installation: Optional[float] = Field(None, ge=0)
     unit_cost_above_structure: Optional[float] = Field(None, ge=0)
@@ -218,6 +250,15 @@ class IndicatorLibraryCreate(BaseModel):
     underground_rebar_unit: Optional[float] = Field(None, ge=0)
     underground_formwork: Optional[float] = Field(None, ge=0)
     underground_formwork_unit: Optional[float] = Field(None, ge=0)
+    # 建筑指标字段
+    wall_floor_ratio: Optional[float] = Field(None, ge=0)
+    window_wall_ratio: Optional[float] = Field(None, ge=0)
+    window_content: Optional[float] = Field(None, ge=0)
+    door_content: Optional[float] = Field(None, ge=0)
+    interior_wall_content: Optional[float] = Field(None, ge=0)
+    balcony_ratio: Optional[float] = Field(None, ge=0)
+    assembly_rate: Optional[float] = Field(None, ge=0)
+    assembly_content: Optional[float] = Field(None, ge=0)
     source: Optional[str] = Field(None, description="数据来源")
     source_file: Optional[str] = Field(None, description="来源文件名")
     remarks: Optional[str] = Field(None, max_length=500, description="备注")
@@ -243,6 +284,16 @@ class ValidationResult(BaseModel):
     checks: Dict[str, str] = Field(default_factory=dict, description="各检查项结果")
 
 
+class ImportFieldError(BaseModel):
+    """导入错误明细（带行列定位与修改建议）"""
+    row: Optional[int] = Field(None, description="Excel 实际行号（1-based，含表头行）")
+    field: Optional[str] = Field(None, description="字段代码，如 area_total")
+    field_label: Optional[str] = Field(None, description="中文列名，如 总面积（m2）")
+    value: Optional[Any] = Field(None, description="当前错误值")
+    message: str = Field(..., description="问题描述")
+    suggestion: Optional[str] = Field(None, description="修改建议")
+
+
 class ImportPreviewItem(BaseModel):
     """导入预览项"""
     index: int = Field(..., description="序号")
@@ -250,9 +301,12 @@ class ImportPreviewItem(BaseModel):
     category: Optional[str] = Field(None, description="业态")
     location: Optional[str] = Field(None, description="项目所在地")
     unit_cost: Optional[float] = Field(None, description="平米造价")
+    row: Optional[int] = Field(None, description="Excel 实际行号")
     status: str = Field(..., description="状态: valid/warning/error")
-    warnings: List[str] = Field(default_factory=list, description="警告信息列表")
-    errors: List[str] = Field(default_factory=list, description="错误信息列表")
+    warnings: List[str] = Field(default_factory=list, description="警告信息列表（兼容旧字段）")
+    errors: List[str] = Field(default_factory=list, description="错误信息列表（兼容旧字段）")
+    warning_details: List[ImportFieldError] = Field(default_factory=list, description="警告明细（带定位）")
+    error_details: List[ImportFieldError] = Field(default_factory=list, description="错误明细（带定位）")
 
 
 class ImportPreviewResult(BaseModel):
@@ -270,7 +324,29 @@ class ImportResult(BaseModel):
     imported: int = Field(..., description="成功导入数")
     total: int = Field(..., description="总数")
     warnings: List[str] = Field(default_factory=list, description="警告列表")
-    errors: List[str] = Field(default_factory=list, description="错误列表")
+    errors: List[str] = Field(default_factory=list, description="错误列表（兼容旧字段，纯文本）")
+    error_details: List[ImportFieldError] = Field(default_factory=list, description="错误明细（带行列定位与修改建议）")
+
+    @field_validator("warnings", mode="before")
+    @classmethod
+    def _flatten_warnings(cls, v: Any) -> List[str]:
+        """将 dict 或嵌套结构展平为字符串列表，兼容旧 service 代码"""
+        if isinstance(v, list):
+            result: List[str] = []
+            for item in v:
+                if isinstance(item, dict):
+                    row = item.get("row", "?")
+                    name = item.get("name", "?")
+                    msgs = item.get("warnings", [])
+                    if isinstance(msgs, list):
+                        for msg in msgs:
+                            result.append(f"[第{row}行 {name}] {msg}")
+                    else:
+                        result.append(f"[第{row}行 {name}] {msgs}")
+                else:
+                    result.append(str(item))
+            return result
+        return []
 
 
 class ImportHistoryItem(BaseModel):

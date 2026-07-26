@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons'
 import { Column } from '@ant-design/charts'
 import { useEffect, useState } from 'react'
-import { statsApi, config, yantaiRebarApi } from '../services/api'
+import { statsApi, config, yantaiRebarApi, projectsApi, materialsApi } from '../services/api'
 const { buildUrl } = config
 import * as XLSX from 'xlsx'
 import PageHeader from '../components/PageHeader'
@@ -97,16 +97,22 @@ export default function Dashboard() {
   const [costData, setCostData] = useState<any[]>([])
   const [costLoading, setCostLoading] = useState(false)
 
-  // 初始化：获取统计数据和可用日期
+  // 初始化：获取统计数据（项目/材料数，查本地）和可用日期
   useEffect(() => {
     const init = async () => {
       try {
-        const [statsData, datesData] = await Promise.all([
-          statsApi.get(),
-          fetch(buildUrl('/yantai-db/dates')).then(r => r.json()).catch(() => ({ success: false, dates: [] }))
+        const [projects, materials, datesData] = await Promise.all([
+          projectsApi.list().catch(() => []),
+          materialsApi.list().catch(() => []),
+          fetch(buildUrl('/api/rebar/dates')).then(r => r.json()).catch(() => ({ success: false, dates: [] }))
         ])
 
-        setStats(statsData)
+        setStats({
+          projects: Array.isArray(projects) ? projects.length : 0,
+          materials: Array.isArray(materials) ? materials.length : 0,
+          priceHistory: 0,
+          timestamp: new Date().toISOString(),
+        })
 
         if (datesData.success && datesData.dates && datesData.dates.length > 0) {
           const uniqueDates = datesData.dates
@@ -223,7 +229,7 @@ export default function Dashboard() {
       setPriceLoading(true)
       setDataError(null)
       try {
-        const response = await fetch(buildUrl(`/yantai-db/latest?date=${selectedDate}&limit=200`))
+        const response = await fetch(buildUrl(`/api/rebar/latest?date=${selectedDate}&limit=200`))
         const data = await response.json()
 
         let prices = []
@@ -254,7 +260,7 @@ export default function Dashboard() {
 
     const fetchComparison = async () => {
       try {
-        const response = await fetch(buildUrl(`/yantai-db/latest?date=${comparisonDate}&limit=200`))
+        const response = await fetch(buildUrl(`/api/rebar/latest?date=${comparisonDate}&limit=200`))
         const data = await response.json()
         if (data.prices) {
           setAllPrices(prev => ({ ...prev, [comparisonDate]: data.prices }))

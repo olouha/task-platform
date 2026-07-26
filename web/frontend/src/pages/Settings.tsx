@@ -1,7 +1,8 @@
 import { Card, Form, Input, Select, Switch, Button, Space, Divider, message, Tabs, Alert, Tag } from 'antd'
-import { SaveOutlined, SyncOutlined, SafetyCertificateOutlined, SettingOutlined, CloudOutlined, DatabaseOutlined, UserOutlined } from '@ant-design/icons'
+import { SaveOutlined, SyncOutlined, SafetyCertificateOutlined, SettingOutlined, CloudOutlined, DatabaseOutlined, UserOutlined, KeyOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { yantaiRebarApi } from '../services/api'
+import { changePassword as apiChangePassword, getUserInfo } from '../auth'
 import PageHeader from '../components/PageHeader'
 
 // 科技数据卡片组件
@@ -34,11 +35,15 @@ const TechStatCard = ({
 export default function Settings() {
   const [loading, setLoading] = useState(false)
   const [form] = Form.useForm()
+  const [passwordForm] = Form.useForm()
   const [credentialsStatus, setCredentialsStatus] = useState<any>(null)
   const [updating, setUpdating] = useState(false)
+  const [userInfo, setUserInfo] = useState<any>(null)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   useEffect(() => {
     fetchCredentialsStatus()
+    fetchUserInfo()
   }, [])
 
   const fetchCredentialsStatus = async () => {
@@ -50,12 +55,38 @@ export default function Settings() {
     }
   }
 
+  const fetchUserInfo = async () => {
+    try {
+      const data = await getUserInfo()
+      setUserInfo(data)
+    } catch (error) {
+      console.error('获取用户信息失败:', error)
+    }
+  }
+
   const handleSave = () => {
     setLoading(true)
     setTimeout(() => {
       setLoading(false)
       message.success('设置已保存')
     }, 1000)
+  }
+
+  const handleChangePassword = async (values: { old_password: string, new_password: string }) => {
+    if (values.new_password.length < 4) {
+      message.error('新密码至少4位')
+      return
+    }
+    setChangingPassword(true)
+    try {
+      await apiChangePassword(values.old_password, values.new_password)
+      message.success('密码修改成功')
+      passwordForm.resetFields()
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || '密码修改失败')
+    } finally {
+      setChangingPassword(false)
+    }
   }
 
   const handleUpdateCredentials = async (values: any) => {
@@ -120,6 +151,41 @@ export default function Settings() {
         <div className="data-section-body">
           <Tabs
             items={[
+              {
+                key: 'profile',
+                label: '个人中心',
+                children: (
+                  <Card style={{ maxWidth: 600, border: '1px solid #E8EBF0' }}>
+                    <div style={{ marginBottom: 24 }}>
+                      <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>当前账号信息</div>
+                      <div style={{ display: 'flex', gap: 24 }}>
+                        <div>
+                          <div style={{ fontSize: 12, color: '#999' }}>账号</div>
+                          <div style={{ fontSize: 16, fontWeight: 500, color: '#333' }}>{userInfo?.account || '-'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 12, color: '#999' }}>职位</div>
+                          <div style={{ fontSize: 16, fontWeight: 500, color: '#333' }}>{userInfo?.position || '-'}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <Divider>修改密码</Divider>
+                    <Form layout="vertical" form={passwordForm} onFinish={handleChangePassword}>
+                      <Form.Item name="old_password" label="原密码" rules={[{ required: true, message: '请输入原密码' }]}>
+                        <Input.Password placeholder="请输入原密码" />
+                      </Form.Item>
+                      <Form.Item name="new_password" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 4, message: '密码至少4位' }]}>
+                        <Input.Password placeholder="请输入新密码（至少4位）" />
+                      </Form.Item>
+                      <Form.Item>
+                        <Button type="primary" icon={<KeyOutlined />} htmlType="submit" loading={changingPassword}>
+                          修改密码
+                        </Button>
+                      </Form.Item>
+                    </Form>
+                  </Card>
+                ),
+              },
               {
                 key: 'general',
                 label: '常规设置',

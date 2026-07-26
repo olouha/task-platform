@@ -255,7 +255,7 @@ class LocalQAService:
                 import sqlite3
                 from pathlib import Path
 
-                db_path = Path(__file__).parent.parent / "services" / "data" / "yantai_rebar.db"
+                db_path = Path(__file__).parent.parent / "data" / "yantai_rebar.db"
 
                 if not db_path.exists():
                     return {"type": "error", "data": [], "materials": materials}
@@ -296,7 +296,7 @@ class LocalQAService:
                 import sqlite3
                 from pathlib import Path
 
-                db_path = Path(__file__).parent.parent / "services" / "data" / "yantai_rebar.db"
+                db_path = Path(__file__).parent.parent / "data" / "yantai_rebar.db"
 
                 if not db_path.exists():
                     return {"type": "rebar_trend", "data": [], "materials": materials}

@@ -8,7 +8,7 @@ import logging
 import tempfile
 import os
 import sys
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any, Union, Tuple
 
 # 兼容直接运行和包导入
 if __name__.startswith('services.'):
@@ -20,6 +20,7 @@ if __name__.startswith('services.'):
         ImportResult,
         ImportPreviewResult,
         ImportPreviewItem,
+        ImportFieldError,
     )
 else:
     from ..models.indicator_library import (
@@ -30,6 +31,7 @@ else:
         ImportResult,
         ImportPreviewResult,
         ImportPreviewItem,
+        ImportFieldError,
     )
 
 from services.local_indicator_service import LocalIndicatorService
@@ -104,6 +106,35 @@ class IndicatorLibraryService:
             )
             raise
 
+    def get_full_projects(
+        self,
+        category: Optional[str] = None,
+        location: Optional[str] = None,
+        limit: int = 10000,
+    ) -> List[Dict[str, Any]]:
+        """
+        获取全字段项目列表（用于数据导出）。
+
+        直接透传存储层 SELECT * 结果，不做 Summary 裁剪，保留所有 db 字段，
+        供导出端点按 DETAIL_HEADERS 映射回填，保证导出→导入闭环。
+        """
+        logger.info(
+            f"[IndicatorLibraryService] 获取全字段列表 | category={category} | location={location} | limit={limit}"
+        )
+        try:
+            projects = self._storage_service.get_indicator_projects(
+                limit=limit,
+                category=category,
+                location=location,
+            )
+            logger.info(f"[IndicatorLibraryService] 全字段列表查询完成 | count={len(projects)}")
+            return projects
+        except Exception as e:
+            logger.error(
+                f"[IndicatorLibraryService] 获取全字段列表失败 | error={e}", exc_info=True
+            )
+            raise
+
     def get_detail(self, project_id: str) -> Optional[IndicatorLibraryDetail]:
         """
         获取指标库项目详情
@@ -135,7 +166,7 @@ class IndicatorLibraryService:
             raise
 
     def create_project(
-        self, data: Union[Dict[str, Any], IndicatorLibraryCreate]
+        self, data: Union[Dict[str, Any], IndicatorLibraryCreate], account: Optional[str] = None
     ) -> IndicatorLibraryDetail:
         """
         创建指标库项目
@@ -157,6 +188,9 @@ class IndicatorLibraryService:
                 project_data = data.model_dump()
             else:
                 project_data = dict(data)
+
+            # 上传留痕
+            project_data["uploaded_by"] = account
 
             # 验证数据
             validation_result = self._validator.validate(project_data)
@@ -221,6 +255,9 @@ class IndicatorLibraryService:
             else:
                 update_data = dict(data)
 
+            # 反向映射：前端展示字段名 → 数据库存储字段名（与 _to_detail 正向映射对应）
+            self._apply_reverse_mapping(update_data)
+
             # 合并现有数据和更新数据
             merged_data = {**existing, **update_data}
 
@@ -251,6 +288,53 @@ class IndicatorLibraryService:
                 exc_info=True,
             )
             raise ValueError(f"更新项目失败: {str(e)}")
+
+    def _apply_reverse_mapping(self, data: Dict[str, Any]) -> None:
+        """
+        将前端展示字段名反向映射为数据库存储字段名（update 专用）。
+
+        与 _to_detail 的正向映射严格对应：
+        - 钢筋：前端 kg/㎡ ↔ 数据库 t/㎡（÷1000）
+        - 混凝土/模板/砌体：单位一致，仅改名
+        - 专项费用简化名：pile/foundation_support/curtain_wall/decoration → cost_xxx
+
+        就地修改 data；CostSection/BasicInfoSection 编辑的字段（above_structure/roof/
+        unit_cost 等）本身就是数据库名，无需处理。
+        """
+        logger.debug(f"[IndicatorLibraryService] 反向映射前 | keys={list(data.keys())}")
+        # 砌体
+        if "block_total" in data:
+            data["block"] = data.pop("block_total")
+        # 钢筋：前端 kg/㎡ → 数据库 t/㎡
+        for front_field, db_field in (
+            ("rebar_above", "above_rebar_unit"),
+            ("rebar_below", "underground_rebar_unit"),
+        ):
+            if front_field in data:
+                val = data.pop(front_field)
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    data[db_field] = round(val / 1000, 6)
+                else:
+                    data[db_field] = val
+        # 混凝土/模板（单位一致，仅改名）
+        for front_field, db_field in (
+            ("concrete_above", "above_concrete_unit"),
+            ("concrete_below", "underground_concrete_unit"),
+            ("formwork_above", "above_formwork_unit"),
+            ("formwork_below", "underground_formwork_unit"),
+        ):
+            if front_field in data:
+                data[db_field] = data.pop(front_field)
+        # 专项费用简化名
+        for front_field, db_field in (
+            ("pile", "cost_pile"),
+            ("foundation_support", "cost_foundation_support"),
+            ("curtain_wall", "cost_curtain_wall"),
+            ("decoration", "cost_decoration"),
+        ):
+            if front_field in data:
+                data[db_field] = data.pop(front_field)
+        logger.debug(f"[IndicatorLibraryService] 反向映射后 | keys={list(data.keys())}")
 
     def delete_project(self, project_id: str) -> bool:
         """
@@ -360,33 +444,46 @@ class IndicatorLibraryService:
                 error_count = 0
 
                 for idx, project in enumerate(projects):
+                    row_index = project.get("_row_index")
+
                     # 验证数据
                     validation_result = self._validator.validate(project)
 
                     status = "valid"
                     warnings_list: List[str] = []
                     errors_list: List[str] = []
+                    warning_details: List[ImportFieldError] = []
+                    error_details: List[ImportFieldError] = []
 
                     if validation_result.errors:
                         status = "error"
                         error_count += 1
                         errors_list = [e.message for e in validation_result.errors]
+                        error_details = [
+                            self._to_error_detail(row_index, e) for e in validation_result.errors
+                        ]
                     elif validation_result.warnings:
                         status = "warning"
                         warning_count += 1
                         warnings_list = [w.message for w in validation_result.warnings]
+                        warning_details = [
+                            self._to_error_detail(row_index, w) for w in validation_result.warnings
+                        ]
                     else:
                         valid_count += 1
 
                     item = ImportPreviewItem(
                         index=idx + 1,
-                        name=project.get("name", f"项目{idx + 1}"),
+                        name=str(project.get("name", f"项目{idx + 1}")).strip(),
                         category=project.get("category"),
                         location=project.get("location"),
                         unit_cost=project.get("unit_cost"),
+                        row=row_index,
                         status=status,
                         warnings=warnings_list,
                         errors=errors_list,
+                        warning_details=warning_details,
+                        error_details=error_details,
                     )
                     items.append(item)
 
@@ -419,7 +516,7 @@ class IndicatorLibraryService:
             raise ValueError(f"预览导入失败: {str(e)}")
 
     def import_from_excel(
-        self, file_content: bytes, filename: str
+        self, file_content: bytes, filename: str, account: Optional[str] = None
     ) -> ImportResult:
         """
         从 Excel 文件导入指标库数据
@@ -461,49 +558,77 @@ class IndicatorLibraryService:
                 imported = 0
                 warnings_list: List[Dict[str, Any]] = []
                 errors_list: List[str] = []
+                error_details: List[ImportFieldError] = []
 
                 for idx, project in enumerate(projects):
+                    row_index = project.get("_row_index")
+                    display_row = row_index if row_index else idx + 1
+                    name = project.get("name", "未知")
+                    logger.info(f"[IndicatorLibraryService] 处理第{idx+1}条 | row={display_row} | name={name}")
                     try:
                         # 添加元数据
                         project["source"] = "Excel导入"
                         project["source_file"] = source_file
+                        project["uploaded_by"] = account
                         if entry_date:
                             project["entry_date"] = entry_date
 
                         # 验证数据
                         validation_result = self._validator.validate(project)
+                        logger.info(f"[IndicatorLibraryService] 验证完成 | passed={validation_result.passed} | errors={len(validation_result.errors)} | warnings={len(validation_result.warnings)}")
+                        if validation_result.errors:
+                            for e in validation_result.errors:
+                                logger.warning(f"  错误: {e.field} - {e.message}")
 
                         # 记录警告但仍然导入
                         if validation_result.warnings:
                             warnings_list.append({
-                                "row": idx + 1,
-                                "name": project.get("name", f"项目{idx + 1}"),
+                                "row": display_row,
+                                "name": name,
                                 "warnings": [w.message for w in validation_result.warnings],
                             })
 
                         # 验证失败则跳过
                         if not validation_result.passed:
                             errors_list.append(
-                                f"第{idx + 1}行 ({project.get('name', '未知')}): "
+                                f"第{display_row}行 ({name}): "
                                 f"{', '.join([e.message for e in validation_result.errors])}"
                             )
+                            for e in validation_result.errors:
+                                error_details.append(self._to_error_detail(row_index, e))
+                            logger.warning(f"[IndicatorLibraryService] 跳过第{display_row}行（验证失败）")
                             continue
 
                         # 创建项目
+                        logger.info(f"[IndicatorLibraryService] 开始创建项目 | name={name}")
                         result = self._storage_service.create_indicator_project(project)
+                        logger.info(f"[IndicatorLibraryService] 创建结果 | result={'成功 id='+str(result.get('id')) if result else '失败(None)'}")
                         if result:
                             imported += 1
                         else:
                             errors_list.append(
-                                f"第{idx + 1}行 ({project.get('name', '未知')}): 创建失败"
+                                f"第{display_row}行 ({name}): 创建失败"
                             )
+                            error_details.append(ImportFieldError(
+                                row=row_index,
+                                field="name",
+                                field_label=ExcelParserService.get_field_label("name"),
+                                value=name,
+                                message="入库失败：创建项目失败（数据库未写入）",
+                                suggestion=self._make_db_suggestion(None, None, "创建失败"),
+                            ))
 
                     except Exception as e:
                         errors_list.append(
-                            f"第{idx + 1}行 ({project.get('name', '未知')}): {str(e)}"
+                            f"第{display_row}行 ({name}): {str(e)}"
                         )
-                        logger.warning(
-                            f"[IndicatorLibraryService] 导入单条失败 | row={idx + 1} | error={e}"
+                        error_details.append(ImportFieldError(
+                            row=row_index,
+                            message=f"处理异常：{type(e).__name__}: {str(e)}",
+                            suggestion="请核对数据后重试；若反复失败请联系管理员查看后端日志",
+                        ))
+                        logger.error(
+                            f"[IndicatorLibraryService] 导入单条失败 | row={display_row} | error={e}", exc_info=True
                         )
 
                 result = ImportResult(
@@ -512,6 +637,7 @@ class IndicatorLibraryService:
                     total=len(projects),
                     warnings=warnings_list,
                     errors=errors_list,
+                    error_details=error_details,
                 )
 
                 logger.info(
@@ -561,7 +687,7 @@ class IndicatorLibraryService:
 
     # ==================== 自动导入（先校验后入库） ====================
 
-    def auto_import(self, file_content: bytes, filename: str) -> ImportResult:
+    def auto_import(self, file_content: bytes, filename: str, account: Optional[str] = None) -> ImportResult:
         """
         自动导入 Excel 数据（先预览校验，有错误返回，无错误直接入库）
 
@@ -595,13 +721,18 @@ class IndicatorLibraryService:
 
                 # 校验所有数据
                 valid_projects = []
-                errors_list = []
+                errors_list = []        # [{row,name,errors:[msg]}] 兼容旧文本展示
                 warnings_list = []
+                error_details: List[ImportFieldError] = []  # 结构化错误（带行列定位）
 
                 for idx, project in enumerate(projects):
                     # 添加元数据
                     project["source"] = "Excel导入"
                     project["source_file"] = filename
+                    project["uploaded_by"] = account
+                    row_index = project.get("_row_index")
+                    display_row = row_index if row_index else idx + 1
+                    name = project.get("name", f"项目{idx + 1}")
 
                     # 验证数据
                     validation_result = self._validator.validate(project)
@@ -609,21 +740,23 @@ class IndicatorLibraryService:
                     if validation_result.errors:
                         # 有错误，记录并跳过
                         errors_list.append({
-                            "row": idx + 1,
-                            "name": project.get("name", f"项目{idx + 1}"),
+                            "row": display_row,
+                            "name": name,
                             "errors": [e.message for e in validation_result.errors]
                         })
+                        for e in validation_result.errors:
+                            error_details.append(self._to_error_detail(row_index, e))
                     else:
                         # 验证通过（可能有警告但仍可导入）
                         if validation_result.warnings:
                             warnings_list.append({
-                                "row": idx + 1,
-                                "name": project.get("name", f"项目{idx + 1}"),
+                                "row": display_row,
+                                "name": name,
                                 "warnings": [w.message for w in validation_result.warnings]
                             })
                         valid_projects.append(project)
 
-                # 如果有错误，返回错误列表让用户处理
+                # 如果有校验错误，返回错误列表让用户处理
                 if errors_list:
                     logger.info(f"[IndicatorLibraryService] 校验有误 | error_count={len(errors_list)}, valid_count={len(valid_projects)}")
                     return ImportResult(
@@ -632,38 +765,60 @@ class IndicatorLibraryService:
                         total=len(projects),
                         warnings=warnings_list,
                         errors=[f"第{e['row']}行 ({e['name']}): {', '.join(e['errors'])}" for e in errors_list],
+                        error_details=error_details,
                     )
 
-                # 无错误，直接入库
+                # 无校验错误，直接入库
                 imported = 0
                 imported_details = []
+                import_errors: List[ImportFieldError] = []  # 入库阶段失败（不再静默丢弃）
 
                 for project in valid_projects:
-                    result = self._storage_service.auto_import_project(project, filename)
-                    if result.get('success'):
+                    row_index = project.get("_row_index")
+                    insert_result = self._storage_service.auto_import_project(project, filename)
+                    if insert_result.get('success'):
                         imported += 1
                         imported_details.append({
-                            "id": result.get('id'),
+                            "id": insert_result.get('id'),
                             "name": project.get('name'),
-                            "version": result.get('version'),
-                            "is_update": result.get('is_update', False)
+                            "version": insert_result.get('version'),
+                            "is_update": insert_result.get('is_update', False)
                         })
+                    else:
+                        # 入库失败：解析为结构化错误（避免静默丢弃）
+                        err_msg = insert_result.get('error', '入库失败')
+                        field, label = self._parse_db_error(err_msg)
+                        import_errors.append(ImportFieldError(
+                            row=row_index,
+                            field=field,
+                            field_label=label or field or "（未知列）",
+                            value=project.get(field) if field else None,
+                            message=f"入库失败：{err_msg}",
+                            suggestion=self._make_db_suggestion(field, label, err_msg),
+                        ))
+                        logger.warning(
+                            f"[IndicatorLibraryService] 入库失败 | row={row_index} | name={project.get('name')} | error={err_msg}"
+                        )
 
-                # 记录导入历史
+                # 记录导入历史（fail_count 修正为实际入库失败数）
                 self._storage_service.record_import_history(
                     filename=filename,
                     total_count=len(projects),
                     success_count=imported,
-                    fail_count=len(errors_list),
+                    fail_count=len(import_errors),
                     details=imported_details
                 )
 
+                # 合并入库阶段错误
+                error_details.extend(import_errors)
+
                 result = ImportResult(
-                    success=True,
+                    success=imported > 0,
                     imported=imported,
                     total=len(projects),
                     warnings=[f"第{w['row']}行: {', '.join(w['warnings'])}" for w in warnings_list] if warnings_list else [],
-                    errors=[],
+                    errors=[f"第{e.row}行: {e.message}" for e in import_errors],
+                    error_details=error_details,
                 )
 
                 logger.info(f"[IndicatorLibraryService] 自动导入完成 | imported={imported}")
@@ -762,6 +917,66 @@ class IndicatorLibraryService:
         logger.info("[IndicatorLibraryService] 执行数据一致性校验")
         return self._storage_service.sync_check()
 
+    # ==================== 错误定位与修改建议 ====================
+
+    def _to_error_detail(
+        self, row_index: Optional[int], vw
+    ) -> ImportFieldError:
+        """将 validator 的 ValidationWarning 转为带行列定位的 ImportFieldError"""
+        field = vw.field
+        return ImportFieldError(
+            row=row_index,
+            field=field,
+            field_label=ExcelParserService.get_field_label(field) or field,
+            value=vw.value,
+            message=vw.message,
+            suggestion=self._make_suggestion(field, vw),
+        )
+
+    def _make_suggestion(self, field: Optional[str], vw) -> Optional[str]:
+        """根据字段与错误信息生成中文修改建议"""
+        label = ExcelParserService.get_field_label(field) or field or "该字段"
+        msg = vw.message or ""
+        expected = vw.expected
+
+        # 必填为空
+        if field in IndicatorValidator.REQUIRED_FIELDS and (
+            vw.value is None or (isinstance(vw.value, str) and not vw.value.strip())
+        ):
+            return f'请填写“{label}”（必填项，不能为空）'
+        # 数值类型错误（"25000元" 这类）
+        if "纯数字" in msg:
+            return f'请在“{label}”列只填数字，去掉单位/文字/逗号（如 25000）'
+        # 日期格式
+        if "日期格式" in msg or "YYYY-MM" in msg:
+            return "请改为 YYYY-MM 格式，例如 2024-01"
+        if "不能早于" in msg:
+            return f'请将“{label}”改为晚于开工时间'
+        # 范围/逻辑一致性，复用 validator 的 expected
+        if expected:
+            return f"建议改为：{expected}"
+        return f'请检查“{label}”列的取值'
+
+    def _parse_db_error(self, err_msg: str) -> Tuple[Optional[str], Optional[str]]:
+        """从数据库异常文本提取字段名与中文列名
+
+        如 'NOT NULL constraint failed: indicator_projects.name' -> ('name', '项目名称')
+        """
+        import re
+        m = re.search(r"NOT NULL constraint failed: \w+\.(\w+)", err_msg)
+        if m:
+            field = m.group(1)
+            return field, ExcelParserService.get_field_label(field) or field
+        return None, None
+
+    def _make_db_suggestion(
+        self, field: Optional[str], label: Optional[str], err_msg: str
+    ) -> str:
+        """入库失败时的修改建议"""
+        if field:
+            return f'请补填“{label}”后再导入（数据库要求该字段非空）'
+        return "请核对数据完整性后重试；若反复失败请联系管理员查看后端日志"
+
     # ==================== 私有辅助方法 ====================
 
     def _to_summary(self, project: Dict[str, Any]) -> IndicatorLibrarySummary:
@@ -816,13 +1031,17 @@ class IndicatorLibraryService:
         # 造价指标
         cost_fields = [
             "unit_cost", "total_cost",
-            "unit_structure", "unit_installation",
+            "unit_structure", "unit_installation", "unit_decoration", "unit_measure", "above_cost_ratio", "below_cost_ratio",
             "cost_above_structure", "cost_above_installation",
             "unit_cost_above_structure", "unit_cost_above_installation",
             "cost_underground_structure", "cost_underground_installation",
             "unit_cost_underground_structure", "unit_cost_underground_installation",
             "cost_measures", "unit_cost_measures",
             "cost_outdoor", "unit_cost_outdoor",
+            # 经济指标（直接费平米造价）
+            "above_structure", "underground_structure",
+            "roof", "exterior_wall", "interior_wall", "floor",
+            "electrical", "plumbing", "hvac", "elevator", "fire", "measures",
         ]
         for field in cost_fields:
             if field in project:
@@ -845,7 +1064,15 @@ class IndicatorLibraryService:
             if field in project:
                 detail_data[field] = project[field]
 
+        # 专项费用字段映射：数据库名 → 前端期望简化名
+        detail_data["pile"] = project.get("cost_pile")
+        detail_data["foundation_support"] = project.get("cost_foundation_support")
+        detail_data["curtain_wall"] = project.get("cost_curtain_wall")
+        detail_data["decoration"] = project.get("cost_decoration")
+        # landscape/intelligent/gas/solar 数据库暂无，跳过或填0
+
         # 材料含量
+        # 前端期望字段名: rebar_above(concrete_above...) + 单位换算: t→kg (×1000)
         material_fields = [
             "above_concrete", "above_concrete_unit",
             "above_rebar", "above_rebar_unit",
@@ -857,6 +1084,37 @@ class IndicatorLibraryService:
         for field in material_fields:
             if field in project:
                 detail_data[field] = project[field]
+
+        # 字段映射：存储层 → 前端期望（字段名 + 单位换算）
+        # 钢筋：数据库存 t，前端期望 kg/㎡ (above_rebar_unit × 1000 = rebar_above)
+        rebar_above = project.get("above_rebar_unit")
+        if rebar_above is not None and rebar_above > 0:
+            detail_data["rebar_above"] = round(rebar_above * 1000, 3)
+        rebar_below = project.get("underground_rebar_unit")
+        if rebar_below is not None and rebar_below > 0:
+            detail_data["rebar_below"] = round(rebar_below * 1000, 3)
+        # 混凝土：数据库存 m³/㎡，前端直接用
+        detail_data["concrete_above"] = project.get("above_concrete_unit")
+        detail_data["concrete_below"] = project.get("underground_concrete_unit")
+        # 模板：数据库存 m²/㎡，前端直接用
+        detail_data["formwork_above"] = project.get("above_formwork_unit")
+        detail_data["formwork_below"] = project.get("underground_formwork_unit")
+        # 砌体
+        detail_data["block_total"] = project.get("block")
+        # 电缆/管道/风管
+        detail_data["cable"] = project.get("cable")
+        detail_data["pipe"] = project.get("pipe")
+        detail_data["duct"] = project.get("duct")
+
+        # 建筑指标字段
+        detail_data["wall_floor_ratio"] = project.get("wall_floor_ratio")
+        detail_data["window_wall_ratio"] = project.get("window_wall_ratio")
+        detail_data["window_content"] = project.get("window_content")
+        detail_data["door_content"] = project.get("door_content")
+        detail_data["interior_wall_content"] = project.get("interior_wall_content")
+        detail_data["balcony_ratio"] = project.get("balcony_ratio")
+        detail_data["assembly_rate"] = project.get("assembly_rate")
+        detail_data["assembly_content"] = project.get("assembly_content")
 
         # 元数据
         meta_fields = [

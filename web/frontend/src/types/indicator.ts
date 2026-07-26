@@ -14,6 +14,24 @@ export interface ValidationWarning {
 }
 
 /**
+ * 导入错误明细（带行列定位与修改建议）
+ */
+export interface ImportFieldError {
+  /** Excel 实际行号（1-based，含表头行） */
+  row?: number;
+  /** 字段代码，如 area_total */
+  field?: string;
+  /** 中文列名，如 总面积（m2） */
+  field_label?: string;
+  /** 当前错误值 */
+  value?: unknown;
+  /** 问题描述 */
+  message: string;
+  /** 修改建议 */
+  suggestion?: string;
+}
+
+/**
  * 导入预览项
  */
 export interface ImportPreviewItem {
@@ -22,9 +40,17 @@ export interface ImportPreviewItem {
   category?: string;
   location?: string;
   unit_cost?: number;
+  /** Excel 实际行号 */
+  row?: number;
   status: 'valid' | 'warning' | 'error';
+  /** 警告信息（兼容旧字段，纯文本） */
   warnings: string[];
+  /** 错误信息（兼容旧字段，纯文本） */
   errors: string[];
+  /** 警告明细（带行列定位） */
+  warning_details?: ImportFieldError[];
+  /** 错误明细（带行列定位） */
+  error_details?: ImportFieldError[];
 }
 
 /**
@@ -111,6 +137,15 @@ export interface IndicatorLibraryDetail {
   underground_rebar_unit?: number;
   underground_formwork?: number;
   underground_formwork_unit?: number;
+  // 建筑指标
+  wall_floor_ratio?: number;
+  window_wall_ratio?: number;
+  window_content?: number;
+  door_content?: number;
+  interior_wall_content?: number;
+  balcony_ratio?: number;
+  assembly_rate?: number;
+  assembly_content?: number;
   source?: string;
   source_file?: string;
   remarks?: string;
@@ -149,6 +184,8 @@ export interface ImportResult {
   total: number;
   warnings: Record<string, unknown>[];
   errors: string[];
+  /** 错误明细（带行列定位与修改建议） */
+  error_details?: ImportFieldError[];
 }
 
 /**

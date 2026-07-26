@@ -1,0 +1,25 @@
+/* 建筑指标 Section 样式 */
+.building-index-section {
+  padding: 4px 0;
+}
+
+.building-index-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px 16px;
+}
+
+.building-index-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.building-index-form-item {
+  margin-bottom: 0 !important;
+}
+
+.building-index-value {
+  font-size: 16px;
+  font-weight: 500;
+}

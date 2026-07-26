@@ -4,6 +4,7 @@
 """
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse, JSONResponse
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -20,9 +21,49 @@ from models.indicator_library import (
     ImportPreviewResult,
 )
 from services.indicator_library_service import IndicatorLibraryService, get_indicator_library_service
+from services.excel_parser_service import ExcelParserService
+from api.deps import get_current_account, get_current_user_can_delete
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+# ==================== 共享表头常量 ====================
+# 明细表头：与 ExcelParserService.DETAIL_COLUMN_MAPPING 的 key 逐字对齐
+# （导入按列名匹配），按系统归类排列：基本信息→造价→专项→材料→建筑指标。
+# 模板下载与数据导出共用，保证"导出→改→导入"闭环。
+DETAIL_HEADERS = [
+    "序号", "项目名称", "业态", "项目所在地", "结构形式", "交付形式",
+    "层数（地上/下）", "总面积（m2）", "檐高（m）",
+    "地上建筑面积（m2）", "地下建筑面积（m2）",
+    "平米造价（元/m2）", "总造价（元）",
+    "地上土建造价", "地上安装造价", "地下土建造价", "地下安装造价",
+    "措施费（元）", "室外造价（元）",
+    "地上结构（元/㎡）", "地上安装（元/㎡）", "地下结构（元/㎡）", "地下安装（元/㎡）",
+    "屋面（元/㎡）", "外墙（元/㎡）", "内墙（元/㎡）", "楼地面（元/㎡）",
+    "电气（元/㎡）", "给排水（元/㎡）", "暖通（元/㎡）", "电梯（元/㎡）", "消防（元/㎡）", "措施（元/㎡）",
+    "桩基造价（元）", "桩基平米造价（元/m2）",
+    "基坑支护造价（元）", "基坑支护平米造价（元/m2）",
+    "幕墙造价（元）", "幕墙平米造价（元/m2）",
+    "精装修造价（元）", "精装修平米造价（元/m2）",
+    "外墙保温造价（元）", "外墙保温平米造价（元/m2）",
+    "外窗造价（元）", "外窗平米造价（元/m2）",
+    "给排水造价（元）", "给排水平米造价（元/m2）",
+    "采暖造价（元）", "采暖平米造价（元/m2）",
+    "电气造价（元）", "电气平米造价（元/m2）",
+    "暖通造价（元）", "暖通平米造价（元/m2）",
+    "地上砼用量（m3）", "地上砼平米含量", "地上钢筋用量（t）", "地上钢筋平米含量",
+    "地上模板用量（m2）", "地上模板平米含量",
+    "地下砼用量（m3）", "地下砼平米含量", "地下钢筋用量（t）", "地下钢筋平米含量",
+    "地下模板用量（m2）", "地下模板平米含量",
+    "砌体含量（m³/㎡）",
+    "电缆含量（m/㎡）", "管道含量（m/㎡）", "风管含量（㎡/㎡）",
+    "开工时间", "竣工时间", "备注",
+    "桩基形式",
+    "室外平米造价（元/m2）",
+    "墙地比\n（%）", "窗墙比\n（%）", "窗含量\n（㎡/㎡）", "门含量\n（㎡/㎡）", "内墙含量\n（㎡/㎡）",
+    "阳台占比\n（%）", "装配率\n（%）", "装配构件含量\n（m3/m2）",
+]
 
 
 def get_service() -> IndicatorLibraryService:
@@ -66,18 +107,7 @@ async def download_template() -> StreamingResponse:
         ws_detail.title = "明细"
 
         # 明细表表头 - 详细数据
-        detail_headers = [
-            "序号", "项目名称", "业态", "项目所在地", "结构形式", "交付形式",
-            "层数（地上/下）", "总面积（m2）", "檐高（m）",
-            "地上建筑面积（m2）", "地下建筑面积（m2）",
-            "平米造价（元/m2）", "总造价（元）",
-            "地上土建造价", "地上安装造价", "地下土建造价", "地下安装造价",
-            "措施费（元）", "室外造价（元）",
-            "桩基造价（元）", "基坑支护造价（元）", "幕墙造价（元）", "精装修造价（元）",
-            "地上砼用量（m3）", "地上砼平米含量", "地上钢筋用量（t）", "地上钢筋平米含量",
-            "地下砼用量（m3）", "地下砼平米含量", "地下钢筋用量（t）", "地下钢筋平米含量",
-            "开工时间", "竣工时间", "备注",
-        ]
+        detail_headers = DETAIL_HEADERS
 
         for col, header in enumerate(detail_headers, 1):
             cell = ws_detail.cell(row=1, column=col, value=header)
@@ -112,19 +142,55 @@ async def download_template() -> StreamingResponse:
         ws_detail.add_data_validation(delivery_dv)
         delivery_dv.add("F2:F1000")
 
-        # 示例数据
+        # 严格72列，与detail_headers(第69-96行)一一对应
+        # 1-6: 序号,项目名称,业态,项目所在地,结构形式,交付形式
+        # 7-9: 层数/总面积/檐高
+        # 10-11: 地上面积/地下面积
+        # 12-13: 平米造价/总造价
+        # 14-17: 地上土建/安装,地下土建/安装造价
+        # 18-19: 措施费/室外造价
+        # 20-23: 地上结构/安装,地下结构/安装平米造价
+        # 24-33: 屋面,外墙,内墙,楼地面,电气,给排水,暖通,电梯,消防,措施 平米造价
+        # 34-35: 桩基造价/平米造价
+        # 36-37: 基坑支护造价/平米造价
+        # 38-39: 幕墙造价/平米造价
+        # 40-41: 精装修造价/平米造价
+        # 42-43: 外墙保温造价/平米造价
+        # 44-45: 外窗造价/平米造价
+        # 46-47: 给排水造价/平米造价
+        # 48-49: 采暖造价/平米造价
+        # 50-51: 电气造价/平米造价
+        # 52-53: 暖通造价/平米造价
+        # 54-55: 地上砼用量/地上砼平米含量
+        # 56-57: 地上钢筋用量/地上钢筋平米含量
+        # 58-59: 地上模板用量/地上模板平米含量
+        # 60-61: 地下砼用量/地下砼平米含量
+        # 62-63: 地下钢筋用量/地下钢筋平米含量
+        # 64-65: 地下模板用量/地下模板平米含量
+        # 66: 砌体含量
+        # 67-69: 电缆含量/管道含量/风管含量
+        # 70-72: 开工时间/竣工时间/备注
         sample_detail = [
-            1, "示例住宅项目", "住宅", "山东烟台", "框架结构", "毛坯交付",
-            "18/2", 25000, 54,
-            22000, 3000,
-            2350, 58750000,
-            35000000, 10000000, 8000000, 3000000,
-            3000000, 2000000,
-            500000, 800000, 2000000, 5000000,
-            8000, 0.32, 1000, 0.04,
-            2500, 0.1, 300, 0.012,
-            "2023-01", "2024-06", "",
+            1, "示例住宅项目", "住宅", "山东烟台", "框架结构", "毛坯交付",      # 1-6 (6)
+            "18/2", 25000, 54,                                                    # 7-9 (3) = 9
+            22000, 3000,                                                          # 10-11 (2) = 11
+            2350, 58750000,                                                       # 12-13 (2) = 13
+            35000000, 10000000, 8000000, 3000000,                                 # 14-17 (4) = 17
+            3000000, 2000000,                                                     # 18-19 (2) = 19
+            1400, 50, 600, 20,                                                    # 20-23 (4) = 23
+            200, 8, 100, 4, 300, 12, 280, 10, 150, 5,                             # 24-33 (10) = 33  屋面~措施
+            500000, 20, 800000, 32, 2000000, 80, 5000000, 200,                     # 34-41 (8) = 41  桩基/基坑/幕墙/精装
+            300000, 12, 200000, 8, 150000, 6, 180000, 7,                          # 42-49 (8) = 49  外墙保温/外窗/给排水/采暖
+            160000, 6, 100000, 4,                                                  # 50-53 (4) = 53  电气/暖通
+            8000, 0.32, 1000, 0.04, 1000, 0.04,                                   # 54-59 (6) = 59  地上砼/钢筋/模板
+            2500, 0.1, 300, 0.012, 500, 0.02,                                      # 60-65 (6) = 65  地下砼/钢筋/模板
+            0.5,                                                                   # 66 (1) = 66  砌体
+            50, 80, 30,                                                            # 67-69 (3) = 69  电缆/管道/风管
+            "2023-01", "2024-06", "",                                              # 70-72 (3) = 72  开工/竣工/备注
+            "钢板桩", 80,                                                           # 73-74 (2) = 74  桩基形式/室外平米造价
+            15, 30, 0.2, 0.05, 1.5, 10, 30, 0.1,                                    # 75-82 (8) = 82  建筑指标8项
         ]
+        # 验证: 6+3+2+2+4+2+4+10+4+8+8+4+6+6+1+3+3 + 2 + 8 = 82
         for col, value in enumerate(sample_detail, 1):
             cell = ws_detail.cell(row=2, column=col, value=value)
             cell.border = thin_border
@@ -286,8 +352,8 @@ async def download_template() -> StreamingResponse:
             "=明细!M2",  # 总造价
             "=明细!J2",  # 地上面积
             "=明细!K2",  # 地下面积
-            "=明细!AA2",  # 开工时间
-            "=明细!AB2",  # 竣工时间
+            "=明细!BR2",  # 开工时间（明细第70列）
+            "=明细!BS2",  # 竣工时间（明细第71列）
         ]
 
         for col, formula in enumerate(summary_formulas, 1):
@@ -357,6 +423,7 @@ async def get_summary_list(
 async def auto_import(
     file: UploadFile = File(..., description="Excel文件"),
     service: IndicatorLibraryService = Depends(get_service),
+    account: str = Depends(get_current_account),
 ) -> Dict[str, Any]:
     """
     自动导入 Excel 数据（先预览校验，有错误返回，无错误直接入库）
@@ -370,7 +437,7 @@ async def auto_import(
 
     try:
         # 验证文件类型
-        if not file.filename.endswith(('.xlsx', '.xls')):
+        if not (file.filename or '').endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="仅支持 .xlsx 或 .xls 格式的 Excel 文件")
 
         # 读取文件内容
@@ -378,8 +445,8 @@ async def auto_import(
         if len(content) == 0:
             raise HTTPException(status_code=400, detail="文件为空")
 
-        # 执行自动导入
-        result = service.auto_import(content, file.filename)
+        # 执行自动导入（放线程池，避免 openpyxl 解析阻塞事件循环）
+        result = await run_in_threadpool(service.auto_import, content, file.filename, account)
         logger.info(
             f"[auto_import] 导入完成 | success={result.success} | imported={result.imported} | total={result.total}"
         )
@@ -563,6 +630,7 @@ async def sync_check(
 async def create_project(
     data: IndicatorLibraryCreate,
     service: IndicatorLibraryService = Depends(get_service),
+    account: str = Depends(get_current_account),
 ) -> Dict[str, Any]:
     """
     创建指标库项目
@@ -573,7 +641,7 @@ async def create_project(
     logger.info(f"[create_project] 创建项目 | name={data.name} | category={data.category}")
 
     try:
-        detail = service.create_project(data)
+        detail = service.create_project(data, account)
         logger.info(f"[create_project] 创建成功 | id={detail.id}")
         return detail.model_dump(exclude_none=True)
 
@@ -591,6 +659,7 @@ async def create_project(
 async def update_project(
     project_id: str,
     data: IndicatorLibraryCreate,
+    admin_account: str = Depends(get_current_user_can_delete),
     service: IndicatorLibraryService = Depends(get_service),
 ) -> Dict[str, Any]:
     """
@@ -623,6 +692,7 @@ async def update_project(
 @router.delete("/{project_id}")
 async def delete_project(
     project_id: str,
+    admin_account: str = Depends(get_current_user_can_delete),
     service: IndicatorLibraryService = Depends(get_service),
 ) -> Dict[str, bool]:
     """
@@ -680,6 +750,7 @@ async def validate_data(
 async def preview_import(
     file: UploadFile = File(..., description="Excel文件"),
     service: IndicatorLibraryService = Depends(get_service),
+    account: str = Depends(get_current_account),
 ) -> Dict[str, Any]:
     """
     预览 Excel 导入内容
@@ -691,7 +762,7 @@ async def preview_import(
 
     try:
         # 验证文件类型
-        if not file.filename.endswith(('.xlsx', '.xls')):
+        if not (file.filename or '').endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="仅支持 .xlsx 或 .xls 格式的 Excel 文件")
 
         # 读取文件内容
@@ -699,8 +770,8 @@ async def preview_import(
         if len(content) == 0:
             raise HTTPException(status_code=400, detail="文件为空")
 
-        # 执行预览
-        result = service.preview_import(content, file.filename)
+        # 执行预览（放线程池，避免 openpyxl 解析阻塞事件循环）
+        result = await run_in_threadpool(service.preview_import, content, file.filename)
         logger.info(
             f"[preview_import] 预览完成 | total={result.total} | valid={result.valid_count} | error={result.error_count}"
         )
@@ -722,6 +793,7 @@ async def preview_import(
 async def import_from_excel(
     file: UploadFile = File(..., description="Excel文件"),
     service: IndicatorLibraryService = Depends(get_service),
+    account: str = Depends(get_current_account),
 ) -> Dict[str, Any]:
     """
     从 Excel 文件导入指标库数据
@@ -734,7 +806,7 @@ async def import_from_excel(
 
     try:
         # 验证文件类型
-        if not file.filename.endswith(('.xlsx', '.xls')):
+        if not (file.filename or '').endswith(('.xlsx', '.xls')):
             raise HTTPException(status_code=400, detail="仅支持 .xlsx 或 .xls 格式的 Excel 文件")
 
         # 读取文件内容
@@ -742,8 +814,8 @@ async def import_from_excel(
         if len(content) == 0:
             raise HTTPException(status_code=400, detail="文件为空")
 
-        # 执行导入
-        result = service.import_from_excel(content, file.filename)
+        # 执行导入（放线程池，避免 openpyxl 解析阻塞事件循环）
+        result = await run_in_threadpool(service.import_from_excel, content, file.filename, account)
         logger.info(
             f"[import_from_excel] 导入完成 | imported={result.imported} | total={result.total} | errors={len(result.errors)}"
         )
@@ -768,34 +840,58 @@ async def export_to_excel(
     service: IndicatorLibraryService = Depends(get_service),
 ) -> StreamingResponse:
     """
-    导出指标库数据到 Excel 文件
+    导出指标库数据到 Excel（总分 + 详细双 sheet）
 
-    - 支持按业态和所在地筛选
-    - 返回 Excel 文件流
+    - 汇总 sheet：核心字段（总分模式），便于快速浏览
+    - 明细 sheet：全字段，表头与导入模板逐字一致，可改后重新导入（闭环）
+    - 支持 .xlsx（双 sheet）；若未装 openpyxl 则回退单表 CSV
     """
     logger.info(f"[export_to_excel] 开始导出 | category={category} | location={location}")
 
     try:
-        # 获取要导出的数据
-        summaries = service.get_summary_list(
+        # 全字段数据（不做 Summary 裁剪，保留所有 db 字段供明细回填）
+        projects = service.get_full_projects(
             category=category,
             location=location,
-            limit=10000,  # 导出较多数据
+            limit=10000,
         )
+        logger.info(f"[export_to_excel] 取得项目 | count={len(projects)}")
 
-        # 生成 Excel 文件
+        mapping = ExcelParserService.DETAIL_COLUMN_MAPPING
+
+        def cell_value(header: str, project: Dict[str, Any], row_num: int) -> Any:
+            """按表头从 db 行取值；序号与层数做特殊处理。"""
+            if header == "序号":
+                return row_num
+            if header == "层数（地上/下）":
+                fa, fb = project.get("floor_above"), project.get("floor_below")
+                if fa is None and fb is None:
+                    return ""
+                return f"{fa if fa is not None else 0}/{fb if fb is not None else 0}"
+            db_field = mapping.get(header)
+            if db_field is None:
+                return ""
+            val = project.get(db_field)
+            return val if val is not None else ""
+
+        # 汇总表头（总分模式）
+        summary_headers = [
+            "项目名称", "业态", "项目所在地", "结构形式", "交付形式",
+            "层数（地上/下）", "总面积（m2）", "檐高（m）",
+            "地上建筑面积（m2）", "地下建筑面积（m2）",
+            "平米造价（元/m2）", "总造价（元）",
+            "开工时间", "竣工时间",
+        ]
+
+        use_xlsx = True
         try:
             import openpyxl
             from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
-            wb = openpyxl.Workbook()
-            ws = wb.active
-            ws.title = "指标库数据"
-
-            # 定义样式
             header_font = Font(bold=True, color="FFFFFF")
-            header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
-            header_alignment = Alignment(horizontal="center", vertical="center")
+            detail_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+            summary_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+            header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             thin_border = Border(
                 left=Side(style="thin"),
                 right=Side(style="thin"),
@@ -803,103 +899,69 @@ async def export_to_excel(
                 bottom=Side(style="thin"),
             )
 
-            # 表头
-            headers = [
-                "序号", "项目名称", "业态", "所在地", "结构形式",
-                "开工时间", "竣工时间", "总建筑面积(㎡)", "平米造价(元/㎡)",
-                "录入时间", "更新时间",
-            ]
-
-            for col, header in enumerate(headers, 1):
-                cell = ws.cell(row=1, column=col, value=header)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = header_alignment
-                cell.border = thin_border
-
-            # 数据行
-            for row_idx, summary in enumerate(summaries, 2):
-                ws.cell(row=row_idx, column=1, value=row_idx - 1)
-                ws.cell(row=row_idx, column=2, value=summary.name)
-                ws.cell(row=row_idx, column=3, value=summary.category)
-                ws.cell(row=row_idx, column=4, value=summary.location)
-                ws.cell(row=row_idx, column=5, value=summary.structure)
-                ws.cell(row=row_idx, column=6, value=summary.start_date or "")
-                ws.cell(row=row_idx, column=7, value=summary.end_date or "")
-                ws.cell(row=row_idx, column=8, value=summary.area_total)
-                ws.cell(row=row_idx, column=9, value=summary.unit_cost)
-                ws.cell(row=row_idx, column=10, value=summary.entry_date or "")
-                ws.cell(row=row_idx, column=11, value=summary.updated_at)
-
-                # 应用边框
+            def write_sheet(ws, headers, fill):
+                for col, header in enumerate(headers, 1):
+                    cell = ws.cell(row=1, column=col, value=header)
+                    cell.font = header_font
+                    cell.fill = fill
+                    cell.alignment = header_alignment
+                    cell.border = thin_border
+                for idx, project in enumerate(projects, start=1):
+                    for col, header in enumerate(headers, 1):
+                        c = ws.cell(row=idx + 1, column=col, value=cell_value(header, project, idx))
+                        c.border = thin_border
                 for col in range(1, len(headers) + 1):
-                    ws.cell(row=row_idx, column=col).border = thin_border
+                    ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 14
+                ws.row_dimensions[1].height = 28
+                ws.freeze_panes = "A2"
 
-            # 调整列宽
-            column_widths = [8, 25, 10, 15, 12, 12, 12, 15, 15, 18, 20]
-            for col, width in enumerate(column_widths, 1):
-                ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = width
+            wb = openpyxl.Workbook()
+            # 汇总 sheet（首 sheet，总分模式）
+            ws_summary = wb.active
+            ws_summary.title = "汇总"
+            write_sheet(ws_summary, summary_headers, summary_fill)
+            # 明细 sheet（详细模式，全字段，表头与导入模板一致，可重新导入）
+            ws_detail = wb.create_sheet("明细")
+            write_sheet(ws_detail, DETAIL_HEADERS, detail_fill)
 
-            # 保存到内存
             output = io.BytesIO()
             wb.save(output)
             output.seek(0)
 
         except ImportError:
-            # 如果没有 openpyxl，生成 CSV
+            logger.warning("[export_to_excel] openpyxl 未安装，回退 CSV（仅汇总）")
+            use_xlsx = False
             import csv
 
             output = io.StringIO()
             writer = csv.writer(output)
-
-            # 表头
-            headers = [
-                "序号", "项目名称", "业态", "所在地", "结构形式",
-                "开工时间", "竣工时间", "总建筑面积(㎡)", "平米造价(元/㎡)",
-                "录入时间", "更新时间",
-            ]
-            writer.writerow(headers)
-
-            # 数据行
-            for row_idx, summary in enumerate(summaries, 1):
-                writer.writerow([
-                    row_idx,
-                    summary.name,
-                    summary.category,
-                    summary.location,
-                    summary.structure,
-                    summary.start_date or "",
-                    summary.end_date or "",
-                    summary.area_total or "",
-                    summary.unit_cost or "",
-                    summary.entry_date or "",
-                    summary.updated_at,
-                ])
-
+            writer.writerow(summary_headers)
+            for idx, project in enumerate(projects, start=1):
+                writer.writerow([cell_value(h, project, idx) for h in summary_headers])
             output.seek(0)
             output = io.BytesIO(output.getvalue().encode("utf-8-sig"))
 
         # 生成文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"指标库导出_{timestamp}.xlsx" if "openpyxl" in dir() else f"指标库导出_{timestamp}.csv"
+        ext = "xlsx" if use_xlsx else "csv"
+        filename = f"指标库导出_{timestamp}.{ext}"
         media_type = (
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            if filename.endswith(".xlsx")
+            if use_xlsx
             else "text/csv"
         )
 
-        # 中文文件名必须做百分号编码（RFC 5987），否则 Starlette 用 latin-1 编码 header
-        # 会抛 UnicodeEncodeError（header 只允许 ASCII/latin-1）。
+        # 中文文件名百分号编码（RFC 5987），避免 Starlette latin-1 编码报错
         from urllib.parse import quote
         encoded_filename = quote(filename)
 
-        logger.info(f"[export_to_excel] 导出完成 | records={len(summaries)} | file={filename}")
+        logger.info(f"[export_to_excel] 导出完成 | records={len(projects)} | file={filename}")
 
         return StreamingResponse(
             output,
             media_type=media_type,
             headers={
-                "Content-Disposition": f"attachment; filename=export.xlsx; filename*=UTF-8''{encoded_filename}",
+                "Content-Disposition": f"attachment; filename=export.{ext}; filename*=UTF-8''{encoded_filename}",
             },
         )
 

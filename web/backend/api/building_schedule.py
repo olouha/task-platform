@@ -8,10 +8,14 @@ from typing import Dict, List, Optional
 from pathlib import Path
 import re
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 import openpyxl
+import logging
+
+from api.deps import get_current_account
 
 router = APIRouter(prefix="", tags=["楼栋施工时间"])
+logger = logging.getLogger(__name__)
 
 
 def parse_building_schedule(file_path: str) -> dict:
@@ -128,8 +132,9 @@ def _get_title(file_path: str) -> str:
 # ============================================================
 
 @router.post("/upload", summary="上传楼栋施工时间表")
-async def upload_building_schedule(file: UploadFile = File(...)):
+async def upload_building_schedule(file: UploadFile = File(...), account: str = Depends(get_current_account)):
     """上传并解析楼栋施工时间表"""
+    logger.info(f"[upload_building_schedule] 上传楼栋时间表 | filename={file.filename} | by={account}")
     allowed_extensions = ['.xlsx', '.xls']
     file_ext = Path(file.filename).suffix.lower()
 

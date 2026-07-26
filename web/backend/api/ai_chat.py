@@ -13,13 +13,22 @@ import logging
 from services.ai_service import AIService
 from services.rag_service import RAGService
 from services.local_qa_service import LocalQAService
+from services.ai_chat_db import AIChatDBService, init_db as init_ai_chat_db
 
 router = APIRouter(prefix="/ai", tags=["AI对话"])
 ai_service = AIService()
 rag_service = RAGService()
 local_qa = LocalQAService()  # 本地问答服务
+ai_chat_db = AIChatDBService()  # 本地会话历史（取代已禁用的 Supabase）
 
 logger = logging.getLogger(__name__)
+
+# 启动时确保表存在
+try:
+    init_ai_chat_db()
+    logger.info("[ai_chat] 本地会话数据库已就绪")
+except Exception as _e:
+    logger.error(f"[ai_chat] 初始化本地会话数据库失败 | {_e}", exc_info=True)
 
 
 # ========== Pydantic 模型 ==========
@@ -62,7 +71,8 @@ def get_user_id(x_user_id: Optional[str] = Header(None)) -> Optional[str]:
 @router.post("/chat/completions")
 async def chat_completions(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None, alias="x-user-id")
+    user_id: Optional[str] = Header(None, alias="x-user-id"),
+    x_conversation_id: Optional[str] = Header(None, alias="x-conversation-id")
 ):
     """
     普通 AI 对话
@@ -85,7 +95,7 @@ async def chat_completions(
 
             # 保存对话记录（如果已登录）
             if user_id:
-                _save_message(user_id, messages, result)
+                _save_message(user_id, messages, result, conversation_id=x_conversation_id)
 
             return result
         else:
@@ -99,7 +109,7 @@ async def chat_completions(
 
             # 保存对话记录
             if user_id:
-                _save_message(user_id, [msg.dict() for msg in request.messages], result)
+                _save_message(user_id, [msg.dict() for msg in request.messages], result, conversation_id=x_conversation_id)
 
             return result
 
@@ -178,7 +188,8 @@ async def chat_completions_stream(
 async def chat_with_rag(
     request: ChatRequest,
     user_id: Optional[str] = Header(None, alias="x-user-id"),
-    enable_rag: bool = Query(True, description="是否启用知识库检索")
+    enable_rag: bool = Query(True, description="是否启用知识库检索"),
+    x_conversation_id: Optional[str] = Header(None, alias="x-conversation-id")
 ):
     """
     AI 对话（带 RAG 知识库检索增强）
@@ -200,7 +211,7 @@ async def chat_with_rag(
 
             # 保存对话记录
             if user_id:
-                _save_message(user_id, request.messages, result)
+                _save_message(user_id, request.messages, result, conversation_id=x_conversation_id)
 
             return result
 
@@ -248,7 +259,7 @@ async def chat_with_rag(
 
         # 6. 保存对话记录
         if user_id:
-            _save_message(user_id, request.messages, result, sources=sources)
+            _save_message(user_id, request.messages, result, sources=sources, conversation_id=x_conversation_id)
 
         # 7. 在结果中加入 sources 信息
         if sources and "choices" in result:
@@ -337,24 +348,27 @@ async def chat_with_rag_stream(
     )
 
 
-# ========== 会话管理 API ==========
+# ========== 会话管理 API（本地 SQLite 持久化）==========
 
 @router.get("/conversations")
 async def list_conversations(
-    user_id: str = Header(..., alias="x-user-id"),
+    user_id: Optional[str] = Header(None, alias="x-user-id"),
     limit: int = Query(20, le=100),
     offset: int = Query(0, ge=0)
 ):
     """
     获取用户的对话会话列表
+
+    user_id 为空时使用 'default'，避免匿名访问 422
     """
+    uid = user_id or "default"
+    logger.info(f"[list_conversations] user_id={uid} | limit={limit} | offset={offset}")
     try:
-        from services.supabase_service import SupabaseService
-        supabase = SupabaseService()
-        conversations = supabase.get_ai_conversations(user_id, limit, offset)
+        conversations = ai_chat_db.list_conversations(uid, limit, offset)
+        logger.info(f"[list_conversations] 返回 | count={len(conversations)}")
         return {"data": conversations}
     except Exception as e:
-        logger.error(f"获取会话列表失败: {e}")
+        logger.error(f"[list_conversations] 失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -363,110 +377,140 @@ async def create_conversation(
     title: str = Query("新对话"),
     model: str = Query("gpt-4"),
     system_prompt: Optional[str] = None,
-    user_id: str = Header(..., alias="x-user-id")
+    user_id: Optional[str] = Header(None, alias="x-user-id"),
+    x_conversation_id: Optional[str] = Header(None, alias="x-conversation-id")
 ):
     """
     创建新对话会话
+
+    支持通过 x-conversation-id 头传入自定义 ID（兼容 chatStore 临时 ID 流）
     """
+    uid = user_id or "default"
+    logger.info(f"[create_conversation] user_id={uid} | title={title} | model={model}")
     try:
-        from services.supabase_service import SupabaseService
-        supabase = SupabaseService()
-        conversation = supabase.create_ai_conversation(
-            user_id=user_id,
+        # 如果前端传入了 temp- ID，不入库，直接回包一个新 ID
+        if x_conversation_id and x_conversation_id.startswith("temp-"):
+            import uuid as _uuid
+            x_conversation_id = str(_uuid.uuid4())
+
+        conversation = ai_chat_db.create_conversation(
+            user_id=uid,
             title=title,
             model=model,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            conversation_id=x_conversation_id,
         )
+        logger.info(f"[create_conversation] 创建成功 | id={conversation.get('id')}")
         return conversation
     except Exception as e:
-        logger.error(f"创建会话失败: {e}")
+        logger.error(f"[create_conversation] 失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/conversations/{conversation_id}")
 async def get_conversation(
     conversation_id: str,
-    user_id: str = Header(..., alias="x-user-id")
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     获取会话详情
     """
+    uid = user_id or "default"
+    logger.info(f"[get_conversation] id={conversation_id} | user_id={uid}")
     try:
-        from services.supabase_service import SupabaseService
-        supabase = SupabaseService()
-        conversation = supabase.get_ai_conversation(conversation_id, user_id)
+        conversation = ai_chat_db.get_conversation(conversation_id, uid)
         if not conversation:
+            logger.info(f"[get_conversation] 未找到 | id={conversation_id}")
             raise HTTPException(status_code=404, detail="会话不存在")
         return conversation
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取会话失败: {e}")
+        logger.error(f"[get_conversation] 失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/conversations/{conversation_id}/messages")
 async def get_conversation_messages(
     conversation_id: str,
-    user_id: str = Header(..., alias="x-user-id"),
+    user_id: Optional[str] = Header(None, alias="x-user-id"),
     limit: int = Query(50, le=100)
 ):
     """
     获取会话的消息历史
     """
+    uid = user_id or "default"
+    logger.info(f"[get_conversation_messages] id={conversation_id} | user_id={uid} | limit={limit}")
     try:
-        from services.supabase_service import SupabaseService
-        supabase = SupabaseService()
-        messages = supabase.get_ai_messages(conversation_id, user_id, limit)
+        messages = ai_chat_db.list_messages(conversation_id, uid, limit)
+        logger.info(f"[get_conversation_messages] 返回 | count={len(messages)}")
         return {"data": messages}
     except Exception as e:
-        logger.error(f"获取消息历史失败: {e}")
+        logger.error(f"[get_conversation_messages] 失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
-    user_id: str = Header(..., alias="x-user-id")
+    user_id: Optional[str] = Header(None, alias="x-user-id")
 ):
     """
     删除对话会话
     """
+    uid = user_id or "default"
+    logger.info(f"[delete_conversation] id={conversation_id} | user_id={uid}")
     try:
-        from services.supabase_service import SupabaseService
-        supabase = SupabaseService()
-        success = supabase.delete_ai_conversation(conversation_id, user_id)
+        success = ai_chat_db.delete_conversation(conversation_id, uid)
         if not success:
             raise HTTPException(status_code=404, detail="会话不存在")
         return {"success": True}
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"删除会话失败: {e}")
+        logger.error(f"[delete_conversation] 失败 | {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # ========== 辅助函数 ==========
 
 def _save_message(
-    user_id: str,
+    user_id: Optional[str],
     messages: List[Dict],
     result: Dict,
-    sources: List[Dict] = None
+    sources: List[Dict] = None,
+    conversation_id: Optional[str] = None,
 ):
     """
-    保存对话消息到数据库
+    保存对话消息到本地 SQLite
+
+    Args:
+        user_id: 用户 ID（默认 'default'）
+        conversation_id: 来自 x-conversation-id 头；为空则跳过保存
+        sources: RAG 来源（写入 assistant 消息的 metadata）
     """
+    # 无 conversation_id 或为临时 ID 时不持久化（前端会兜底）
+    if not conversation_id or conversation_id.startswith("temp-"):
+        logger.debug("[_save_message] 跳过：conversation_id 缺失或为临时 ID")
+        return
+
     try:
-        from services.supabase_service import SupabaseService
-        supabase = SupabaseService()
+        uid = user_id or "default"
+
+        # 确保会话存在（首次发消息时尚未 create_conversation）
+        ai_chat_db.get_or_create_conversation(
+            conversation_id=conversation_id,
+            user_id=uid,
+            title=messages[-1].get("content", "新对话")[:30] if messages else "新对话",
+            model="gpt-4",
+        )
 
         # 从结果中提取 AI 回复
         ai_content = ""
         if "choices" in result and len(result["choices"]) > 0:
             ai_content = result["choices"][0].get("message", {}).get("content", "")
 
-        # 保存用户最后一条消息和 AI 回复
+        # 保存用户最后一条消息
         user_content = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
@@ -474,22 +518,24 @@ def _save_message(
                 break
 
         if user_content:
-            supabase.save_ai_message(
-                user_id=user_id,
+            ai_chat_db.save_message(
+                conversation_id=conversation_id,
                 role="user",
-                content=user_content
+                content=user_content,
             )
 
         if ai_content:
-            supabase.save_ai_message(
-                user_id=user_id,
+            ai_chat_db.save_message(
+                conversation_id=conversation_id,
                 role="assistant",
                 content=ai_content,
-                metadata={"sources": sources} if sources else None
+                metadata={"sources": sources} if sources else None,
             )
 
+        logger.info(f"[_save_message] 保存完成 | conv_id={conversation_id}")
+
     except Exception as e:
-        logger.error(f"保存消息失败: {e}")
+        logger.error(f"[_save_message] 失败 | {e}", exc_info=True)
 
 
 # ========== 知识库管理 API ==========
@@ -598,7 +644,8 @@ tool_executor = ToolExecutor()
 @router.post("/chat/tools")
 async def chat_with_tools(
     request: ChatRequest,
-    user_id: Optional[str] = Header(None, alias="x-user-id")
+    user_id: Optional[str] = Header(None, alias="x-user-id"),
+    x_conversation_id: Optional[str] = Header(None, alias="x-conversation-id")
 ):
     """
     支持工具调用的AI对话
@@ -630,7 +677,7 @@ async def chat_with_tools(
 
             # 保存对话记录
             if user_id:
-                _save_message(user_id, request.messages, result)
+                _save_message(user_id, request.messages, result, conversation_id=x_conversation_id)
 
             logger.info(f"[chat_with_tools] 返回结果")
             return result
@@ -652,7 +699,7 @@ async def chat_with_tools(
 
         # 保存对话记录
         if user_id:
-            _save_message(user_id, request.messages, result)
+            _save_message(user_id, request.messages, result, conversation_id=x_conversation_id)
 
         logger.info(f"[chat_with_tools] 返回结果")
         return result

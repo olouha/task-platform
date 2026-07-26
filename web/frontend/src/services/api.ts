@@ -1,3 +1,5 @@
+import { getSessionId } from '../auth'
+
 // API 服务配置
 // 连接后端服务器（烟台钢筋价格）
 
@@ -10,7 +12,10 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 function buildApiUrl(path: string): string {
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   if (API_BASE_URL === '/api') {
-    // 代理模式：/api + /stats -> /api/stats
+    // 代理模式：若调用方已带 /api 前缀（如 yantaiRebarApi 的 '/api/rebar/...'），直接用，
+    // 避免与 API_BASE_URL='/api' 叠加成 '/api/api/...'
+    if (cleanPath.startsWith('/api')) return cleanPath;
+    // 否则拼上 /api：/stats -> /api/stats
     return `${API_BASE_URL}${cleanPath}`;
   }
   if (API_BASE_URL) {
@@ -19,6 +24,14 @@ function buildApiUrl(path: string): string {
   }
   // 无base URL：/stats -> /stats
   return cleanPath;
+}
+
+/** 带 X-Session-ID 的 fetch 封装：用于上传/导入等需要留痕（uploaded_by）的接口 */
+async function authFetch(input: RequestInfo, init: RequestInit = {}): Promise<Response> {
+  const sid = getSessionId()
+  const headers = new Headers(init.headers || {})
+  if (sid) headers.set('X-Session-ID', sid)
+  return fetch(input, { ...init, headers })
 }
 
 export const config = {
@@ -662,7 +675,7 @@ export const dataManagerApi = {
 
   // 导入数据
   importData: async (filePath: string) => {
-    const response = await fetch(`${config.apiUrl}/data-manager/import?file_path=${encodeURIComponent(filePath)}`, {
+    const response = await authFetch(`${config.apiUrl}/data-manager/import?file_path=${encodeURIComponent(filePath)}`, {
       method: 'POST'
     });
     return response.json();
@@ -918,6 +931,51 @@ export const yantaiRebarApi = {
     });
     return response.json();
   },
+  // 上传钢筋价格截图识别（仅识别，返回可预览编辑的价格列表，不入库）
+  recognizeScreenshot: async (file: File, date?: string, period?: 'AM' | 'PM') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (date) formData.append('date', date);
+    if (period) formData.append('period', period);
+    const response = await fetch(buildApiUrl('/api/rebar/recognize-screenshot'), {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `请求失败 (${response.status})`);
+    }
+    return response.json();
+  },
+  // 确认入库（复用现有 /api/rebar/prices 端点）
+  insertPrices: async (prices: any[]) => {
+    const response = await authFetch(buildApiUrl('/api/rebar/prices'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prices),
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `入库失败 (${response.status})`);
+    }
+    return response.json();
+  },
+  // 上传 Excel 解析（WPS 转图/复制网页粘贴所得，仅解析，不入库）
+  parseExcel: async (file: File, date?: string, period?: 'AM' | 'PM') => {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (date) formData.append('date', date);
+    if (period) formData.append('period', period);
+    const response = await fetch(buildApiUrl('/api/rebar/parse-excel'), {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.detail || `请求失败 (${response.status})`);
+    }
+    return response.json();
+  },
 };
 
 // 指标库项目管理 API - 对应 /indicator-report/database/* 端点
@@ -976,7 +1034,7 @@ export const indicatorDatabaseApi = {
   import: async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${config.apiUrl}/indicator-report/import`, {
+    const response = await authFetch(`${config.apiUrl}/indicator-report/import`, {
       method: 'POST',
       body: formData,
     });
@@ -1004,6 +1062,7 @@ import type {
   IndicatorLibraryDetail,
   ValidationWarning,
   ValidationResult,
+  ImportFieldError,
   ImportPreviewItem,
   ImportPreviewResult,
   ImportResult,
@@ -1015,6 +1074,7 @@ export type {
   IndicatorLibraryDetail,
   ValidationWarning,
   ValidationResult,
+  ImportFieldError,
   ImportPreviewItem,
   ImportPreviewResult,
   ImportResult,
@@ -1051,7 +1111,7 @@ export const indicatorLibraryApi = {
 
   // 创建项目
   create: async (data: Partial<IndicatorLibraryDetail>): Promise<IndicatorLibraryDetail> => {
-    const response = await fetch(`${config.apiUrl}/indicator-library/`, {
+    const response = await authFetch(`${config.apiUrl}/indicator-library/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -1101,7 +1161,7 @@ export const indicatorLibraryApi = {
   preview: async (file: File): Promise<ImportPreviewResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${config.apiUrl}/indicator-library/preview`, {
+    const response = await authFetch(`${config.apiUrl}/indicator-library/preview`, {
       method: 'POST',
       body: formData,
     });
@@ -1116,7 +1176,7 @@ export const indicatorLibraryApi = {
   import: async (file: File): Promise<ImportResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${config.apiUrl}/indicator-library/import`, {
+    const response = await authFetch(`${config.apiUrl}/indicator-library/import`, {
       method: 'POST',
       body: formData,
     });
@@ -1183,10 +1243,11 @@ export const indicatorLibraryApi = {
     total: number;
     warnings: any[];
     errors: string[];
+    error_details?: ImportFieldError[];
   }> => {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${config.apiUrl}/indicator-library/auto-import`, {
+    const response = await authFetch(`${config.apiUrl}/indicator-library/auto-import`, {
       method: 'POST',
       body: formData,
     });
@@ -1247,6 +1308,92 @@ export const indicatorLibraryApi = {
   },
 };
 
+// 材料管理 API（本地 SQLite）
+export interface MaterialCategory {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  sort_order?: number;
+  count?: number;
+}
+
+export interface MaterialItem {
+  id: string;
+  category_id?: string;
+  category?: string;
+  name: string;
+  spec?: string;
+  unit?: string;
+  base_price?: number;
+  source?: string;
+  source_id?: string;
+  is_adjusted?: boolean;
+  adjustment_threshold?: number;
+}
+
+export const materialsApi = {
+  // 分类
+  listCategories: async (): Promise<MaterialCategory[]> => {
+    const response = await fetch(`${config.apiUrl}/materials/categories`);
+    if (!response.ok) throw new Error('获取分类失败');
+    return response.json();
+  },
+  createCategory: async (data: Partial<MaterialCategory>): Promise<MaterialCategory> => {
+    const response = await fetch(`${config.apiUrl}/materials/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('创建分类失败');
+    return response.json();
+  },
+  updateCategory: async (id: string, data: Partial<MaterialCategory>): Promise<MaterialCategory> => {
+    const response = await fetch(`${config.apiUrl}/materials/categories/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('更新分类失败');
+    return response.json();
+  },
+  deleteCategory: async (id: string): Promise<{ success: boolean }> => {
+    const response = await fetch(`${config.apiUrl}/materials/categories/${id}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('删除分类失败');
+    return response.json();
+  },
+  // 材料
+  list: async (categoryId?: string): Promise<MaterialItem[]> => {
+    const query = categoryId ? `?category_id=${encodeURIComponent(categoryId)}` : '';
+    const response = await fetch(`${config.apiUrl}/materials/${query}`);
+    if (!response.ok) throw new Error('获取材料失败');
+    return response.json();
+  },
+  create: async (data: Partial<MaterialItem>): Promise<MaterialItem> => {
+    const response = await fetch(`${config.apiUrl}/materials/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('创建材料失败');
+    return response.json();
+  },
+  update: async (id: string, data: Partial<MaterialItem>): Promise<MaterialItem> => {
+    const response = await fetch(`${config.apiUrl}/materials/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) throw new Error('更新材料失败');
+    return response.json();
+  },
+  delete: async (id: string): Promise<{ success: boolean }> => {
+    const response = await fetch(`${config.apiUrl}/materials/${id}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('删除材料失败');
+    return response.json();
+  },
+};
+
 // 默认导出（兼容 `import api from '../services/api'`）
 export default {
   config,
@@ -1269,4 +1416,5 @@ export default {
   yantaiRebarApi,
   indicatorDatabaseApi,
   indicatorLibraryApi,
+  materialsApi,
 };

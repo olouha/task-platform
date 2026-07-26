@@ -1,4 +1,4 @@
-import { Layout, Menu, Avatar, Dropdown, Badge, Tooltip } from 'antd'
+import { Layout, Menu, Avatar, Dropdown, Badge, Tooltip, message } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -13,9 +13,11 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   RobotOutlined,
+  TeamOutlined,
 } from '@ant-design/icons'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { logout, getAccount, getUserInfo, getStoredIsAdmin, getStoredPosition } from '../auth'
 import AIChatWindow from './AIChatWindow'
 
 const { Header, Sider, Content } = Layout
@@ -29,6 +31,31 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(getStoredIsAdmin())
+  const [userPosition, setUserPosition] = useState(getStoredPosition())
+
+  useEffect(() => {
+    checkAdmin()
+  }, [])
+
+  const checkAdmin = async () => {
+    try {
+      const userInfo = await getUserInfo()
+      setIsAdmin(userInfo.is_admin)
+      setUserPosition(userInfo.position)
+    } catch (e: any) {
+      // getUserInfo 失败：不再静默清零，避免后端重启导致会话失效时菜单误消失
+      if (e?.response?.status === 401) {
+        message.warning('登录会话已失效，请重新登录')
+        logout()
+        navigate('/login')
+      } else {
+        // 网络等其他错误：降级使用登录时记录的值
+        setIsAdmin(getStoredIsAdmin())
+        setUserPosition(getStoredPosition())
+      }
+    }
+  }
 
   const menuItems = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
@@ -42,6 +69,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     { key: '/indicator-report', icon: <LineChartOutlined />, label: '指标分析报告' },
     { key: '/data-manager', icon: <SyncOutlined />, label: '数据管理' },
     { key: '/settings', icon: <SettingOutlined />, label: '系统设置' },
+    ...(isAdmin ? [{ key: '/user-management', icon: <TeamOutlined />, label: '用户管理' }] : []),
   ]
 
   const syncData = () => {
@@ -202,23 +230,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
             {/* AI 助手按钮 */}
             <AIChatWindow position="header" />
 
-            {/* 通知 */}
-            <Tooltip title="通知中心">
-              <Badge count={3} size="small" offset={[-2, 2]}>
-                <button className="header-btn">
-                  <BellOutlined />
-                </button>
-              </Badge>
-            </Tooltip>
-
             {/* 用户信息 */}
             <Dropdown
               menu={{
                 items: [
-                  { key: 'profile', label: '个人中心' },
+                  { key: 'profile', label: '个人中心', onClick: () => navigate('/profile') },
                   { key: 'settings', label: '系统设置', onClick: () => navigate('/settings') },
                   { type: 'divider' },
-                  { key: 'logout', label: '退出登录', danger: true }
+                  { key: 'logout', label: '退出登录', danger: true, onClick: () => { logout(); navigate('/login') } }
                 ]
               }}
               placement="bottomRight"
@@ -249,7 +268,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   fontSize: 13,
                   fontWeight: 500,
                   letterSpacing: 0.3
-                }}>管理员</span>
+                }}>{userPosition || getAccount()}</span>
               </div>
             </Dropdown>
           </div>

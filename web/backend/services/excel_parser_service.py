@@ -26,7 +26,7 @@ class ExcelParserService:
         "业态": "category",
         "项目所在地": "location",
         "结构形式": "structure",
-        "交付形式": "delivery_form",
+        "交付形式": "delivery_type",
         "层数（地上/下）": "floor_info",
         "总面积（m2）": "area_total",
         "檐高（m）": "height",
@@ -40,7 +40,7 @@ class ExcelParserService:
         "业态": "category",
         "项目所在地": "location",
         "结构形式": "structure",
-        "交付形式": "delivery_form",
+        "交付形式": "delivery_type",
         "层数（地上/下）": "floor_info",
         "总面积（m2）": "area_total",
         "檐高（m）": "height",
@@ -54,21 +54,70 @@ class ExcelParserService:
         "地下安装造价": "cost_underground_installation",
         "措施费（元）": "cost_measures",
         "室外造价（元）": "cost_outdoor",
+        "地上结构（元/㎡）": "above_structure",
+        "地上安装（元/㎡）": "unit_installation",
+        "地下结构（元/㎡）": "underground_structure",
+        "地下安装（元/㎡）": "unit_cost_underground_installation",
+        "屋面（元/㎡）": "roof",
+        "外墙（元/㎡）": "exterior_wall",
+        "内墙（元/㎡）": "interior_wall",
+        "楼地面（元/㎡）": "floor",
+        "电气（元/㎡）": "electrical",
+        "给排水（元/㎡）": "plumbing",
+        "暖通（元/㎡）": "hvac",
+        "电梯（元/㎡）": "elevator",
+        "消防（元/㎡）": "fire",
+        "措施（元/㎡）": "measures",
         "桩基造价（元）": "cost_pile",
+        "桩基平米造价（元/m2）": "unit_cost_pile",
         "基坑支护造价（元）": "cost_foundation_support",
+        "基坑支护平米造价（元/m2）": "unit_cost_foundation_support",
         "幕墙造价（元）": "cost_curtain_wall",
+        "幕墙平米造价（元/m2）": "unit_cost_curtain_wall",
         "精装修造价（元）": "cost_decoration",
+        "精装修平米造价（元/m2）": "unit_cost_decoration",
+        "外墙保温造价（元）": "cost_exterior_insulation",
+        "外墙保温平米造价（元/m2）": "unit_cost_exterior_insulation",
+        "外窗造价（元）": "cost_exterior_windows",
+        "外窗平米造价（元/m2）": "unit_cost_exterior_windows",
+        "给排水造价（元）": "cost_water_drainage",
+        "给排水平米造价（元/m2）": "unit_cost_water_drainage",
+        "采暖造价（元）": "cost_heating",
+        "采暖平米造价（元/m2）": "unit_cost_heating",
+        "电气造价（元）": "cost_electrical",
+        "电气平米造价（元/m2）": "unit_cost_electrical",
+        "暖通造价（元）": "cost_hvac",
+        "暖通平米造价（元/m2）": "unit_cost_hvac",
         "地上砼用量（m3）": "above_concrete",
         "地上砼平米含量": "above_concrete_unit",
         "地上钢筋用量（t）": "above_rebar",
         "地上钢筋平米含量": "above_rebar_unit",
+        "地上模板用量（m2）": "above_formwork",
+        "地上模板平米含量": "above_formwork_unit",
         "地下砼用量（m3）": "underground_concrete",
         "地下砼平米含量": "underground_concrete_unit",
         "地下钢筋用量（t）": "underground_rebar",
         "地下钢筋平米含量": "underground_rebar_unit",
+        "地下模板用量（m2）": "underground_formwork",
+        "地下模板平米含量": "underground_formwork_unit",
+        "砌体含量（m³/㎡）": "block",
+        "电缆含量（m/㎡）": "cable",
+        "管道含量（m/㎡）": "pipe",
+        "风管含量（㎡/㎡）": "duct",
+        "墙地比\n（%）": "wall_floor_ratio",
+        "窗墙比\n（%）": "window_wall_ratio",
+        "窗含量\n（㎡/㎡）": "window_content",
+        "门含量\n（㎡/㎡）": "door_content",
+        "内墙含量\n（㎡/㎡）": "interior_wall_content",
+        "基坑支护\n（元/m2）": "unit_cost_foundation_support",
+        "阳台占比\n（%）": "balcony_ratio",
+        "装配率\n（%）": "assembly_rate",
+        "装配构件含量\n（m3/m2）": "assembly_content",
         "开工时间": "start_date",
         "竣工时间": "end_date",
         "备注": "remarks",
+        "桩基形式": "foundation_type",
+        "室外平米造价（元/m2）": "unit_cost_outdoor",
     }
 
     # 新模板列映射（简化版单Sheet）
@@ -77,7 +126,7 @@ class ExcelParserService:
         "业态": "category",
         "项目所在地": "location",
         "结构形式": "structure",
-        "交付形式": "delivery_form",
+        "交付形式": "delivery_type",
         "层数（地上/下）": "floor_info",
         "总面积（m2）": "area_total",
         "檐高（m）": "height",
@@ -91,22 +140,89 @@ class ExcelParserService:
         "地下安装造价": "cost_underground_installation",
         "措施费（元）": "cost_measures",
         "室外造价（元）": "cost_outdoor",
+        "地上结构（元/㎡）": "above_structure",
+        "地上安装（元/㎡）": "unit_installation",
+        "地下结构（元/㎡）": "underground_structure",
+        "地下安装（元/㎡）": "unit_cost_underground_installation",
+        "屋面（元/㎡）": "roof",
+        "外墙（元/㎡）": "exterior_wall",
+        "内墙（元/㎡）": "interior_wall",
+        "楼地面（元/㎡）": "floor",
+        "电气（元/㎡）": "electrical",
+        "给排水（元/㎡）": "plumbing",
+        "暖通（元/㎡）": "hvac",
+        "电梯（元/㎡）": "elevator",
+        "消防（元/㎡）": "fire",
+        "措施（元/㎡）": "measures",
         "桩基造价（元）": "cost_pile",
+        "桩基平米造价（元/m2）": "unit_cost_pile",
         "基坑支护造价（元）": "cost_foundation_support",
+        "基坑支护平米造价（元/m2）": "unit_cost_foundation_support",
         "幕墙造价（元）": "cost_curtain_wall",
+        "幕墙平米造价（元/m2）": "unit_cost_curtain_wall",
         "精装修造价（元）": "cost_decoration",
+        "精装修平米造价（元/m2）": "unit_cost_decoration",
+        "外墙保温造价（元）": "cost_exterior_insulation",
+        "外墙保温平米造价（元/m2）": "unit_cost_exterior_insulation",
+        "外窗造价（元）": "cost_exterior_windows",
+        "外窗平米造价（元/m2）": "unit_cost_exterior_windows",
+        "给排水造价（元）": "cost_water_drainage",
+        "给排水平米造价（元/m2）": "unit_cost_water_drainage",
+        "采暖造价（元）": "cost_heating",
+        "采暖平米造价（元/m2）": "unit_cost_heating",
+        "电气造价（元）": "cost_electrical",
+        "电气平米造价（元/m2）": "unit_cost_electrical",
+        "暖通造价（元）": "cost_hvac",
+        "暖通平米造价（元/m2）": "unit_cost_hvac",
         "地上砼用量（m3）": "above_concrete",
         "地上砼平米含量": "above_concrete_unit",
         "地上钢筋用量（t）": "above_rebar",
         "地上钢筋平米含量": "above_rebar_unit",
+        "地上模板用量（m2）": "above_formwork",
+        "地上模板平米含量": "above_formwork_unit",
         "地下砼用量（m3）": "underground_concrete",
         "地下砼平米含量": "underground_concrete_unit",
         "地下钢筋用量（t）": "underground_rebar",
         "地下钢筋平米含量": "underground_rebar_unit",
+        "地下模板用量（m2）": "underground_formwork",
+        "地下模板平米含量": "underground_formwork_unit",
+        "砌体含量（m³/㎡）": "block",
+        "电缆含量（m/㎡）": "cable",
+        "管道含量（m/㎡）": "pipe",
+        "风管含量（㎡/㎡）": "duct",
+        "墙地比\n（%）": "wall_floor_ratio",
+        "窗墙比\n（%）": "window_wall_ratio",
+        "窗含量\n（㎡/㎡）": "window_content",
+        "门含量\n（㎡/㎡）": "door_content",
+        "内墙含量\n（㎡/㎡）": "interior_wall_content",
+        "基坑支护\n（元/m2）": "unit_cost_foundation_support",
+        "阳台占比\n（%）": "balcony_ratio",
+        "装配率\n（%）": "assembly_rate",
+        "装配构件含量\n（m3/m2）": "assembly_content",
         "开工时间": "start_date",
         "竣工时间": "end_date",
         "备注": "remarks",
+        "桩基形式": "foundation_type",
+        "室外平米造价（元/m2）": "unit_cost_outdoor",
     }
+
+    # field 代码 → Excel 中文列名（用于错误提示定位）
+    # 由明细/单Sheet 列映射反转，重复 field 取首个表头；并补充解析派生字段
+    FIELD_LABELS: Dict[str, str] = {}
+    for _h, _f in {**DETAIL_COLUMN_MAPPING, **SIMPLE_COLUMN_MAPPING}.items():
+        FIELD_LABELS.setdefault(_f, _h)
+    FIELD_LABELS.update({
+        "floor_above": "层数（地上/下）",
+        "floor_below": "层数（地上/下）",
+        "floor_info": "层数（地上/下）",
+    })
+
+    @classmethod
+    def get_field_label(cls, field: Optional[str]) -> Optional[str]:
+        """根据字段代码返回中文列名，未知返回 None"""
+        if not field:
+            return None
+        return cls.FIELD_LABELS.get(field)
 
     def __init__(self, file_path: str):
         """
@@ -386,6 +502,10 @@ class ExcelParserService:
                 data_rows.append(row_data)
 
         logger.info(f"[ExcelParserService] 明细解析完成 | count={len(data_rows)}")
+        # 调试：打印第一条数据的关键字段
+        if data_rows:
+            p = data_rows[0]
+            logger.info(f"[ExcelParserService] 首条数据 | name={p.get('name')} | index={p.get('index')} | category={p.get('category')}")
         return data_rows
 
     def _build_merged_headers(self, header_rows: List[Tuple]) -> Dict[int, str]:
@@ -457,7 +577,10 @@ class ExcelParserService:
             row_data[field_name] = value
 
         # 检查是否有有效数据（通过序号判断）
-        if not row_data.get("index"):
+        idx_val = row_data.get("index")
+        logger.info(f"[ExcelParserService] 解析明细行 | index={repr(idx_val)} | type={type(idx_val).__name__}")
+        if not idx_val:
+            logger.warning(f"[ExcelParserService] 序号为空，跳过此行 | row_data_keys={list(row_data.keys())}")
             return None
 
         # 解析楼层信息

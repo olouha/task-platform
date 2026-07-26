@@ -26,6 +26,7 @@ import type { UploadFile, UploadProps } from 'antd/es/upload'
 import type { RcFile } from 'antd/es/upload'
 import { indicatorLibraryApi } from '../../services/api'
 import type { ImportPreviewResult } from '../../services/api'
+import type { ImportFieldError } from '../../types/indicator'
 import './ImportPreview.css'
 
 // ============================================================================
@@ -417,6 +418,13 @@ export default function ImportPreview({
         fixed: 'left' as const,
       },
       {
+        title: 'Excel行',
+        dataIndex: 'row',
+        key: 'row',
+        width: 80,
+        render: (v: unknown) => (v ? `第${v}行` : '-'),
+      },
+      {
         title: '项目名称',
         dataIndex: 'name',
         key: 'name',
@@ -465,19 +473,52 @@ export default function ImportPreview({
         },
       },
       {
-        title: '问题',
-        dataIndex: 'message',
-        key: 'message',
-        width: 200,
-        ellipsis: true,
-        render: (text: unknown) =>
-          text ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {String(text)}
-            </Text>
-          ) : (
-            '-'
-          ),
+        title: '问题 / 修改建议',
+        key: 'issues',
+        width: 340,
+        render: (_value: unknown, record: Record<string, unknown>) => {
+          const errDetails = (record.error_details as ImportFieldError[] | undefined) || []
+          const warnDetails = (record.warning_details as ImportFieldError[] | undefined) || []
+          const errStrs = (record.errors as string[] | undefined) || []
+          const warnStrs = (record.warnings as string[] | undefined) || []
+
+          if (!errDetails.length && !warnDetails.length && !errStrs.length && !warnStrs.length) {
+            return <Text type="secondary">-</Text>
+          }
+
+          const renderDetail = (d: ImportFieldError, type: 'error' | 'warning', key: string) => (
+            <div key={key} style={{ marginBottom: 6, lineHeight: 1.5 }}>
+              <Text type={type === 'error' ? 'danger' : 'warning'} strong>
+                [{d.field_label || d.field || '未知列'}]
+              </Text>
+              {d.value !== undefined && d.value !== null && d.value !== '' && (
+                <Text type="secondary"> 当前值：{String(d.value)}</Text>
+              )}
+              <div>{d.message}</div>
+              {d.suggestion && <div style={{ color: '#fa8c16' }}>建议：{d.suggestion}</div>}
+            </div>
+          )
+
+          return (
+            <div style={{ fontSize: 12 }}>
+              {errDetails.map((d, i) => renderDetail(d, 'error', `e${i}`))}
+              {warnDetails.map((d, i) => renderDetail(d, 'warning', `w${i}`))}
+              {/* 回退：无结构化明细时展示纯文本 */}
+              {errDetails.length === 0 &&
+                errStrs.map((s, i) => (
+                  <div key={`es${i}`}>
+                    <Text type="danger">{s}</Text>
+                  </div>
+                ))}
+              {warnDetails.length === 0 &&
+                warnStrs.map((s, i) => (
+                  <div key={`ws${i}`}>
+                    <Text type="warning">{s}</Text>
+                  </div>
+                ))}
+            </div>
+          )
+        },
       },
     ],
     []
@@ -576,7 +617,7 @@ export default function ImportPreview({
           showQuickJumper: true,
           showTotal: (total) => `共 ${total} 条`,
         }}
-        scroll={{ x: 860 }}
+        scroll={{ x: 1100 }}
         className="import-preview-table"
       />
 

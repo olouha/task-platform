@@ -1,43 +1,14 @@
-import { Table, Card, Button, Space, Tag, Modal, Form, Input, message } from 'antd'
+import { Table, Card, Button, Space, Tag, Modal, Form, Input, message, Popconfirm } from 'antd'
 import { PlusOutlined, EditOutlined, DeleteOutlined, FolderOutlined, DollarOutlined } from '@ant-design/icons'
 import { useState, useEffect } from 'react'
 import { projectsApi, Project } from '../services/api'
 import PageHeader from '../components/PageHeader'
+import { getStoredIsAdmin, getStoredPosition } from '../auth'
+
+// 全权限职位
+const FULL_ACCESS_POSITIONS = ['管理层', '开发人员', '办公室团队']
 
 const initialProjects: Project[] = []
-
-const columns = [
-  { title: '项目名称', dataIndex: 'name', key: 'name' },
-  { title: '描述', dataIndex: 'description', key: 'description', render: (t: string) => t || <span style={{ color: '#999' }}>-</span> },
-  { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t ? new Date(t).toLocaleString() : '-' },
-  {
-    title: '状态',
-    dataIndex: 'status',
-    key: 'status',
-    render: (s: string) => <Tag style={{ background: s === 'active' ? '#10B981' : '#999', color: 'white', border: 'none' }}>{s === 'active' ? '进行中' : '已完成'}</Tag>,
-  },
-  {
-    title: '操作',
-    key: 'action',
-    width: 220,
-    render: (_: any, record: Project) => (
-      <Space>
-        <Button size="small" icon={<EditOutlined />} style={{ borderColor: '#4A86C8', color: '#4A86C8' }}>编辑</Button>
-        <Button size="small" type="primary" icon={<DollarOutlined />}>调差</Button>
-        <Button size="small" danger type="text" icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)}>删除</Button>
-      </Space>
-    ),
-  },
-]
-
-async function handleDelete(id: string) {
-  try {
-    await projectsApi.delete(id)
-    message.success('删除成功')
-  } catch (e) {
-    message.error('删除失败')
-  }
-}
 
 // 科技数据卡片组件
 const TechStatCard = ({
@@ -71,6 +42,37 @@ export default function Projects() {
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [form] = Form.useForm()
+  // 是否具有删除权限
+  const canDelete = getStoredIsAdmin() || FULL_ACCESS_POSITIONS.includes((getStoredPosition() || '').trim())
+
+  // 表格列定义
+  const columns = [
+    { title: '项目名称', dataIndex: 'name', key: 'name' },
+    { title: '描述', dataIndex: 'description', key: 'description', render: (t: string) => t || <span style={{ color: '#999' }}>-</span> },
+    { title: '创建时间', dataIndex: 'created_at', key: 'created_at', render: (t: string) => t ? new Date(t).toLocaleString() : '-' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (s: string) => <Tag style={{ background: s === 'active' ? '#10B981' : '#999', color: 'white', border: 'none' }}>{s === 'active' ? '进行中' : '已完成'}</Tag>,
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 220,
+      render: (_: any, record: Project) => (
+        <Space>
+          <Button size="small" icon={<EditOutlined />} style={{ borderColor: '#4A86C8', color: '#4A86C8' }}>编辑</Button>
+          <Button size="small" type="primary" icon={<DollarOutlined />}>调差</Button>
+          {canDelete && (
+            <Popconfirm title="确定删除此项目？" okText="删除" cancelText="取消" okButtonProps={{ danger: true }} onConfirm={() => handleDelete(record.id)}>
+              <Button size="small" danger type="text" icon={<DeleteOutlined />}>删除</Button>
+            </Popconfirm>
+          )}
+        </Space>
+      ),
+    },
+  ]
 
   const loadProjects = async () => {
     setLoading(true)
@@ -81,6 +83,16 @@ export default function Projects() {
       console.error('加载项目失败', e)
     }
     setLoading(false)
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await projectsApi.delete(id)
+      message.success('删除成功')
+      loadProjects()
+    } catch (e) {
+      message.error('删除失败')
+    }
   }
 
   useEffect(() => {

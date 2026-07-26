@@ -15,6 +15,8 @@ from starlette.responses import StreamingResponse
 
 from services.local_indicator_service import LocalIndicatorService
 from services.indicator_service import IndicatorService, CORRECTION_FACTORS
+from services.indicator_library_service import IndicatorLibraryService, get_indicator_library_service
+from api.deps import get_current_account, get_current_user_can_delete
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["指标库分析报告"])
@@ -22,6 +24,92 @@ router = APIRouter(tags=["指标库分析报告"])
 
 def get_indicator_service():
     return LocalIndicatorService()
+
+
+def get_library_service() -> IndicatorLibraryService:
+    """获取指标库业务服务（与「指标库管理」页同源）"""
+    return get_indicator_library_service()
+
+
+# ============================================================
+# 格式转换工具：IndicatorLibraryService 项目 -> 算法 legacy format
+# ============================================================
+
+def _enrich_raw_project(project: Dict) -> Dict:
+    """
+    对存储层原始记录做 legacy 字段兜底。
+
+    新录入数据（经「指标库管理」页 / Excel 导入）通常只填 above_rebar_unit /
+    above_concrete_unit 平米含量，而未直接填 steel / concrete。此处补齐，保证
+    后续 IndicatorService._to_legacy_format 不丢钢筋 / 混凝土关键字段。
+
+    单位换算：above_rebar_unit 为 t/㎡，legacy steel 为 kg/㎡，故 ×1000。
+    缺失或非法值保持原样（None），由算法侧兜底处理。
+    """
+    p = dict(project)
+    if p.get("steel") is None and p.get("above_rebar_unit") is not None:
+        try:
+            p["steel"] = round(float(p["above_rebar_unit"]) * 1000, 2)
+        except (TypeError, ValueError):
+            logger.warning(f"[_enrich_raw_project] above_rebar_unit 转换失败 | value={p.get('above_rebar_unit')}")
+    if p.get("concrete") is None and p.get("above_concrete_unit") is not None:
+        try:
+            p["concrete"] = float(p["above_concrete_unit"])
+        except (TypeError, ValueError):
+            logger.warning(f"[_enrich_raw_project] above_concrete_unit 转换失败 | value={p.get('above_concrete_unit')}")
+    return p
+
+
+def _detail_to_legacy_format(detail: Dict) -> Dict:
+    """
+    将 IndicatorLibraryService.get_detail() 返回的项目（IndicatorLibraryDetail 序列化后的字典）
+    转换为匹配算法所需的 legacy 嵌套格式。
+
+    IndicatorLibraryDetail 不直接含 steel / concrete 字段（新库改用 above_rebar_unit /
+    above_concrete_unit 平米含量），这里做合理兜底：
+      - steel(kg/㎡)       ← above_rebar_unit(t/㎡) × 1000
+      - concrete(m³/㎡)    ← above_concrete_unit(m³/㎡)
+    其余可能缺失的字段（height / floor_above / unit_cost 等）给 0 或 None，保证算法不崩。
+    """
+    steel: Optional[float] = detail.get("steel")
+    if steel is None and detail.get("above_rebar_unit") is not None:
+        try:
+            steel = round(float(detail["above_rebar_unit"]) * 1000, 2)
+        except (TypeError, ValueError):
+            steel = None
+
+    concrete: Optional[float] = detail.get("concrete")
+    if concrete is None and detail.get("above_concrete_unit") is not None:
+        try:
+            concrete = float(detail["above_concrete_unit"])
+        except (TypeError, ValueError):
+            concrete = None
+
+    return {
+        "id": detail.get("id"),
+        "name": detail.get("name"),
+        "category": detail.get("category"),
+        "location": detail.get("location"),
+        "structure": detail.get("structure"),
+        "floor_above": detail.get("floor_above") or 0,
+        "floor_below": detail.get("floor_below") or 0,
+        "area_total": detail.get("area_total") or 0,
+        "area_above": detail.get("area_above"),
+        "area_below": detail.get("area_below"),
+        "height": detail.get("height") or 0,
+        "indicators": {
+            "total_cost": detail.get("total_cost"),
+            "unit_cost": detail.get("unit_cost") or 0,
+            "unit_structure": detail.get("unit_structure"),
+            "unit_installation": detail.get("unit_installation"),
+            "unit_decoration": detail.get("unit_decoration"),
+            "unit_measure": detail.get("unit_measure"),
+        },
+        "material_content": {
+            "steel": steel,
+            "concrete": concrete,
+        },
+    }
 
 
 # ============================================================
@@ -32,6 +120,10 @@ class GenerateReportRequest(BaseModel):
     project: Dict
     indicators: Dict
     material_content: Optional[Dict] = None
+
+
+class AnalyzeProjectRequest(BaseModel):
+    project_id: str = Field(..., description="指标库中要分析的项目 ID")
 
 
 # ============================================================
@@ -101,6 +193,93 @@ async def generate_report(
     except Exception as e:
         logger.error(f"[generate_report] 报告生成失败 | 错误: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"报告生成失败: {str(e)}")
+
+
+@router.post("/analyze")
+async def analyze_project(
+    request: AnalyzeProjectRequest,
+    library_service: IndicatorLibraryService = Depends(get_library_service),
+):
+    """
+    对指标库中已存在的某个项目进行分析。
+
+    数据源与「指标库管理」页同源（IndicatorLibraryService）：选中的项目作为 target，
+    其余项目作为 database 做匹配 / 修正 / 对比。
+    """
+    logger.info(f"[analyze_project] 分析指标库项目 | project_id={request.project_id}")
+
+    try:
+        # 1. 取 target 项目（IndicatorLibraryService.get_detail，与指标库管理页一致）
+        target_detail = library_service.get_detail(request.project_id)
+        if not target_detail:
+            logger.warning(f"[analyze_project] 项目不存在 | project_id={request.project_id}")
+            raise HTTPException(status_code=404, detail=f"指标库中不存在项目 {request.project_id}")
+
+        target_project = _detail_to_legacy_format(target_detail.model_dump())
+        project_for_match = {
+            "name": target_project.get("name"),
+            "category": target_project.get("category"),
+            "location": target_project.get("location"),
+            "structure": target_project.get("structure"),
+            "height": target_project.get("height"),
+            "floor_above": target_project.get("floor_above"),
+            "floor_below": target_project.get("floor_below"),
+            "area_total": target_project.get("area_total"),
+        }
+        target_indicators = target_project.get("indicators", {}) or {}
+        target_material = target_project.get("material_content", {}) or {}
+
+        # 2. 取 database（全部项目，排除 target 自身）—— 同样来自 IndicatorLibraryService 存储层
+        database_flat = library_service._storage_service.get_indicator_projects(limit=500)
+        database = [
+            IndicatorService._to_legacy_format(_enrich_raw_project(p))
+            for p in database_flat
+            if p.get("id") != request.project_id
+        ]
+        logger.info(f"[analyze_project] 数据库候选数 | count={len(database)} | target={request.project_id}")
+
+        # 3. 复用现有算法：匹配 / 对比 / 修正 / 建议 / 风险
+        matched = IndicatorService.find_matched_indicators(project_for_match, database)
+
+        comparison = IndicatorService.analyze_comparison(
+            target_indicators.get("unit_cost", 0) or 0,
+            target_material.get("steel"),
+            target_material.get("concrete"),
+            matched,
+            database,
+        )
+
+        breakdown = IndicatorService.generate_cost_breakdown(target_indicators)
+
+        corrections = IndicatorService.generate_corrections(project_for_match, matched)
+
+        suggestions = IndicatorService.generate_suggestions(target_indicators, comparison, matched)
+
+        warnings = IndicatorService.generate_risk_warnings(project_for_match, comparison)
+
+        report_id = f"RPT-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+        logger.info(f"[analyze_project] 报告生成完成 | report_id={report_id}, project_id={request.project_id}, 匹配数={len(matched)}")
+
+        return {
+            "report_id": report_id,
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "project_id": request.project_id,
+            "project_name": target_project.get("name"),
+            "project_snapshot": target_detail.model_dump(exclude_none=True),  # 该项目完整数据，前端可展示
+            "matched_indicators": matched,
+            "comparison": comparison,
+            "cost_breakdown": breakdown,
+            "corrections": corrections,
+            "suggestions": suggestions,
+            "risk_warnings": warnings,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[analyze_project] 失败 | project_id={request.project_id} | {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"分析失败: {str(e)}")
 
 
 @router.get("/match")
@@ -380,6 +559,7 @@ async def create_database_project(
 async def update_database_project(
     project_id: str,
     project: Dict,
+    admin_account: str = Depends(get_current_user_can_delete),
     indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """更新指标库项目"""
@@ -397,6 +577,7 @@ async def update_database_project(
 @router.delete("/database/{project_id}")
 async def delete_database_project(
     project_id: str,
+    admin_account: str = Depends(get_current_user_can_delete),
     indicator_service: LocalIndicatorService = Depends(get_indicator_service)
 ):
     """删除指标库项目"""
@@ -472,7 +653,8 @@ async def get_reference_ranges():
 @router.post("/import")
 async def import_indicator(
     file: UploadFile = File(...),
-    indicator_service: LocalIndicatorService = Depends(get_indicator_service)
+    indicator_service: LocalIndicatorService = Depends(get_indicator_service),
+    account: str = Depends(get_current_account)
 ):
     """
     导入指标数据
@@ -505,6 +687,7 @@ async def import_indicator(
                 if i < len(headers) and headers[i]:
                     row_dict[headers[i]] = value
             if row_dict.get("name"):
+                row_dict["uploaded_by"] = account
                 projects.append(row_dict)
 
         if not projects:

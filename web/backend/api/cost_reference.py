@@ -3,12 +3,13 @@
 用于查询官方发布的钢筋、混凝土等造价参考价
 """
 
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Query, Depends, Header
 from typing import List, Optional
 from pydantic import BaseModel
 import re
 import logging
 
+from api.deps import get_current_account
 from services.supabase_service import SupabaseService
 
 router = APIRouter(tags=["造价参考价"])
@@ -255,10 +256,11 @@ async def get_cost_summary(supabase: SupabaseService = Depends(get_supabase)):
 @router.post("/prices")
 async def insert_cost_reference_prices(
     items: List[CostReferencePriceItem],
+    account: str = Depends(get_current_account),
     supabase: SupabaseService = Depends(get_supabase)
 ):
     """批量插入造价参考价"""
-    logger.info(f"[insert_cost_reference_prices] 批量插入造价参考价 | count={len(items)}")
+    logger.info(f"[insert_cost_reference_prices] 批量插入造价参考价 | count={len(items)} | by={account}")
     data = [item.model_dump() for item in items]
     result = supabase.insert_cost_reference_prices(data)
     logger.info(f"[insert_cost_reference_prices] 插入完成 | imported={result.get('imported')}, total={result.get('total')}")

@@ -59,11 +59,35 @@ const getOrCreateUserId = (): string => {
   }
 }
 
+// 持久化键：当前会话 ID
+const CONV_ID_KEY = 'task-platform:active-conv-id'
+
+const persistConvId = (id: string | null) => {
+  try {
+    if (id && !id.startsWith('temp-')) {
+      localStorage.setItem(CONV_ID_KEY, id)
+    } else {
+      localStorage.removeItem(CONV_ID_KEY)
+    }
+  } catch {
+    // ignore
+  }
+}
+
+const getPersistedConvId = (): string | null => {
+  try {
+    const v = localStorage.getItem(CONV_ID_KEY)
+    return v && !v.startsWith('temp-') ? v : null
+  } catch {
+    return null
+  }
+}
+
 export const useChatStore = create<ChatState>((set, get) => ({
   // 初始状态
   messages: [],
   userId: getOrCreateUserId(),
-  conversationId: null,
+  conversationId: getPersistedConvId(),
   conversations: [],
   isOpen: false,
   isLoading: false,
@@ -74,6 +98,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ isOpen: true })
     // 加载会话列表
     get().loadConversations()
+    // 如果本地有持久化的会话 ID，自动恢复历史消息
+    const persistedId = getPersistedConvId()
+    if (persistedId && !get().conversationId) {
+      get().loadMessages(persistedId)
+    } else if (persistedId && get().conversationId !== persistedId) {
+      get().loadMessages(persistedId)
+    }
   },
 
   // 关闭对话窗口
@@ -181,6 +212,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // 加载历史消息（P2-4: 接 REST）
   loadMessages: async (conversationId: string) => {
     const { userId } = get()
+    persistConvId(conversationId)
     set({ conversationId, isLoading: true })
 
     try {
@@ -225,6 +257,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           conversations: data ? [data, ...state.conversations] : state.conversations
         }))
       } else {
+        persistConvId(newId)
         set(state => ({
           conversationId: newId,
           messages: [],
@@ -252,6 +285,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       console.error('删除会话失败:', error)
     }
+    if (get().conversationId === conversationId) {
+      persistConvId(null)
+    }
     set(state => ({
       conversations: state.conversations.filter(c => c.id !== conversationId),
       conversationId: state.conversationId === conversationId ? null : state.conversationId
@@ -260,6 +296,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // 清空消息
   clearMessages: () => {
+    persistConvId(null)
     set({ messages: [], conversationId: null })
   },
 

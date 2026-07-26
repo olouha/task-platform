@@ -307,7 +307,7 @@ def load_db_prices() -> List[Dict]:
     """从SQLite数据库加载价格数据"""
     import sqlite3
 
-    db_file = 'services/data/yantai_rebar.db'
+    db_file = 'data/yantai_rebar.db'
     if not os.path.exists(db_file):
         logger.warning(f"[load_db_prices] 数据库不存在: {db_file}")
         return []

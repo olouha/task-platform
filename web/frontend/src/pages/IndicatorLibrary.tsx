@@ -14,7 +14,11 @@ import ImportPreview from '../components/indicator-library/ImportPreview'
 
 // 导入 API
 import { indicatorLibraryApi } from '../services/api'
-import type { IndicatorLibrarySummary, IndicatorLibraryDetail, IndicatorLibraryFilter, ImportPreviewItem } from '../types/indicator'
+import type { IndicatorLibrarySummary, IndicatorLibraryDetail, IndicatorLibraryFilter, ImportPreviewItem, ImportFieldError } from '../types/indicator'
+import { getStoredIsAdmin, getStoredPosition } from '../auth'
+
+// 全权限职位
+const FULL_ACCESS_POSITIONS = ['管理层', '开发人员', '办公室团队']
 
 // ============================================================================
 // 类型定义（保持向后兼容）
@@ -55,6 +59,9 @@ export default function IndicatorLibrary() {
   // 状态管理
   // -------------------------------------------------------------------------
 
+  /** 是否具有删除权限 */
+  const canDelete = getStoredIsAdmin() || FULL_ACCESS_POSITIONS.includes((getStoredPosition() || '').trim())
+
   /** 摘要列表数据 */
   const [summaryList, setSummaryList] = useState<IndicatorSummary[]>([])
 
@@ -72,6 +79,11 @@ export default function IndicatorLibrary() {
 
   /** 导入预览数据 */
   const [importPreviewData, setImportPreviewData] = useState<ImportPreviewItem[]>([])
+
+  /** 导入错误明细（autoImport 失败/部分失败时展示） */
+  const [importErrorDetails, setImportErrorDetails] = useState<ImportFieldError[]>([])
+  const [importErrorVisible, setImportErrorVisible] = useState(false)
+  const [importResultSummary, setImportResultSummary] = useState<{ imported: number; total: number } | null>(null)
 
   /** 筛选条件 */
   const [filters, setFilters] = useState<IndicatorFilters>({
@@ -197,11 +209,20 @@ export default function IndicatorLibrary() {
 
     try {
       const result = await indicatorLibraryApi.autoImport(file)
-      if (result.success) {
+      const errDetails = result.error_details || []
+      if (result.success && errDetails.length === 0) {
         message.success(`导入成功！共导入 ${result.imported} 条数据`)
       } else {
-        message.warning(`校验未通过：${result.errors?.length || 0} 条错误`)
-        return
+        // 有错误：弹窗展示行/列/当前值/建议
+        setImportErrorDetails(errDetails)
+        setImportResultSummary({ imported: result.imported, total: result.total })
+        setImportErrorVisible(true)
+        if (result.success) {
+          // 校验通过但部分入库失败
+          message.warning(`导入 ${result.imported} 条成功，但有 ${errDetails.length} 条失败`)
+        } else {
+          message.warning(`校验未通过：${errDetails.length} 条错误，详见弹窗`)
+        }
       }
     } catch (error) {
       console.error('[IndicatorLibrary] 自动导入失败:', error)
@@ -555,6 +576,7 @@ export default function IndicatorLibrary() {
             projectId={selectedId}
             initialData={selectedDetail}
             loading={loading && !!selectedId}
+            canDelete={canDelete}
             onLoadDetail={async (id) => {
               const detail = await indicatorLibraryAPI.getDetail(id)
               return detail
@@ -579,6 +601,44 @@ export default function IndicatorLibrary() {
         onConfirm={handleImportConfirm}
         onCancel={handleImportCancel}
       />
+
+      {/* 导入错误详情弹窗 */}
+      <Modal
+        title={
+          importResultSummary
+            ? `导入错误详情（成功 ${importResultSummary.imported}/${importResultSummary.total}）`
+            : '导入错误详情'
+        }
+        open={importErrorVisible}
+        onCancel={() => setImportErrorVisible(false)}
+        footer={null}
+        width={960}
+      >
+        <Table
+          dataSource={importErrorDetails}
+          rowKey={(record, idx) => `${record.row ?? 'x'}-${record.field ?? 'f'}-${idx}`}
+          size="small"
+          pagination={{ pageSize: 20, showTotal: (total) => `共 ${total} 条` }}
+          scroll={{ x: 760 }}
+          columns={[
+            { title: 'Excel行', dataIndex: 'row', width: 80, render: (v: unknown) => (v ? `第${v}行` : '-') },
+            { title: '列名', dataIndex: 'field_label', width: 150, render: (v: unknown, r: ImportFieldError) => v || r.field || '-' },
+            {
+              title: '当前值',
+              dataIndex: 'value',
+              width: 120,
+              render: (v: unknown) => (v === undefined || v === null || v === '' ? '-' : String(v)),
+            },
+            { title: '问题描述', dataIndex: 'message' },
+            {
+              title: '修改建议',
+              dataIndex: 'suggestion',
+              width: 240,
+              render: (v: unknown) => (v ? <span style={{ color: '#fa8c16' }}>{String(v)}</span> : '-'),
+            },
+          ]}
+        />
+      </Modal>
     </div>
   )
 }

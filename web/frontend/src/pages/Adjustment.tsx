@@ -271,7 +271,7 @@ export default function Adjustment() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(`${config.apiUrl}/api/file-parser/upload`, {
+      const response = await fetch(`${config.apiUrl}/file-parser/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -363,7 +363,7 @@ export default function Adjustment() {
     try {
       const materialNames = [...new Set(materials.map(m => m.name).filter(Boolean))];
 
-      const res = await fetch(`${config.apiUrl}/api/adjustments/prices/batch-get`, {
+      const res = await fetch(`${config.apiUrl}/adjustments/prices/batch-get`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

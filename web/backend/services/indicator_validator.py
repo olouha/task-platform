@@ -140,6 +140,14 @@ class IndicatorValidator:
     # 必填字段列表
     REQUIRED_FIELDS = ["name", "category", "location", "structure"]
 
+    # 非数值字段（字符串/日期/枚举/元数据）；未列入的字段默认按数值校验
+    STRING_FIELDS = {
+        "index", "name", "category", "location", "structure", "delivery_type",
+        "foundation_type", "floor_info", "start_date", "end_date", "remarks",
+        "source", "source_file", "entry_date", "id", "_row_index", "uploaded_by",
+        "created_at", "updated_at", "verified_at", "verified_by", "snapshot_id",
+    }
+
     # 日期格式正则
     DATE_PATTERN = re.compile(r"^\d{4}-\d{2}$")  # YYYY-MM
     DATE_FULL_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")  # YYYY-MM-DD
@@ -209,6 +217,41 @@ class IndicatorValidator:
             checks=checks,
         )
 
+    def _normalize_numeric_fields(
+        self, data: Dict[str, Any], errors: List[ValidationWarning]
+    ) -> None:
+        """数值字段类型规范化：字符串数字转 float，无法转换的记 error 并置 None
+
+        入库层（SQLite 动态类型）不会因类型不符报错，"25000元" 会被静默存为文本，
+        因此必须在验证层拦截。同时防止后续 `value <= 0` 在收到字符串时抛 TypeError
+        导致整个导入失败。
+        """
+        for field in list(data.keys()):
+            if field in self.STRING_FIELDS:
+                continue
+            value = data.get(field)
+            # bool 是 int 子类，跳过
+            if isinstance(value, bool):
+                continue
+            if isinstance(value, str) and value.strip():
+                raw = value.strip().replace(",", "")  # 兼容千分位 "25,000"
+                try:
+                    data[field] = float(raw)
+                except (ValueError, TypeError):
+                    errors.append(
+                        ValidationWarning(
+                            field=field,
+                            message="应填纯数字，不要带单位或文字（如 \"25000元\" 应写 \"25000\"）",
+                            severity="error",
+                            value=value,
+                            expected="纯数字（不要单位、不要千分位逗号）",
+                        )
+                    )
+                    logger.warning(
+                        f"[IndicatorValidator] 数值字段类型错误 | field={field} | value={value!r}"
+                    )
+                    data[field] = None  # 防止后续数值比较崩溃
+
     def _validate_basic(self, data: Dict[str, Any]) -> ValidationResult:
         """
         第一层验证：基础验证
@@ -227,6 +270,9 @@ class IndicatorValidator:
         logger.debug(f"[IndicatorValidator] 执行基础验证")
         errors: List[ValidationWarning] = []
         warnings: List[ValidationWarning] = []
+
+        # 0. 数值字段类型规范化（字符串数字转 float，非法值记错并防崩溃）
+        self._normalize_numeric_fields(data, errors)
 
         # 1. 检查必填字段
         for field in self.REQUIRED_FIELDS:
@@ -352,7 +398,8 @@ class IndicatorValidator:
         # 开工/竣工时间逻辑检查
         start_date = data.get("start_date")
         end_date = data.get("end_date")
-        if start_date and end_date:
+        # 只有两个都是字符串时才做日期比较（Excel 可能返回 int/float）
+        if isinstance(start_date, str) and isinstance(end_date, str):
             try:
                 start_dt = datetime.strptime(start_date, "%Y-%m")
                 end_dt = datetime.strptime(end_date, "%Y-%m")
@@ -651,6 +698,8 @@ class IndicatorValidator:
         Returns:
             bool: 是否有效
         """
+        if not isinstance(value, str):
+            return False
         if self.DATE_PATTERN.match(value):
             return True
         if self.DATE_FULL_PATTERN.match(value):

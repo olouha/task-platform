@@ -29,6 +29,7 @@ import BasicInfoSection, { BasicInfoData } from './BasicInfoSection'
 import CostSection, { CostData } from './CostSection'
 import SpecialCostSection, { SpecialCostData } from './SpecialCostSection'
 import MaterialSection, { MaterialData } from './MaterialSection'
+import BuildingIndexSection, { BuildingIndexData } from './BuildingIndexSection'
 import './DetailPanel.css'
 
 // ============================================================================
@@ -105,6 +106,16 @@ export interface IndicatorDetail {
   pipe?: number
   duct?: number
 
+  // 建筑指标
+  wall_floor_ratio?: number       // 墙地比 (%)
+  window_wall_ratio?: number      // 窗墙比 (%)
+  window_content?: number         // 窗含量 (㎡/㎡)
+  door_content?: number           // 门含量 (㎡/㎡)
+  interior_wall_content?: number  // 内墙含量 (㎡/㎡)
+  balcony_ratio?: number          // 阳台占比 (%)
+  assembly_rate?: number          // 装配率 (%)
+  assembly_content?: number       // 装配构件含量 (m³/㎡)
+
   // 审核状态
   verified?: boolean
   verified_by?: string
@@ -122,6 +133,8 @@ export interface DetailPanelProps {
   initialData?: IndicatorDetail | null
   /** 是否加载中 */
   loading?: boolean
+  /** 是否具有删除权限 */
+  canDelete?: boolean
   /** 加载详情数据的回调 */
   onLoadDetail?: (id: string) => Promise<IndicatorDetail | null>
   /** 保存数据的回调 */
@@ -142,6 +155,7 @@ const COLLAPSE_PANELS = [
   { key: 'cost', label: '造价指标', icon: '💰' },
   { key: 'special', label: '专项费用', icon: '📋' },
   { key: 'material', label: '材料含量', icon: '🧱' },
+  { key: 'building', label: '建筑指标', icon: '📐' },
 ]
 
 // ============================================================================
@@ -154,6 +168,7 @@ export default function DetailPanel({
   projectId,
   initialData,
   loading = false,
+  canDelete = false,
   onLoadDetail,
   onSave,
   onDelete,
@@ -363,6 +378,16 @@ export default function DetailPanel({
     []
   )
 
+  /**
+   * 建筑指标变更
+   */
+  const handleBuildingIndexChange = useCallback(
+    (field: keyof BuildingIndexData, value: number | undefined) => {
+      setEditData((prev) => (prev ? { ...prev, [field]: value } : null))
+    },
+    []
+  )
+
   // -------------------------------------------------------------------------
   // 渲染
   // -------------------------------------------------------------------------
@@ -436,15 +461,17 @@ export default function DetailPanel({
             >
               编辑
             </Button>
-            <Tooltip title="删除后无法恢复">
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={() => setDeleteConfirmVisible(true)}
-              >
-                删除
-              </Button>
-            </Tooltip>
+            {canDelete && (
+              <Tooltip title="删除后无法恢复">
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => setDeleteConfirmVisible(true)}
+                >
+                  删除
+                </Button>
+              </Tooltip>
+            )}
           </>
         )}
         {isNewMode && (
@@ -505,7 +532,7 @@ export default function DetailPanel({
 
         {/* Collapse 折叠面板 */}
         <Collapse
-          defaultActiveKey={['basic', 'cost', 'special', 'material']}
+          defaultActiveKey={['basic', 'cost', 'special', 'material', 'building']}
           ghost
           className="detail-panel-collapse"
           items={[
@@ -570,6 +597,22 @@ export default function DetailPanel({
                   data={currentData}
                   editMode={editMode}
                   onChange={handleMaterialChange}
+                />
+              ),
+            },
+            {
+              key: 'building',
+              label: (
+                <span className="detail-panel-collapse-header">
+                  <span>📐</span>
+                  <span>建筑指标</span>
+                </span>
+              ),
+              children: (
+                <BuildingIndexSection
+                  data={currentData}
+                  editMode={editMode}
+                  onChange={handleBuildingIndexChange}
                 />
               ),
             },

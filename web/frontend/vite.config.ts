@@ -33,6 +33,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+        timeout: 300000,        // 5 分钟，匹配截图识别（~2 分钟）长请求
+        proxyTimeout: 300000,
       },
     },
   },
