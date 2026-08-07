@@ -52,7 +52,7 @@ class AIService:
                     json={
                         "model": self.default_model,
                         "messages": messages,
-                        "temperature": temperature,
+                        "temperature": temperature, "reasoning_split": True,
                         "max_tokens": max_tokens
                     },
                     headers={
@@ -113,7 +113,7 @@ class AIService:
                     json={
                         "model": self.default_model,
                         "messages": messages,
-                        "temperature": temperature,
+                        "temperature": temperature, "reasoning_split": True,
                         "max_tokens": max_tokens,
                         "stream": True
                     },
@@ -301,7 +301,7 @@ class AIService:
                     json={
                         "model": self.default_model,
                         "messages": messages,
-                        "temperature": temperature,
+                        "temperature": temperature, "reasoning_split": True,
                         "max_tokens": max_tokens,
                         "tools": tools
                     },
@@ -332,6 +332,9 @@ class AIService:
                     "content": message.get("content", ""),
                     "tool_calls": tool_calls
                 }
+                # MiniMax-M3：多轮工具调用需把 reasoning_details 原样回传，保持推理链连续
+                if message.get("reasoning_details"):
+                    assistant_message["reasoning_details"] = message["reasoning_details"]
                 messages.append(assistant_message)
 
                 # 为每个工具调用执行并添加结果
@@ -366,6 +369,13 @@ class AIService:
                         "content": result_str
                     })
 
+                # 【修复】追加 System Hint：提醒 AI 工具已返回知识库/指标库数据，请引用真实数据作答
+                kb_hint = (
+                    "【系统提示】上方工具调用已返回知识库（search_knowledge_base）和指标库（search_indicators）的检索结果。"
+                    "请在回答中引用这些真实数据，不要编造项目名称、造价数字或经验案例。"
+                )
+                messages.append({"role": "system", "content": kb_hint})
+
                 # 第二轮：将工具结果发送给AI，生成最终回答
                 async with httpx.AsyncClient(timeout=120.0) as client2:
                     response2 = await client2.post(
@@ -373,7 +383,7 @@ class AIService:
                         json={
                             "model": self.default_model,
                             "messages": messages,
-                            "temperature": temperature,
+                            "temperature": temperature, "reasoning_split": True,
                             "max_tokens": max_tokens
                         },
                         headers={
@@ -438,7 +448,7 @@ class AIService:
                     json={
                         "model": self.default_model,
                         "messages": messages,
-                        "temperature": temperature,
+                        "temperature": temperature, "reasoning_split": True,
                         "max_tokens": max_tokens,
                         "tools": tools
                     },
@@ -468,11 +478,15 @@ class AIService:
                 yield f"[正在调用 {len(tool_calls)} 个工具...]\n\n"
 
                 # 添加助手消息（包含工具调用）
-                messages.append({
+                _asst_msg = {
                     "role": "assistant",
                     "content": message.get("content", ""),
                     "tool_calls": tool_calls
-                })
+                }
+                # MiniMax-M3：多轮工具调用需把 reasoning_details 原样回传，保持推理链连续
+                if message.get("reasoning_details"):
+                    _asst_msg["reasoning_details"] = message["reasoning_details"]
+                messages.append(_asst_msg)
 
                 # 执行所有工具调用
                 for tool_call in tool_calls:
@@ -500,6 +514,13 @@ class AIService:
                         "content": result_str
                     })
 
+                # 【修复】追加 System Hint：提醒 AI 工具已返回知识库/指标库数据，请引用真实数据作答
+                kb_hint = (
+                    "【系统提示】上方工具调用已返回知识库（search_knowledge_base）和指标库（search_indicators）的检索结果。"
+                    "请在回答中引用这些真实数据，不要编造项目名称、造价数字或经验案例。"
+                )
+                messages.append({"role": "system", "content": kb_hint})
+
                 # 第二轮：发送工具结果，流式获取最终回答
                 async with httpx.AsyncClient(timeout=120.0) as client2:
                     async with client2.stream(
@@ -508,7 +529,7 @@ class AIService:
                         json={
                             "model": self.default_model,
                             "messages": messages,
-                            "temperature": temperature,
+                            "temperature": temperature, "reasoning_split": True,
                             "max_tokens": max_tokens,
                             "stream": True
                         },
